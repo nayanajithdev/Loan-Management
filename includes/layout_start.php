@@ -1,0 +1,25 @@
+<?php
+/** @var string $pageTitle */
+/** @var string $activePage */
+?>
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><?= e($pageTitle) ?> | <?= APP_NAME ?></title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="<?= e(url('assets/css/style.css')) ?>">
+</head>
+<body>
+<div class="app-shell">
+    <?php require __DIR__ . '/sidebar.php'; ?>
+
+    <main class="main-content">
+        <?php require __DIR__ . '/topbar.php'; ?>
+
+        <?php if ($flash): ?>
+            <div class="flash flash-<?= e($flash['type']) ?>"><?= e($flash['message']) ?></div>
+        <?php endif; ?>
