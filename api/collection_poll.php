@@ -60,7 +60,7 @@ $sql = "SELECT
           AND li.status IN ('pending', 'partial', 'overdue')";
 
 $params = ['selected_date' => $selectedDate];
-if ($currentRole === 'collector') {
+if (is_collector_role($currentRole)) {
     $sql .= ' AND (l.assigned_user_id = :assigned_user_id OR l.assigned_user_id IS NULL)';
     $params['assigned_user_id'] = $currentUserId;
 }

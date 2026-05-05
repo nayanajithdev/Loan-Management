@@ -32,8 +32,8 @@ $superadminAvailable = has_superadmin($pdo);
         <?php endif; ?>
 
         <?php if (!$superadminAvailable): ?>
-            <div class="flash flash-error">No superadmin found. Create first superadmin user to start.</div>
-            <a class="btn btn-primary" href="<?= e(url('setup_superadmin.php')) ?>">Create First Superadmin</a>
+            <div class="flash flash-error">No owner found. Create first owner user to start.</div>
+            <a class="btn btn-primary" href="<?= e(url('setup_superadmin.php')) ?>">Create First Owner</a>
         <?php else: ?>
             <form method="post" action="<?= e(url('actions/auth_login.php')) ?>" class="form-grid auth-form-grid">
                 <div class="field full">

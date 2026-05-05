@@ -8,7 +8,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     redirect('pages/loans.php');
 }
 
-require_roles(['superadmin', 'admin'], 'pages/loans.php');
+require_roles(['superadmin', 'admin', 'collector_l2', 'collector'], 'pages/loans.php');
 
 $loanId = (int) ($_POST['loan_id'] ?? 0);
 $customerId = (int) ($_POST['customer_id'] ?? 0);
@@ -22,6 +22,7 @@ $status = trim((string) ($_POST['status'] ?? 'active'));
 $notes = trim((string) ($_POST['notes'] ?? ''));
 $assignedUserIdRaw = trim((string) ($_POST['assigned_user_id'] ?? ''));
 $assignedUserId = $assignedUserIdRaw === '' ? null : (int) $assignedUserIdRaw;
+$canEditAssignment = has_role(['superadmin', 'admin']);
 
 if ($loanId <= 0) {
     set_flash('error', 'Invalid loan selected.');
@@ -55,14 +56,14 @@ if (!$customerStmt->fetch()) {
     redirect('pages/loan_edit.php?loan_id=' . $loanId);
 }
 
-if ($assignedUserId !== null && $assignedUserId > 0) {
+if ($canEditAssignment && $assignedUserId !== null && $assignedUserId > 0) {
     $userStmt = $pdo->prepare('SELECT id FROM users WHERE id = :id LIMIT 1');
     $userStmt->execute(['id' => $assignedUserId]);
     if (!$userStmt->fetch()) {
         set_flash('error', 'Selected assigned user not found.');
         redirect('pages/loan_edit.php?loan_id=' . $loanId);
     }
-} else {
+} elseif ($canEditAssignment) {
     $assignedUserId = null;
 }
 
@@ -89,20 +90,17 @@ try {
         $updateLocked = $pdo->prepare(
             'UPDATE loans SET
                 status = :status,
-                notes = :notes,
-                assigned_user_id = :assigned_user_id
+                notes = :notes
              WHERE id = :id'
         );
         $updateLocked->bindValue(':status', $status, PDO::PARAM_STR);
         $updateLocked->bindValue(':notes', $notes === '' ? null : $notes, $notes === '' ? PDO::PARAM_NULL : PDO::PARAM_STR);
-        $updateLocked->bindValue(':assigned_user_id', $assignedUserId, $assignedUserId === null ? PDO::PARAM_NULL : PDO::PARAM_INT);
         $updateLocked->bindValue(':id', $loanId, PDO::PARAM_INT);
         $updateLocked->execute();
     } else {
         $updateLoan = $pdo->prepare(
             'UPDATE loans SET
                 customer_id = :customer_id,
-                assigned_user_id = :assigned_user_id,
                 principal_amount = :principal_amount,
                 interest_rate = :interest_rate,
                 total_amount = :total_amount,
@@ -115,7 +113,6 @@ try {
              WHERE id = :id'
         );
         $updateLoan->bindValue(':customer_id', $customerId, PDO::PARAM_INT);
-        $updateLoan->bindValue(':assigned_user_id', $assignedUserId, $assignedUserId === null ? PDO::PARAM_NULL : PDO::PARAM_INT);
         $updateLoan->bindValue(':principal_amount', $principal);
         $updateLoan->bindValue(':interest_rate', $interestRate);
         $updateLoan->bindValue(':total_amount', $totalAmount);
@@ -157,7 +154,22 @@ try {
         }
     }
 
+    if ($canEditAssignment) {
+        $assignStmt = $pdo->prepare('UPDATE loans SET assigned_user_id = :assigned_user_id WHERE id = :loan_id');
+        $assignStmt->bindValue(':assigned_user_id', $assignedUserId, $assignedUserId === null ? PDO::PARAM_NULL : PDO::PARAM_INT);
+        $assignStmt->bindValue(':loan_id', $loanId, PDO::PARAM_INT);
+        $assignStmt->execute();
+    }
+
     $pdo->commit();
+    $loanNumber = (string) ($loan['loan_number'] ?? ('#' . $loanId));
+    log_activity($pdo, 'loan.updated', 'Loan updated: ' . $loanNumber . '.', [
+        'loan_id' => $loanId,
+        'customer_id' => $customerId,
+        'assigned_user_id' => $assignedUserId,
+        'status' => $status,
+        'repayment_locked' => $collectionsCount > 0 ? 1 : 0,
+    ]);
     set_flash('success', $collectionsCount > 0 ? 'Loan updated (repayment structure locked because collections exist).' : 'Loan updated successfully.');
 } catch (Throwable $e) {
     if ($pdo->inTransaction()) {
@@ -167,4 +179,3 @@ try {
 }
 
 redirect('pages/loan_edit.php?loan_id=' . $loanId);
-

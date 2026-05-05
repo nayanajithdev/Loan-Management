@@ -26,7 +26,7 @@ if ((int) $current['id'] === $userId) {
     redirect('pages/users.php');
 }
 
-$targetStmt = $pdo->prepare('SELECT id, role FROM users WHERE id = :id LIMIT 1');
+$targetStmt = $pdo->prepare('SELECT id, full_name, username, role FROM users WHERE id = :id LIMIT 1');
 $targetStmt->execute(['id' => $userId]);
 $targetUser = $targetStmt->fetch();
 
@@ -39,17 +39,23 @@ $currentRole = (string) $current['role'];
 $targetRole = (string) $targetUser['role'];
 
 if ($currentRole === 'admin' && $targetRole === 'superadmin') {
-    set_flash('error', 'Admin cannot delete superadmin.');
+    set_flash('error', 'Manager cannot delete owner.');
     redirect('pages/users.php');
 }
 
 if ($targetRole === 'superadmin') {
-    set_flash('error', 'Superadmin cannot be deleted (only one superadmin allowed).');
+    set_flash('error', 'Owner cannot be deleted (only one owner allowed).');
     redirect('pages/users.php');
 }
 
 $deleteStmt = $pdo->prepare('DELETE FROM users WHERE id = :id');
 $deleteStmt->execute(['id' => $userId]);
+
+log_activity($pdo, 'user.deleted', 'User deleted: ' . (string) $targetUser['full_name'] . '.', [
+    'user_id' => $userId,
+    'username' => (string) $targetUser['username'],
+    'role' => role_display_name((string) $targetUser['role']),
+]);
 
 set_flash('success', 'User deleted successfully.');
 redirect('pages/users.php');

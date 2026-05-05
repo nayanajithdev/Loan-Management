@@ -4,6 +4,14 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../includes/bootstrap.php';
 
+$current = current_user();
+if ($current) {
+    log_activity($pdo, 'auth.logout', 'User logged out.', [
+        'username' => (string) ($current['username'] ?? ''),
+        'role' => role_display_name((string) ($current['role'] ?? '')),
+    ], (int) $current['id']);
+}
+
 logout_user();
 
 header('Location: ' . url('login.php'));

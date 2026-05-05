@@ -9,11 +9,14 @@ require_once __DIR__ . '/helpers.php';
 
 $pdo = db();
 ensure_user_schema($pdo);
+ensure_user_profile_schema($pdo);
 ensure_collection_user_schema($pdo);
 ensure_collection_payment_ref_schema($pdo);
 ensure_loan_assignment_schema($pdo);
 ensure_customer_documents_schema($pdo);
 ensure_customer_note_schema($pdo);
+ensure_system_settings_schema($pdo);
+ensure_activity_logs_schema($pdo);
 $flash = get_flash();
 
 $scriptBaseName = basename((string) ($_SERVER['SCRIPT_NAME'] ?? ''));
@@ -33,7 +36,7 @@ if (!in_array($scriptBaseName, $publicScripts, true)) {
     }
 
     $current = current_user();
-    $refreshStmt = $pdo->prepare('SELECT id, full_name, username, role FROM users WHERE id = :id LIMIT 1');
+    $refreshStmt = $pdo->prepare('SELECT id, full_name, username, role, avatar_path FROM users WHERE id = :id LIMIT 1');
     $refreshStmt->execute(['id' => (int) $current['id']]);
     $latestUser = $refreshStmt->fetch();
 
@@ -48,5 +51,6 @@ if (!in_array($scriptBaseName, $publicScripts, true)) {
         'full_name' => (string) $latestUser['full_name'],
         'username' => (string) $latestUser['username'],
         'role' => (string) $latestUser['role'],
+        'avatar_path' => (string) ($latestUser['avatar_path'] ?? ''),
     ];
 }

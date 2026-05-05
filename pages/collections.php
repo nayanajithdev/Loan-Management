@@ -8,8 +8,18 @@ $pageTitle = 'Collection History';
 $activePage = 'collections';
 
 refresh_overdue_installments($pdo);
+$current = current_user();
+$currentRole = (string) ($current['role'] ?? '');
+$currentUserId = (int) ($current['id'] ?? 0);
 
-$collections = $pdo->query(
+$scopeSql = '';
+$params = [];
+if (is_collector_role($currentRole)) {
+    $scopeSql = ' WHERE (l.assigned_user_id = :assigned_user_id OR l.assigned_user_id IS NULL)';
+    $params['assigned_user_id'] = $currentUserId;
+}
+
+$collectionsStmt = $pdo->prepare(
     "SELECT
         MAX(col.id) AS latest_id,
         MAX(col.collected_on) AS collected_on,
@@ -24,10 +34,13 @@ $collections = $pdo->query(
      JOIN loans l ON l.id = col.loan_id
      JOIN customers c ON c.id = l.customer_id
      LEFT JOIN users u ON u.id = col.collected_by_user_id
+     {$scopeSql}
      GROUP BY COALESCE(col.payment_ref, CONCAT('legacy-', col.id)), l.loan_number, c.full_name
      ORDER BY latest_id DESC
      LIMIT 50"
-)->fetchAll();
+);
+$collectionsStmt->execute($params);
+$collections = $collectionsStmt->fetchAll();
 
 require __DIR__ . '/../includes/layout_start.php';
 ?>

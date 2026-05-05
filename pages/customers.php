@@ -7,7 +7,38 @@ require_once __DIR__ . '/../includes/bootstrap.php';
 $pageTitle = 'Customers';
 $activePage = 'customers';
 
-$customers = $pdo->query('SELECT * FROM customers ORDER BY id DESC')->fetchAll();
+$current = current_user();
+$currentRole = (string) ($current['role'] ?? '');
+$currentUserId = (int) ($current['id'] ?? 0);
+
+if (can_view_all_customers()) {
+    $customers = $pdo->query('SELECT * FROM customers ORDER BY id DESC')->fetchAll();
+} else {
+    $customerStmt = $pdo->prepare(
+        "SELECT c.*
+         FROM customers c
+         WHERE EXISTS (
+                SELECT 1
+                FROM loans l_assigned
+                WHERE l_assigned.customer_id = c.id
+                  AND l_assigned.assigned_user_id = :uid
+            )
+            OR EXISTS (
+                SELECT 1
+                FROM loans l_unassigned
+                WHERE l_unassigned.customer_id = c.id
+                  AND l_unassigned.assigned_user_id IS NULL
+            )
+            OR NOT EXISTS (
+                SELECT 1
+                FROM loans l_any
+                WHERE l_any.customer_id = c.id
+            )
+         ORDER BY c.id DESC"
+    );
+    $customerStmt->execute(['uid' => $currentUserId]);
+    $customers = $customerStmt->fetchAll();
+}
 
 $selectedCustomerId = (int) ($_GET['customer_id'] ?? 0);
 $selectedCustomer = null;

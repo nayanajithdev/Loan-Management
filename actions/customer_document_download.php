@@ -33,6 +33,11 @@ if (!is_file($absPath)) {
 
 $downloadName = (string) ($doc['original_name'] ?? $doc['stored_name'] ?? ('document-' . $docId));
 $mimeType = (string) ($doc['mime_type'] ?? 'application/octet-stream');
+log_activity($pdo, 'customer.document_download', 'Customer document downloaded.', [
+    'customer_id' => (int) $doc['customer_id'],
+    'document_id' => $docId,
+    'file_name' => $downloadName,
+]);
 
 header('Content-Description: File Transfer');
 header('Content-Type: ' . $mimeType);
@@ -42,4 +47,3 @@ header('Pragma: public');
 header('Cache-Control: private, must-revalidate');
 readfile($absPath);
 exit;
-

@@ -9,7 +9,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 }
 
 if (!can_manage_users()) {
-    set_flash('error', 'Only Superadmin or Admin can assign loans.');
+    set_flash('error', 'Only Owner or Manager can assign loans.');
     redirect('pages/loans.php');
 }
 
@@ -22,28 +22,39 @@ if ($loanId <= 0) {
     redirect('pages/loans.php');
 }
 
-$loanStmt = $pdo->prepare('SELECT id FROM loans WHERE id = :id LIMIT 1');
+$loanStmt = $pdo->prepare('SELECT id, loan_number FROM loans WHERE id = :id LIMIT 1');
 $loanStmt->execute(['id' => $loanId]);
-if (!$loanStmt->fetch()) {
+$loan = $loanStmt->fetch();
+if (!$loan) {
     set_flash('error', 'Loan not found.');
     redirect('pages/loans.php');
 }
 
+$assignedUserName = 'Unassigned';
 if ($assignedUserId !== null && $assignedUserId > 0) {
-    $userStmt = $pdo->prepare('SELECT id FROM users WHERE id = :id LIMIT 1');
+    $userStmt = $pdo->prepare('SELECT id, full_name FROM users WHERE id = :id LIMIT 1');
     $userStmt->execute(['id' => $assignedUserId]);
-    if (!$userStmt->fetch()) {
+    $assignedUser = $userStmt->fetch();
+    if (!$assignedUser) {
         set_flash('error', 'Selected user not found.');
         redirect('pages/loan_edit.php?loan_id=' . $loanId);
     }
+    $assignedUserName = (string) $assignedUser['full_name'];
 } else {
     $assignedUserId = null;
 }
 
-$updateStmt = $pdo->prepare('UPDATE loans SET assigned_user_id = :assigned_user_id WHERE id = :id');
+$updateStmt = $pdo->prepare('UPDATE loans SET assigned_user_id = :assigned_user_id WHERE id = :loan_id');
 $updateStmt->bindValue(':assigned_user_id', $assignedUserId, $assignedUserId === null ? PDO::PARAM_NULL : PDO::PARAM_INT);
-$updateStmt->bindValue(':id', $loanId, PDO::PARAM_INT);
+$updateStmt->bindValue(':loan_id', $loanId, PDO::PARAM_INT);
 $updateStmt->execute();
+
+log_activity($pdo, 'loan.assigned', 'Loan assignment updated: ' . (string) $loan['loan_number'] . ' -> ' . $assignedUserName . '.', [
+    'loan_id' => $loanId,
+    'loan_number' => (string) $loan['loan_number'],
+    'assigned_user_id' => $assignedUserId,
+    'assigned_user_name' => $assignedUserName,
+]);
 
 set_flash('success', 'Loan assignment updated.');
 redirect('pages/loan_edit.php?loan_id=' . $loanId);

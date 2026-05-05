@@ -16,7 +16,7 @@ if (has_superadmin($pdo)) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Create Superadmin | <?= e(APP_NAME) ?></title>
+    <title>Create Owner | <?= e(APP_NAME) ?></title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -25,7 +25,7 @@ if (has_superadmin($pdo)) {
 <body class="auth-body">
 <div class="auth-shell">
     <section class="auth-card">
-        <h1>Setup First Superadmin</h1>
+        <h1>Setup First Owner</h1>
         <p class="auth-sub">This must be done once for first system start.</p>
 
         <?php if ($flash): ?>
@@ -50,7 +50,7 @@ if (has_superadmin($pdo)) {
                 <input type="password" name="confirm_password" required minlength="6">
             </div>
             <div class="field full" style="align-self:end;">
-                <button type="submit" class="btn btn-primary">Create Superadmin</button>
+                <button type="submit" class="btn btn-primary">Create Owner</button>
             </div>
         </form>
     </section>

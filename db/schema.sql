@@ -6,7 +6,8 @@ CREATE TABLE IF NOT EXISTS users (
     full_name VARCHAR(120) NOT NULL,
     username VARCHAR(80) NOT NULL UNIQUE,
     password_hash VARCHAR(255) NOT NULL,
-    role ENUM('superadmin', 'admin', 'collector') NOT NULL DEFAULT 'admin',
+    role ENUM('superadmin', 'admin', 'collector', 'collector_l1', 'collector_l2') NOT NULL DEFAULT 'admin',
+    avatar_path VARCHAR(255) DEFAULT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -83,4 +84,28 @@ CREATE TABLE IF NOT EXISTS customer_documents (
     INDEX idx_customer_documents_uploaded_by (uploaded_by_user_id),
     FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE,
     FOREIGN KEY (uploaded_by_user_id) REFERENCES users(id) ON DELETE SET NULL
+);
+
+CREATE TABLE IF NOT EXISTS system_settings (
+    setting_key VARCHAR(100) PRIMARY KEY,
+    setting_value TEXT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    updated_by_user_id INT NULL,
+    INDEX idx_system_settings_updated_by (updated_by_user_id),
+    FOREIGN KEY (updated_by_user_id) REFERENCES users(id) ON DELETE SET NULL
+);
+
+CREATE TABLE IF NOT EXISTS activity_logs (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    actor_user_id INT NULL,
+    actor_role VARCHAR(20) NULL,
+    action_key VARCHAR(80) NOT NULL,
+    description VARCHAR(255) NOT NULL,
+    meta_json LONGTEXT NULL,
+    ip_address VARCHAR(45) NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_activity_logs_created_at (created_at),
+    INDEX idx_activity_logs_actor (actor_user_id),
+    INDEX idx_activity_logs_action_key (action_key),
+    FOREIGN KEY (actor_user_id) REFERENCES users(id) ON DELETE SET NULL
 );

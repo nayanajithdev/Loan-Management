@@ -4,10 +4,14 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../includes/bootstrap.php';
 
-$stats = dashboard_stats($pdo);
-$todayGoal = today_collection_goal($pdo);
-$collectionsTrend = collections_30day_trend($pdo);
-$userGoals = dashboard_user_goals($pdo);
+$viewer = current_user();
+$viewerRole = (string) ($viewer['role'] ?? '');
+$viewerId = (int) ($viewer['id'] ?? 0);
+$isCollectorScope = is_collector_role($viewerRole) && $viewerId > 0;
+$stats = dashboard_stats($pdo, $viewer);
+$todayGoal = today_collection_goal($pdo, $viewer);
+$collectionsTrend = collections_30day_trend($pdo, $viewer);
+$userGoals = dashboard_user_goals($pdo, $viewer);
 $chartWidth = 920;
 $chartHeight = 280;
 $targetPoints = sparkline_points_scaled($collectionsTrend['target'], 0, (float) $collectionsTrend['max_value'], $chartWidth, $chartHeight, 12);
@@ -18,47 +22,31 @@ $profitTotal = $closedProfitValue + $openProjectedProfitValue;
 $closedProfitPct = $profitTotal > 0 ? ($closedProfitValue / $profitTotal) * 100 : 0;
 $openProjectedPct = $profitTotal > 0 ? ($openProjectedProfitValue / $profitTotal) * 100 : 0;
 
-$recentCollections = $pdo->query(
-    'SELECT c.collected_on, c.amount, c.method, l.loan_number, cu.full_name
-     FROM collections c
-     JOIN loans l ON l.id = c.loan_id
-     JOIN customers cu ON cu.id = l.customer_id
-     ORDER BY c.id DESC
-     LIMIT 8'
-)->fetchAll();
+if ($isCollectorScope) {
+    $recentStmt = $pdo->prepare(
+        'SELECT c.collected_on, c.amount, c.method, l.loan_number, cu.full_name
+         FROM collections c
+         JOIN loans l ON l.id = c.loan_id
+         JOIN customers cu ON cu.id = l.customer_id
+         WHERE l.assigned_user_id = :viewer_user_id OR l.assigned_user_id IS NULL
+         ORDER BY c.id DESC
+         LIMIT 8'
+    );
+    $recentStmt->execute(['viewer_user_id' => $viewerId]);
+    $recentCollections = $recentStmt->fetchAll();
+} else {
+    $recentCollections = $pdo->query(
+        'SELECT c.collected_on, c.amount, c.method, l.loan_number, cu.full_name
+         FROM collections c
+         JOIN loans l ON l.id = c.loan_id
+         JOIN customers cu ON cu.id = l.customer_id
+         ORDER BY c.id DESC
+         LIMIT 8'
+    )->fetchAll();
+}
 
 ob_start();
 ?>
-<article class="stat-card trend-card">
-    <p class="stat-label">Total Customers</p>
-    <div class="trend-main">
-        <p class="stat-value"><?= e((string) $stats['customers']) ?></p>
-        <svg class="trend-spark" viewBox="0 0 140 46" aria-hidden="true">
-            <polyline points="<?= e(sparkline_points($customerTrend['values'], 140, 46, 4)) ?>"></polyline>
-        </svg>
-    </div>
-    <p class="trend-meta <?= e($trendClass) ?>"><?= e($trendPrefix . number_format($customerTrend['delta_pct'], 1)) ?>% weekly</p>
-</article>
-
-<article class="stat-card">
-    <p class="stat-label">Active Loans</p>
-    <p class="stat-value"><?= e((string) $stats['active_loans']) ?></p>
-</article>
-
-<article class="stat-card trend-card trend-card-disbursed">
-    <p class="stat-label">Total Disbursed</p>
-    <p class="stat-value">LKR <?= e(money((float) $stats['total_disbursed'])) ?></p>
-    <svg class="trend-spark trend-spark-under" viewBox="0 0 260 56" aria-hidden="true">
-        <polyline points="<?= e(sparkline_points($disbursedTrend['values'], 260, 56, 4)) ?>"></polyline>
-    </svg>
-    <p class="trend-meta <?= e($disbursedTrendClass) ?>"><?= e($disbursedTrendPrefix . number_format($disbursedTrend['delta_pct'], 1)) ?>% weekly</p>
-</article>
-
-<article class="stat-card">
-    <p class="stat-label">Total Collected</p>
-    <p class="stat-value">LKR <?= e(money((float) $stats['total_collected'])) ?></p>
-</article>
-
 <article class="stat-card goal-mini-card" id="dashboard-goal-card">
     <p class="stat-label">Today's Collections</p>
     <p class="goal-mini-collected">LKR <?= e(money($todayGoal['collected'])) ?></p>
@@ -68,28 +56,32 @@ ob_start();
     </div>
 </article>
 
-<article class="stat-card">
+<article class="stat-card dashboard-card-due">
     <p class="stat-label">Due Today (Pending)</p>
     <p class="stat-value">LKR <?= e(money((float) $stats['today_pending_amount'])) ?></p>
     <p class="trend-meta"><?= e((string) $stats['today_pending_count']) ?> installments pending</p>
     <p class="trend-meta <?= (int) $stats['overdue_count'] > 0 ? 'trend-danger' : '' ?>"><?= e((string) $stats['overdue_count']) ?> overdue installments</p>
 </article>
 
-<article class="stat-card">
-    <p class="stat-label">Total Outstanding</p>
-    <p class="stat-value">LKR <?= e(money((float) $stats['outstanding_principal'])) ?></p>
-    <p class="trend-meta"><?= e((string) $stats['active_loans']) ?> active loans</p>
-</article>
+<?php if (!$isCollectorScope): ?>
+    <article class="stat-card dashboard-card-outstanding">
+        <p class="stat-label">Total Outstanding</p>
+        <p class="stat-value">LKR <?= e(money((float) $stats['outstanding_principal'])) ?></p>
+        <p class="trend-meta"><?= e((string) $stats['active_loans']) ?> active loans</p>
+    </article>
+<?php endif; ?>
 
-<article class="stat-card">
-    <p class="stat-label">Profit (Closed Loans)</p>
-    <p class="stat-value">LKR <?= e(money($closedProfitValue)) ?></p>
-    <p class="trend-meta">LKR <?= e(money($openProjectedProfitValue)) ?> projected from open loans</p>
-    <div class="dual-progress" aria-hidden="true">
-        <span class="dual-progress-closed" style="width: <?= e(number_format($closedProfitPct, 2, '.', '')) ?>%"></span>
-        <span class="dual-progress-open" style="width: <?= e(number_format($openProjectedPct, 2, '.', '')) ?>%"></span>
-    </div>
-</article>
+<?php if (!$isCollectorScope): ?>
+    <article class="stat-card dashboard-card-profit">
+        <p class="stat-label">Profit (Closed Loans)</p>
+        <p class="stat-value">LKR <?= e(money($closedProfitValue)) ?></p>
+        <p class="trend-meta">LKR <?= e(money($openProjectedProfitValue)) ?> projected from open loans</p>
+        <div class="dual-progress" aria-hidden="true">
+            <span class="dual-progress-closed" style="width: <?= e(number_format($closedProfitPct, 2, '.', '')) ?>%"></span>
+            <span class="dual-progress-open" style="width: <?= e(number_format($openProjectedPct, 2, '.', '')) ?>%"></span>
+        </div>
+    </article>
+<?php endif; ?>
 <?php
 $cardsHtml = ob_get_clean();
 

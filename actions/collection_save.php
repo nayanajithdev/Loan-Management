@@ -77,9 +77,18 @@ try {
     $current = current_user();
     $currentRole = (string) ($current['role'] ?? '');
     $currentUserId = (int) ($current['id'] ?? 0);
+    $currentUserName = (string) ($current['full_name'] ?? 'Unknown');
+    $loanNumber = (string) ($loan['loan_number'] ?? ('#' . $loanId));
 
     $assignedUserId = isset($loan['assigned_user_id']) ? (int) $loan['assigned_user_id'] : 0;
-    if ($currentRole === 'collector' && $assignedUserId > 0 && $assignedUserId !== $currentUserId) {
+    $assignedUser = null;
+    if ($assignedUserId > 0) {
+        $assignedUserStmt = $pdo->prepare('SELECT id, full_name, role FROM users WHERE id = :id LIMIT 1');
+        $assignedUserStmt->execute(['id' => $assignedUserId]);
+        $assignedUser = $assignedUserStmt->fetch() ?: null;
+    }
+
+    if (is_collector_role($currentRole) && $assignedUserId > 0 && $assignedUserId !== $currentUserId) {
         throw new RuntimeException('You can only collect payments for loans assigned to you (or unassigned loans).');
     }
 
@@ -203,11 +212,36 @@ try {
 
     $pdo->commit();
 
+    $activityDescription = $currentUserName . ' recorded collection for loan ' . $loanNumber . '.';
+    if (
+        $currentRole === 'admin'
+        && $assignedUser !== null
+        && is_collector_role((string) ($assignedUser['role'] ?? ''))
+        && (int) ($assignedUser['id'] ?? 0) !== $currentUserId
+    ) {
+        $activityDescription = $currentUserName . ' collected ' . (string) $assignedUser['full_name'] . "'s collection.";
+    }
+
+    log_activity($pdo, 'collection.recorded', $activityDescription, [
+        'loan_id' => $loanId,
+        'loan_number' => $loanNumber,
+        'amount' => $amount,
+        'collected_on' => $collectedOn,
+        'method' => $method,
+        'payment_ref' => $paymentRef,
+        'assigned_user' => $assignedUser !== null ? (string) ($assignedUser['full_name'] ?? '') : 'Unassigned',
+    ]);
+
     set_flash('success', 'Collection recorded successfully.');
 } catch (Throwable $e) {
     if ($pdo->inTransaction()) {
         $pdo->rollBack();
     }
+    log_activity($pdo, 'collection.failed', 'Collection failed: ' . $e->getMessage(), [
+        'loan_id' => $loanId,
+        'amount' => $amount,
+        'collected_on' => $collectedOn,
+    ]);
     set_flash('error', 'Failed to record collection: ' . $e->getMessage());
 }
 

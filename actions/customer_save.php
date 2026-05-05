@@ -54,6 +54,11 @@ try {
     $message = $uploadedCount > 0
         ? 'Customer created successfully with ' . $uploadedCount . ' document(s).'
         : 'Customer created successfully.';
+    log_activity($pdo, 'customer.created', 'Customer created: ' . $fullName . '.', [
+        'customer_id' => $customerId,
+        'customer_code' => $customerCode,
+        'documents_uploaded' => $uploadedCount,
+    ]);
     set_flash('success', $message);
     redirect('pages/customers.php?customer_id=' . $customerId);
 } catch (Throwable $e) {

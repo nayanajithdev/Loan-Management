@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../includes/bootstrap.php';
 
-require_roles(['superadmin', 'admin']);
+require_roles(['superadmin', 'admin', 'collector_l2', 'collector']);
 
 $pageTitle = 'Edit Loan';
 $activePage = 'loans';
@@ -17,6 +17,7 @@ if ($loanId <= 0) {
 
 $loanStmt = $pdo->prepare(
     "SELECT l.*, c.full_name
+            , l.assigned_user_id AS loan_assigned_user_id
      FROM loans l
      JOIN customers c ON c.id = l.customer_id
      WHERE l.id = :id
@@ -31,7 +32,8 @@ if (!$loan) {
 }
 
 $customers = $pdo->query("SELECT id, customer_code, full_name FROM customers WHERE status = 'active' ORDER BY full_name ASC")->fetchAll();
-$users = $pdo->query("SELECT id, full_name, username, role FROM users ORDER BY FIELD(role, 'superadmin', 'admin', 'collector'), full_name ASC")->fetchAll();
+$users = $pdo->query("SELECT id, full_name, username, role FROM users ORDER BY FIELD(role, 'superadmin', 'admin', 'collector_l2', 'collector_l1', 'collector'), full_name ASC")->fetchAll();
+$canEditAssignment = has_role(['superadmin', 'admin']);
 
 $collectionCountStmt = $pdo->prepare('SELECT COUNT(*) FROM collections WHERE loan_id = :loan_id');
 $collectionCountStmt->execute(['loan_id' => $loanId]);
@@ -132,15 +134,18 @@ require __DIR__ . '/../includes/layout_start.php';
         </div>
 
         <div class="field">
-            <label>Assign To User</label>
-            <select name="assigned_user_id">
+            <label>Assign Loan To User</label>
+            <select name="assigned_user_id" <?= $canEditAssignment ? '' : 'disabled' ?>>
                 <option value="">Unassigned</option>
                 <?php foreach ($users as $user): ?>
-                    <option value="<?= e((string) $user['id']) ?>" <?= (int) $loan['assigned_user_id'] === (int) $user['id'] ? 'selected' : '' ?>>
-                        <?= e($user['full_name'] . ' (' . $user['username'] . ' - ' . ucfirst((string) $user['role']) . ')') ?>
+                    <option value="<?= e((string) $user['id']) ?>" <?= (int) $loan['loan_assigned_user_id'] === (int) $user['id'] ? 'selected' : '' ?>>
+                        <?= e($user['full_name'] . ' (' . $user['username'] . ' - ' . role_display_name((string) $user['role']) . ')') ?>
                     </option>
                 <?php endforeach; ?>
             </select>
+            <?php if (!$canEditAssignment): ?>
+                <input type="hidden" name="assigned_user_id" value="<?= e((string) ($loan['loan_assigned_user_id'] ?? '')) ?>">
+            <?php endif; ?>
         </div>
 
         <div class="field full">
@@ -148,17 +153,21 @@ require __DIR__ . '/../includes/layout_start.php';
             <textarea name="notes" placeholder="Optional"><?= e((string) ($loan['notes'] ?? '')) ?></textarea>
         </div>
 
-        <div class="field">
+        <div class="field full loan-preview-field">
             <label>Repayment Preview</label>
-            <div class="metric-box">
-                <p>Total Repayable</p>
-                <h3>LKR <span id="preview-total"><?= e(money((float) $loan['total_amount'])) ?></span></h3>
-                <p>Per Installment</p>
-                <h3>LKR <span id="preview-installment"><?= e(money((float) $loan['installment_amount'])) ?></span></h3>
+            <div class="calc-preview-grid">
+                <div class="calc-preview-item">
+                    <p>Total Repayable</p>
+                    <h3>LKR <span id="preview-total"><?= e(money((float) $loan['total_amount'])) ?></span></h3>
+                </div>
+                <div class="calc-preview-item">
+                    <p>Per Installment</p>
+                    <h3>LKR <span id="preview-installment"><?= e(money((float) $loan['installment_amount'])) ?></span></h3>
+                </div>
             </div>
         </div>
 
-        <div class="field" style="align-self:end;">
+        <div class="field full loan-submit-field">
             <button type="submit" class="btn btn-primary">Update Loan</button>
         </div>
     </form>

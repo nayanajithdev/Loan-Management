@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../includes/bootstrap.php';
+require_roles(['superadmin', 'admin', 'collector_l2', 'collector'], 'pages/loans.php');
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     redirect('pages/loans.php');
@@ -127,6 +128,14 @@ try {
     }
 
     $pdo->commit();
+    log_activity($pdo, 'loan.created', 'Loan created: ' . $loanNumber . '.', [
+        'loan_id' => $loanId,
+        'customer_id' => $customerId,
+        'principal_amount' => $principal,
+        'total_amount' => $totalAmount,
+        'installment_count' => $installmentCount,
+        'installment_frequency' => $frequency,
+    ]);
     set_flash('success', 'Loan created and installment schedule generated.');
 } catch (Throwable $e) {
     if ($pdo->inTransaction()) {

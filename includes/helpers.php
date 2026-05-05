@@ -18,6 +18,19 @@ function e(string $value): string
     return htmlspecialchars($value, ENT_QUOTES, 'UTF-8');
 }
 
+function role_display_name(string $role): string
+{
+    return match ($role) {
+        'superadmin' => 'Owner',
+        'admin' => 'Manager',
+        'collector_l1' => 'Collector L1',
+        'collector_l2' => 'Collector L2',
+        'collector' => 'Collector L2',
+        'unassigned' => 'Unassigned',
+        default => ucfirst($role),
+    };
+}
+
 function money(float $amount): string
 {
     return number_format($amount, 2);
@@ -119,9 +132,13 @@ function refresh_overdue_installments(PDO $pdo): void
     $stmt->execute();
 }
 
-function dashboard_stats(PDO $pdo): array
+function dashboard_stats(PDO $pdo, ?array $viewer = null): array
 {
     refresh_overdue_installments($pdo);
+
+    $viewerRole = (string) ($viewer['role'] ?? '');
+    $viewerId = (int) ($viewer['id'] ?? 0);
+    $isCollectorScope = is_collector_role($viewerRole) && $viewerId > 0;
 
     $totals = [
         'customers' => 0,
@@ -138,20 +155,73 @@ function dashboard_stats(PDO $pdo): array
         'total_collected' => 0.0,
     ];
 
-    $totals['customers'] = (int) $pdo->query('SELECT COUNT(*) FROM customers')->fetchColumn();
-    $totals['active_loans'] = (int) $pdo->query("SELECT COUNT(*) FROM loans WHERE status = 'active'")->fetchColumn();
-    $totals['outstanding_principal'] = (float) $pdo->query("SELECT COALESCE(SUM(li.due_amount - li.paid_amount), 0) FROM loan_installments li JOIN loans l ON l.id = li.loan_id WHERE l.status = 'active' AND li.status IN ('pending', 'partial', 'overdue')")->fetchColumn();
-    $totals['closed_loans_profit'] = (float) $pdo->query("SELECT COALESCE(SUM(total_amount - principal_amount), 0) FROM loans WHERE status = 'closed'")->fetchColumn();
-    $totals['expected_open_profit'] = (float) $pdo->query("SELECT COALESCE(SUM(total_amount - principal_amount), 0) FROM loans WHERE status <> 'closed'")->fetchColumn();
-    $totals['total_disbursed'] = (float) $pdo->query('SELECT COALESCE(SUM(principal_amount), 0) FROM loans')->fetchColumn();
-    $totals['total_collected'] = (float) $pdo->query('SELECT COALESCE(SUM(amount), 0) FROM collections')->fetchColumn();
+    if (!$isCollectorScope) {
+        $totals['customers'] = (int) $pdo->query('SELECT COUNT(*) FROM customers')->fetchColumn();
+        $totals['active_loans'] = (int) $pdo->query("SELECT COUNT(*) FROM loans WHERE status = 'active'")->fetchColumn();
+        $totals['outstanding_principal'] = (float) $pdo->query("SELECT COALESCE(SUM(li.due_amount - li.paid_amount), 0) FROM loan_installments li JOIN loans l ON l.id = li.loan_id WHERE l.status = 'active' AND li.status IN ('pending', 'partial', 'overdue')")->fetchColumn();
+        $totals['closed_loans_profit'] = (float) $pdo->query("SELECT COALESCE(SUM(total_amount - principal_amount), 0) FROM loans WHERE status = 'closed'")->fetchColumn();
+        $totals['expected_open_profit'] = (float) $pdo->query("SELECT COALESCE(SUM(total_amount - principal_amount), 0) FROM loans WHERE status <> 'closed'")->fetchColumn();
+        $totals['total_disbursed'] = (float) $pdo->query('SELECT COALESCE(SUM(principal_amount), 0) FROM loans')->fetchColumn();
+        $totals['total_collected'] = (float) $pdo->query('SELECT COALESCE(SUM(amount), 0) FROM collections')->fetchColumn();
 
-    $todayPendingOnly = (float) $pdo->query("SELECT COALESCE(SUM(due_amount - paid_amount), 0) FROM loan_installments WHERE due_date = CURDATE() AND status IN ('pending', 'partial', 'overdue')")->fetchColumn();
-    $totals['today_pending_count'] = (int) $pdo->query("SELECT COUNT(*) FROM loan_installments WHERE due_date = CURDATE() AND status IN ('pending', 'partial', 'overdue')")->fetchColumn();
+        $todayPendingOnly = (float) $pdo->query("SELECT COALESCE(SUM(due_amount - paid_amount), 0) FROM loan_installments WHERE due_date = CURDATE() AND status IN ('pending', 'partial', 'overdue')")->fetchColumn();
+        $totals['today_pending_count'] = (int) $pdo->query("SELECT COUNT(*) FROM loan_installments WHERE due_date = CURDATE() AND status IN ('pending', 'partial', 'overdue')")->fetchColumn();
 
-    $totals['overdue_amount'] = (float) $pdo->query("SELECT COALESCE(SUM(due_amount - paid_amount), 0) FROM loan_installments WHERE status = 'overdue'")->fetchColumn();
-    $totals['overdue_count'] = (int) $pdo->query("SELECT COUNT(*) FROM loan_installments WHERE status = 'overdue'")->fetchColumn();
-    $totals['overdue_customers'] = (int) $pdo->query("SELECT COUNT(DISTINCT l.customer_id) FROM loan_installments li JOIN loans l ON l.id = li.loan_id WHERE li.status = 'overdue'")->fetchColumn();
+        $totals['overdue_amount'] = (float) $pdo->query("SELECT COALESCE(SUM(due_amount - paid_amount), 0) FROM loan_installments WHERE status = 'overdue'")->fetchColumn();
+        $totals['overdue_count'] = (int) $pdo->query("SELECT COUNT(*) FROM loan_installments WHERE status = 'overdue'")->fetchColumn();
+        $totals['overdue_customers'] = (int) $pdo->query("SELECT COUNT(DISTINCT l.customer_id) FROM loan_installments li JOIN loans l ON l.id = li.loan_id WHERE li.status = 'overdue'")->fetchColumn();
+    } else {
+        $scope = '(l.assigned_user_id = :viewer_user_id OR l.assigned_user_id IS NULL)';
+
+        $stmt = $pdo->prepare("SELECT COUNT(DISTINCT l.customer_id) FROM loans l WHERE {$scope}");
+        $stmt->execute(['viewer_user_id' => $viewerId]);
+        $totals['customers'] = (int) $stmt->fetchColumn();
+
+        $stmt = $pdo->prepare("SELECT COUNT(*) FROM loans l WHERE l.status = 'active' AND {$scope}");
+        $stmt->execute(['viewer_user_id' => $viewerId]);
+        $totals['active_loans'] = (int) $stmt->fetchColumn();
+
+        $stmt = $pdo->prepare("SELECT COALESCE(SUM(li.due_amount - li.paid_amount), 0) FROM loan_installments li JOIN loans l ON l.id = li.loan_id WHERE l.status = 'active' AND li.status IN ('pending', 'partial', 'overdue') AND {$scope}");
+        $stmt->execute(['viewer_user_id' => $viewerId]);
+        $totals['outstanding_principal'] = (float) $stmt->fetchColumn();
+
+        $stmt = $pdo->prepare("SELECT COALESCE(SUM(l.total_amount - l.principal_amount), 0) FROM loans l WHERE l.status = 'closed' AND {$scope}");
+        $stmt->execute(['viewer_user_id' => $viewerId]);
+        $totals['closed_loans_profit'] = (float) $stmt->fetchColumn();
+
+        $stmt = $pdo->prepare("SELECT COALESCE(SUM(l.total_amount - l.principal_amount), 0) FROM loans l WHERE l.status <> 'closed' AND {$scope}");
+        $stmt->execute(['viewer_user_id' => $viewerId]);
+        $totals['expected_open_profit'] = (float) $stmt->fetchColumn();
+
+        $stmt = $pdo->prepare("SELECT COALESCE(SUM(l.principal_amount), 0) FROM loans l WHERE {$scope}");
+        $stmt->execute(['viewer_user_id' => $viewerId]);
+        $totals['total_disbursed'] = (float) $stmt->fetchColumn();
+
+        $stmt = $pdo->prepare("SELECT COALESCE(SUM(col.amount), 0) FROM collections col JOIN loans l ON l.id = col.loan_id WHERE {$scope}");
+        $stmt->execute(['viewer_user_id' => $viewerId]);
+        $totals['total_collected'] = (float) $stmt->fetchColumn();
+
+        $stmt = $pdo->prepare("SELECT COALESCE(SUM(li.due_amount - li.paid_amount), 0) FROM loan_installments li JOIN loans l ON l.id = li.loan_id WHERE li.due_date = CURDATE() AND li.status IN ('pending', 'partial', 'overdue') AND {$scope}");
+        $stmt->execute(['viewer_user_id' => $viewerId]);
+        $todayPendingOnly = (float) $stmt->fetchColumn();
+
+        $stmt = $pdo->prepare("SELECT COUNT(*) FROM loan_installments li JOIN loans l ON l.id = li.loan_id WHERE li.due_date = CURDATE() AND li.status IN ('pending', 'partial', 'overdue') AND {$scope}");
+        $stmt->execute(['viewer_user_id' => $viewerId]);
+        $totals['today_pending_count'] = (int) $stmt->fetchColumn();
+
+        $stmt = $pdo->prepare("SELECT COALESCE(SUM(li.due_amount - li.paid_amount), 0) FROM loan_installments li JOIN loans l ON l.id = li.loan_id WHERE li.status = 'overdue' AND {$scope}");
+        $stmt->execute(['viewer_user_id' => $viewerId]);
+        $totals['overdue_amount'] = (float) $stmt->fetchColumn();
+
+        $stmt = $pdo->prepare("SELECT COUNT(*) FROM loan_installments li JOIN loans l ON l.id = li.loan_id WHERE li.status = 'overdue' AND {$scope}");
+        $stmt->execute(['viewer_user_id' => $viewerId]);
+        $totals['overdue_count'] = (int) $stmt->fetchColumn();
+
+        $stmt = $pdo->prepare("SELECT COUNT(DISTINCT l.customer_id) FROM loan_installments li JOIN loans l ON l.id = li.loan_id WHERE li.status = 'overdue' AND {$scope}");
+        $stmt->execute(['viewer_user_id' => $viewerId]);
+        $totals['overdue_customers'] = (int) $stmt->fetchColumn();
+    }
+
     $totals['today_pending_amount'] = $todayPendingOnly + $totals['overdue_amount'];
 
     return $totals;
@@ -163,7 +233,19 @@ function ensure_user_schema(PDO $pdo): void
     $roleColumn = $roleColStmt->fetch();
 
     if (!$roleColumn) {
-        $pdo->exec("ALTER TABLE users ADD COLUMN role ENUM('superadmin','admin','collector') NOT NULL DEFAULT 'admin' AFTER password_hash");
+        $pdo->exec("ALTER TABLE users ADD COLUMN role ENUM('superadmin','admin','collector','collector_l1','collector_l2') NOT NULL DEFAULT 'admin' AFTER password_hash");
+        return;
+    }
+    $pdo->exec("ALTER TABLE users MODIFY COLUMN role ENUM('superadmin','admin','collector','collector_l1','collector_l2') NOT NULL DEFAULT 'admin'");
+}
+
+function ensure_user_profile_schema(PDO $pdo): void
+{
+    $colStmt = $pdo->query("SHOW COLUMNS FROM users LIKE 'avatar_path'");
+    $col = $colStmt->fetch();
+
+    if (!$col) {
+        $pdo->exec('ALTER TABLE users ADD COLUMN avatar_path VARCHAR(255) NULL AFTER role');
     }
 }
 
@@ -200,6 +282,17 @@ function ensure_loan_assignment_schema(PDO $pdo): void
     }
 }
 
+function ensure_customer_assignment_schema(PDO $pdo): void
+{
+    $colStmt = $pdo->query("SHOW COLUMNS FROM customers LIKE 'assigned_user_id'");
+    $col = $colStmt->fetch();
+
+    if (!$col) {
+        $pdo->exec('ALTER TABLE customers ADD COLUMN assigned_user_id INT NULL AFTER note');
+        $pdo->exec('ALTER TABLE customers ADD INDEX idx_customers_assigned_user (assigned_user_id)');
+    }
+}
+
 function ensure_customer_documents_schema(PDO $pdo): void
 {
     $pdo->exec(
@@ -228,6 +321,85 @@ function ensure_customer_note_schema(PDO $pdo): void
 
     if (!$col) {
         $pdo->exec('ALTER TABLE customers ADD COLUMN note TEXT NULL AFTER address');
+    }
+}
+
+function ensure_system_settings_schema(PDO $pdo): void
+{
+    $pdo->exec(
+        "CREATE TABLE IF NOT EXISTS system_settings (
+            setting_key VARCHAR(100) PRIMARY KEY,
+            setting_value TEXT NULL,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            updated_by_user_id INT NULL,
+            INDEX idx_system_settings_updated_by (updated_by_user_id),
+            CONSTRAINT fk_system_settings_updated_by FOREIGN KEY (updated_by_user_id) REFERENCES users(id) ON DELETE SET NULL
+        )"
+    );
+}
+
+function ensure_activity_logs_schema(PDO $pdo): void
+{
+    $pdo->exec(
+        "CREATE TABLE IF NOT EXISTS activity_logs (
+            id BIGINT AUTO_INCREMENT PRIMARY KEY,
+            actor_user_id INT NULL,
+            actor_role VARCHAR(20) NULL,
+            action_key VARCHAR(80) NOT NULL,
+            description VARCHAR(255) NOT NULL,
+            meta_json LONGTEXT NULL,
+            ip_address VARCHAR(45) NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_activity_logs_created_at (created_at),
+            INDEX idx_activity_logs_actor (actor_user_id),
+            INDEX idx_activity_logs_action_key (action_key),
+            CONSTRAINT fk_activity_logs_actor_user FOREIGN KEY (actor_user_id) REFERENCES users(id) ON DELETE SET NULL
+        )"
+    );
+}
+
+function system_settings_all(PDO $pdo): array
+{
+    $stmt = $pdo->query('SELECT setting_key, setting_value FROM system_settings');
+    $rows = $stmt->fetchAll();
+    $map = [];
+    foreach ($rows as $row) {
+        $map[(string) $row['setting_key']] = (string) ($row['setting_value'] ?? '');
+    }
+    return $map;
+}
+
+function system_setting(PDO $pdo, string $key, string $default = ''): string
+{
+    $stmt = $pdo->prepare('SELECT setting_value FROM system_settings WHERE setting_key = :setting_key LIMIT 1');
+    $stmt->execute(['setting_key' => $key]);
+    $value = $stmt->fetchColumn();
+    return $value === false || $value === null ? $default : (string) $value;
+}
+
+function system_settings_save(PDO $pdo, array $settings, ?int $updatedByUserId = null): void
+{
+    if (empty($settings)) {
+        return;
+    }
+
+    $stmt = $pdo->prepare(
+        'INSERT INTO system_settings (setting_key, setting_value, updated_by_user_id)
+         VALUES (:setting_key, :setting_value, :updated_by_user_id)
+         ON DUPLICATE KEY UPDATE
+            setting_value = VALUES(setting_value),
+            updated_by_user_id = VALUES(updated_by_user_id)'
+    );
+
+    foreach ($settings as $key => $value) {
+        $stmt->bindValue(':setting_key', (string) $key, PDO::PARAM_STR);
+        $stmt->bindValue(':setting_value', (string) $value, PDO::PARAM_STR);
+        $stmt->bindValue(
+            ':updated_by_user_id',
+            $updatedByUserId !== null && $updatedByUserId > 0 ? $updatedByUserId : null,
+            $updatedByUserId !== null && $updatedByUserId > 0 ? PDO::PARAM_INT : PDO::PARAM_NULL
+        );
+        $stmt->execute();
     }
 }
 
@@ -437,6 +609,41 @@ function logout_user(): void
     session_destroy();
 }
 
+function log_activity(PDO $pdo, string $actionKey, string $description, array $meta = [], ?int $actorUserId = null): void
+{
+    try {
+        $authUser = current_user();
+        $userId = $actorUserId;
+        if ($userId === null && isset($authUser['id'])) {
+            $userId = (int) $authUser['id'];
+        }
+
+        $role = null;
+        if (isset($authUser['role'])) {
+            $role = (string) $authUser['role'];
+        }
+
+        $metaJson = $meta === [] ? null : json_encode($meta, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        if ($metaJson === false) {
+            $metaJson = null;
+        }
+
+        $stmt = $pdo->prepare(
+            'INSERT INTO activity_logs (actor_user_id, actor_role, action_key, description, meta_json, ip_address)
+             VALUES (:actor_user_id, :actor_role, :action_key, :description, :meta_json, :ip_address)'
+        );
+        $stmt->bindValue(':actor_user_id', $userId !== null && $userId > 0 ? $userId : null, $userId !== null && $userId > 0 ? PDO::PARAM_INT : PDO::PARAM_NULL);
+        $stmt->bindValue(':actor_role', $role, $role !== null ? PDO::PARAM_STR : PDO::PARAM_NULL);
+        $stmt->bindValue(':action_key', mb_substr($actionKey, 0, 80), PDO::PARAM_STR);
+        $stmt->bindValue(':description', mb_substr($description, 0, 255), PDO::PARAM_STR);
+        $stmt->bindValue(':meta_json', $metaJson, $metaJson !== null ? PDO::PARAM_STR : PDO::PARAM_NULL);
+        $stmt->bindValue(':ip_address', mb_substr((string) ($_SERVER['REMOTE_ADDR'] ?? ''), 0, 45), PDO::PARAM_STR);
+        $stmt->execute();
+    } catch (Throwable) {
+        // Activity logging should never block business operations.
+    }
+}
+
 function current_user_role(): ?string
 {
     $user = current_user();
@@ -454,6 +661,21 @@ function can_manage_users(): bool
     return has_role(['superadmin', 'admin']);
 }
 
+function is_collector_role(?string $role): bool
+{
+    return in_array((string) $role, ['collector', 'collector_l1', 'collector_l2'], true);
+}
+
+function can_manage_loans(): bool
+{
+    return has_role(['superadmin', 'admin', 'collector_l2', 'collector']);
+}
+
+function can_view_all_customers(): bool
+{
+    return has_role(['superadmin', 'admin', 'collector_l2', 'collector']);
+}
+
 function require_roles(array $roles, string $redirectPath = 'index.php'): void
 {
     if (!has_role($roles)) {
@@ -462,18 +684,49 @@ function require_roles(array $roles, string $redirectPath = 'index.php'): void
     }
 }
 
-function today_collection_goal(PDO $pdo): array
+function today_collection_goal(PDO $pdo, ?array $viewer = null): array
 {
-    $remainingStmt = $pdo->query("SELECT COALESCE(SUM(due_amount - paid_amount), 0) FROM loan_installments WHERE due_date <= CURDATE() AND status IN ('pending', 'partial', 'overdue')");
-    $remainingNow = (float) $remainingStmt->fetchColumn();
+    $viewerRole = (string) ($viewer['role'] ?? '');
+    $viewerId = (int) ($viewer['id'] ?? 0);
+    $isCollectorScope = is_collector_role($viewerRole) && $viewerId > 0;
 
-    $collectedStmt = $pdo->query(
-        "SELECT COALESCE(SUM(c.amount), 0)
-         FROM collections c
-         JOIN loan_installments li ON li.id = c.installment_id
-         WHERE c.collected_on = CURDATE() AND li.due_date <= CURDATE()"
-    );
-    $collectedTowardGoalToday = (float) $collectedStmt->fetchColumn();
+    if (!$isCollectorScope) {
+        $remainingStmt = $pdo->query("SELECT COALESCE(SUM(due_amount - paid_amount), 0) FROM loan_installments WHERE due_date <= CURDATE() AND status IN ('pending', 'partial', 'overdue')");
+        $remainingNow = (float) $remainingStmt->fetchColumn();
+
+        $collectedStmt = $pdo->query(
+            "SELECT COALESCE(SUM(c.amount), 0)
+             FROM collections c
+             JOIN loan_installments li ON li.id = c.installment_id
+             WHERE c.collected_on = CURDATE() AND li.due_date <= CURDATE()"
+        );
+        $collectedTowardGoalToday = (float) $collectedStmt->fetchColumn();
+    } else {
+        $scope = '(l.assigned_user_id = :viewer_user_id OR l.assigned_user_id IS NULL)';
+
+        $remainingStmt = $pdo->prepare(
+            "SELECT COALESCE(SUM(li.due_amount - li.paid_amount), 0)
+             FROM loan_installments li
+             JOIN loans l ON l.id = li.loan_id
+             WHERE li.due_date <= CURDATE()
+               AND li.status IN ('pending', 'partial', 'overdue')
+               AND {$scope}"
+        );
+        $remainingStmt->execute(['viewer_user_id' => $viewerId]);
+        $remainingNow = (float) $remainingStmt->fetchColumn();
+
+        $collectedStmt = $pdo->prepare(
+            "SELECT COALESCE(SUM(c.amount), 0)
+             FROM collections c
+             JOIN loan_installments li ON li.id = c.installment_id
+             JOIN loans l ON l.id = c.loan_id
+             WHERE c.collected_on = CURDATE()
+               AND li.due_date <= CURDATE()
+               AND {$scope}"
+        );
+        $collectedStmt->execute(['viewer_user_id' => $viewerId]);
+        $collectedTowardGoalToday = (float) $collectedStmt->fetchColumn();
+    }
 
     // Goal baseline = what was due at start of day = still remaining + collected today toward due/overdue.
     $target = $remainingNow + $collectedTowardGoalToday;
@@ -555,28 +808,63 @@ function disbursed_weekly_trend(PDO $pdo): array
     ];
 }
 
-function collections_30day_trend(PDO $pdo): array
+function collections_30day_trend(PDO $pdo, ?array $viewer = null): array
 {
     $days = 30;
     $start = (new DateTimeImmutable(today()))->sub(new DateInterval('P' . ($days - 1) . 'D'))->format('Y-m-d');
+    $viewerRole = (string) ($viewer['role'] ?? '');
+    $viewerId = (int) ($viewer['id'] ?? 0);
+    $isCollectorScope = is_collector_role($viewerRole) && $viewerId > 0;
 
-    $collectedStmt = $pdo->prepare(
-        "SELECT collected_on AS d, COALESCE(SUM(amount), 0) AS total
-         FROM collections
-         WHERE collected_on >= :start_date
-         GROUP BY collected_on"
-    );
-    $collectedStmt->execute(['start_date' => $start]);
-    $collectedRows = $collectedStmt->fetchAll();
+    if (!$isCollectorScope) {
+        $collectedStmt = $pdo->prepare(
+            "SELECT collected_on AS d, COALESCE(SUM(amount), 0) AS total
+             FROM collections
+             WHERE collected_on >= :start_date
+             GROUP BY collected_on"
+        );
+        $collectedStmt->execute(['start_date' => $start]);
+        $collectedRows = $collectedStmt->fetchAll();
 
-    $targetStmt = $pdo->prepare(
-        "SELECT due_date AS d, COALESCE(SUM(due_amount), 0) AS total
-         FROM loan_installments
-         WHERE due_date >= :start_date
-         GROUP BY due_date"
-    );
-    $targetStmt->execute(['start_date' => $start]);
-    $targetRows = $targetStmt->fetchAll();
+        $targetStmt = $pdo->prepare(
+            "SELECT due_date AS d, COALESCE(SUM(due_amount), 0) AS total
+             FROM loan_installments
+             WHERE due_date >= :start_date
+             GROUP BY due_date"
+        );
+        $targetStmt->execute(['start_date' => $start]);
+        $targetRows = $targetStmt->fetchAll();
+    } else {
+        $scope = '(l.assigned_user_id = :viewer_user_id OR l.assigned_user_id IS NULL)';
+
+        $collectedStmt = $pdo->prepare(
+            "SELECT c.collected_on AS d, COALESCE(SUM(c.amount), 0) AS total
+             FROM collections c
+             JOIN loans l ON l.id = c.loan_id
+             WHERE c.collected_on >= :start_date
+               AND {$scope}
+             GROUP BY c.collected_on"
+        );
+        $collectedStmt->execute([
+            'start_date' => $start,
+            'viewer_user_id' => $viewerId,
+        ]);
+        $collectedRows = $collectedStmt->fetchAll();
+
+        $targetStmt = $pdo->prepare(
+            "SELECT li.due_date AS d, COALESCE(SUM(li.due_amount), 0) AS total
+             FROM loan_installments li
+             JOIN loans l ON l.id = li.loan_id
+             WHERE li.due_date >= :start_date
+               AND {$scope}
+             GROUP BY li.due_date"
+        );
+        $targetStmt->execute([
+            'start_date' => $start,
+            'viewer_user_id' => $viewerId,
+        ]);
+        $targetRows = $targetStmt->fetchAll();
+    }
 
     $collectedMap = [];
     foreach ($collectedRows as $row) {
@@ -610,9 +898,20 @@ function collections_30day_trend(PDO $pdo): array
     ];
 }
 
-function dashboard_user_goals(PDO $pdo): array
+function dashboard_user_goals(PDO $pdo, ?array $viewer = null): array
 {
-    $users = $pdo->query("SELECT id, full_name, username, role FROM users WHERE role IN ('superadmin', 'admin', 'collector') ORDER BY FIELD(role, 'collector', 'admin', 'superadmin'), full_name ASC")->fetchAll();
+    $viewerRole = (string) ($viewer['role'] ?? '');
+    $viewerId = (int) ($viewer['id'] ?? 0);
+    $isCollectorScope = is_collector_role($viewerRole) && $viewerId > 0;
+
+    if ($isCollectorScope) {
+        $usersStmt = $pdo->prepare("SELECT id, full_name, username, role FROM users WHERE id = :id LIMIT 1");
+        $usersStmt->execute(['id' => $viewerId]);
+        $users = $usersStmt->fetchAll();
+    } else {
+        $users = $pdo->query("SELECT id, full_name, username, role FROM users WHERE role IN ('superadmin', 'admin', 'collector', 'collector_l1', 'collector_l2') ORDER BY FIELD(role, 'collector_l1', 'collector_l2', 'collector', 'admin', 'superadmin'), full_name ASC")->fetchAll();
+    }
+
     $goalRows = [];
     foreach ($users as $user) {
         $uid = (int) $user['id'];
@@ -620,7 +919,7 @@ function dashboard_user_goals(PDO $pdo): array
             'id' => $uid,
             'full_name' => (string) $user['full_name'],
             'role' => (string) $user['role'],
-            'role_label' => ucfirst((string) $user['role']),
+            'role_label' => role_display_name((string) $user['role']),
             'remaining' => 0.0,
             'collected' => 0.0,
             'target' => 0.0,
@@ -639,14 +938,28 @@ function dashboard_user_goals(PDO $pdo): array
         'percentage' => 0.0,
     ];
 
-    $remainingRows = $pdo->query(
-        "SELECT l.assigned_user_id, COALESCE(SUM(li.due_amount - li.paid_amount), 0) AS remaining
-         FROM loan_installments li
-         JOIN loans l ON l.id = li.loan_id
-         WHERE li.due_date <= CURDATE()
-           AND li.status IN ('pending', 'partial', 'overdue')
-         GROUP BY l.assigned_user_id"
-    )->fetchAll();
+    if ($isCollectorScope) {
+        $remainingStmt = $pdo->prepare(
+            "SELECT l.assigned_user_id, COALESCE(SUM(li.due_amount - li.paid_amount), 0) AS remaining
+             FROM loan_installments li
+             JOIN loans l ON l.id = li.loan_id
+             WHERE li.due_date <= CURDATE()
+               AND li.status IN ('pending', 'partial', 'overdue')
+               AND (l.assigned_user_id = :viewer_user_id OR l.assigned_user_id IS NULL)
+             GROUP BY l.assigned_user_id"
+        );
+        $remainingStmt->execute(['viewer_user_id' => $viewerId]);
+        $remainingRows = $remainingStmt->fetchAll();
+    } else {
+        $remainingRows = $pdo->query(
+            "SELECT l.assigned_user_id, COALESCE(SUM(li.due_amount - li.paid_amount), 0) AS remaining
+             FROM loan_installments li
+             JOIN loans l ON l.id = li.loan_id
+             WHERE li.due_date <= CURDATE()
+               AND li.status IN ('pending', 'partial', 'overdue')
+             GROUP BY l.assigned_user_id"
+        )->fetchAll();
+    }
 
     foreach ($remainingRows as $row) {
         $key = $row['assigned_user_id'] === null ? 'unassigned' : 'user_' . (int) $row['assigned_user_id'];
@@ -656,15 +969,30 @@ function dashboard_user_goals(PDO $pdo): array
         $goalRows[$key]['remaining'] = (float) $row['remaining'];
     }
 
-    $collectedRows = $pdo->query(
-        "SELECT l.assigned_user_id, COALESCE(SUM(c.amount), 0) AS collected
-         FROM collections c
-         JOIN loan_installments li ON li.id = c.installment_id
-         JOIN loans l ON l.id = c.loan_id
-         WHERE c.collected_on = CURDATE()
-           AND li.due_date <= CURDATE()
-         GROUP BY l.assigned_user_id"
-    )->fetchAll();
+    if ($isCollectorScope) {
+        $collectedStmt = $pdo->prepare(
+            "SELECT l.assigned_user_id, COALESCE(SUM(c.amount), 0) AS collected
+             FROM collections c
+             JOIN loan_installments li ON li.id = c.installment_id
+             JOIN loans l ON l.id = c.loan_id
+             WHERE c.collected_on = CURDATE()
+               AND li.due_date <= CURDATE()
+               AND (l.assigned_user_id = :viewer_user_id OR l.assigned_user_id IS NULL)
+             GROUP BY l.assigned_user_id"
+        );
+        $collectedStmt->execute(['viewer_user_id' => $viewerId]);
+        $collectedRows = $collectedStmt->fetchAll();
+    } else {
+        $collectedRows = $pdo->query(
+            "SELECT l.assigned_user_id, COALESCE(SUM(c.amount), 0) AS collected
+             FROM collections c
+             JOIN loan_installments li ON li.id = c.installment_id
+             JOIN loans l ON l.id = c.loan_id
+             WHERE c.collected_on = CURDATE()
+               AND li.due_date <= CURDATE()
+             GROUP BY l.assigned_user_id"
+        )->fetchAll();
+    }
 
     foreach ($collectedRows as $row) {
         $key = $row['assigned_user_id'] === null ? 'unassigned' : 'user_' . (int) $row['assigned_user_id'];

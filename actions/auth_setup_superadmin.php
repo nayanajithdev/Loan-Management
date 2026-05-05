@@ -9,7 +9,8 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 }
 
 if (has_superadmin($pdo)) {
-    set_flash('error', 'Superadmin already exists.');
+    log_activity($pdo, 'auth.owner_setup_blocked', 'Owner setup blocked because owner already exists.');
+    set_flash('error', 'Owner already exists.');
     redirect('login.php');
 }
 
@@ -59,10 +60,14 @@ $userStmt->execute(['id' => $userId]);
 $newUser = $userStmt->fetch();
 
 if (!$newUser) {
-    set_flash('error', 'Could not create superadmin.');
+    set_flash('error', 'Could not create owner.');
     redirect('setup_superadmin.php');
 }
 
 login_user($newUser);
-set_flash('success', 'Superadmin created successfully.');
+log_activity($pdo, 'auth.owner_created', 'First owner account created.', [
+    'user_id' => $userId,
+    'username' => (string) $newUser['username'],
+], $userId);
+set_flash('success', 'Owner created successfully.');
 redirect('index.php');

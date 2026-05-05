@@ -72,6 +72,10 @@ try {
     $message = $uploadedCount > 0
         ? 'Customer updated successfully. Added ' . $uploadedCount . ' document(s).'
         : 'Customer updated successfully.';
+    log_activity($pdo, 'customer.updated', 'Customer updated: ' . $fullName . '.', [
+        'customer_id' => $customerId,
+        'documents_uploaded' => $uploadedCount,
+    ]);
     set_flash('success', $message);
     redirect('pages/customers.php?customer_id=' . $customerId);
 } catch (Throwable $e) {

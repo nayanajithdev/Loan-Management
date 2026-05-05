@@ -12,7 +12,7 @@ $activePage = 'users';
 $users = $pdo->query(
     "SELECT id, full_name, username, role, created_at
      FROM users
-     ORDER BY FIELD(role, 'superadmin', 'admin', 'collector'), id ASC"
+     ORDER BY FIELD(role, 'superadmin', 'admin', 'collector_l2', 'collector_l1', 'collector'), id ASC"
 )->fetchAll();
 
 $editUserId = (int) ($_GET['edit_user'] ?? 0);
@@ -65,7 +65,7 @@ require __DIR__ . '/../includes/layout_start.php';
                                 data-select-url="<?= e(url('pages/users.php?edit_user=' . (int) $user['id'])) ?>">
                                 <td><?= e($user['full_name']) ?></td>
                                 <td><?= e($user['username']) ?></td>
-                                <td><span class="badge badge-<?= e($roleBadge) ?>"><?= e($user['role']) ?></span></td>
+                                <td><span class="badge badge-<?= e($roleBadge) ?>"><?= e(role_display_name((string) $user['role'])) ?></span></td>
                                 <td><?= e($user['created_at']) ?></td>
                             </tr>
                         <?php endforeach; ?>
@@ -110,10 +110,11 @@ require __DIR__ . '/../includes/layout_start.php';
                     <label>Role</label>
                     <select name="role" <?= $canChangeRole ? '' : 'disabled' ?>>
                         <?php if ($editUser['role'] === 'superadmin'): ?>
-                            <option value="superadmin" selected>Superadmin</option>
+                            <option value="superadmin" selected>Owner</option>
                         <?php endif; ?>
-                        <option value="admin" <?= $editUser['role'] === 'admin' ? 'selected' : '' ?>>Admin</option>
-                        <option value="collector" <?= $editUser['role'] === 'collector' ? 'selected' : '' ?>>Collector</option>
+                        <option value="admin" <?= $editUser['role'] === 'admin' ? 'selected' : '' ?>>Manager</option>
+                        <option value="collector_l2" <?= $editUser['role'] === 'collector_l2' || $editUser['role'] === 'collector' ? 'selected' : '' ?>>Collector L2</option>
+                        <option value="collector_l1" <?= $editUser['role'] === 'collector_l1' ? 'selected' : '' ?>>Collector L1</option>
                     </select>
                     <?php if (!$canChangeRole): ?>
                         <input type="hidden" name="role" value="<?= e($editUser['role']) ?>">
@@ -139,7 +140,7 @@ require __DIR__ . '/../includes/layout_start.php';
                 <?php if ($isSelf): ?>
                     <small style="display:block; margin-top:6px; color:#9c9c9c;">You cannot delete your own logged-in account.</small>
                 <?php elseif ($isTargetSuperadmin): ?>
-                    <small style="display:block; margin-top:6px; color:#9c9c9c;">Superadmin cannot be deleted.</small>
+                    <small style="display:block; margin-top:6px; color:#9c9c9c;">Owner cannot be deleted.</small>
                 <?php endif; ?>
             </form>
         <?php else: ?>
@@ -155,8 +156,9 @@ require __DIR__ . '/../includes/layout_start.php';
                 <div class="field full">
                     <label>Role</label>
                     <select name="role" required>
-                        <option value="admin">Admin</option>
-                        <option value="collector">Collector</option>
+                        <option value="admin">Manager</option>
+                        <option value="collector_l2">Collector L2</option>
+                        <option value="collector_l1">Collector L1</option>
                     </select>
                 </div>
                 <div class="field full">

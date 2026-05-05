@@ -10,6 +10,7 @@ ensure_user_schema($pdo);
 
 $firstNames = ['Nimal','Kamal','Sunil','Ruwan','Kasun','Ajith','Saman','Roshan','Pradeep','Tharindu'];
 $lastNames = ['Perera','Silva','Fernando','Bandara','Jayasuriya','Wijesinghe'];
+$principalSeries = [75000, 25000, 40000, 50000, 60000, 35000, 80000, 45000, 70000, 30000];
 
 $customerStmt = $pdo->prepare('INSERT INTO customers (customer_code, full_name, phone, nic, address, status) VALUES (:code,:name,:phone,:nic,:address,:status)');
 $loanStmt = $pdo->prepare('INSERT INTO loans (loan_number, customer_id, principal_amount, interest_rate, total_amount, installment_frequency, installment_count, installment_amount, start_date, first_due_date, status, notes) VALUES (:loan_number,:customer_id,:principal_amount,:interest_rate,:total_amount,:frequency,:installment_count,:installment_amount,:start_date,:first_due_date,:status,:notes)');
@@ -41,7 +42,7 @@ try {
         $customerId = (int) $pdo->lastInsertId();
 
         $loanNumber = 'LN-' . str_pad((string) ($lastLoanId + $i), 6, '0', STR_PAD_LEFT);
-        $principal = (float) random_int(30000, 200000);
+        $principal = (float) $principalSeries[$i - 1];
         $interest = (float) random_int(8, 20);
         $total = round($principal + ($principal * $interest / 100), 2);
 

@@ -1,4 +1,44 @@
 (function () {
+    const menu = document.querySelector('[data-user-menu]');
+    if (!menu) {
+        return;
+    }
+
+    const toggle = menu.querySelector('[data-user-menu-toggle]');
+    const dropdown = menu.querySelector('[data-user-menu-dropdown]');
+    if (!(toggle instanceof HTMLElement) || !(dropdown instanceof HTMLElement)) {
+        return;
+    }
+
+    const setOpen = (open) => {
+        menu.classList.toggle('open', open);
+        toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+    };
+
+    toggle.addEventListener('click', (event) => {
+        event.preventDefault();
+        const isOpen = menu.classList.contains('open');
+        setOpen(!isOpen);
+    });
+
+    document.addEventListener('click', (event) => {
+        const target = event.target;
+        if (!(target instanceof Node)) {
+            return;
+        }
+        if (!menu.contains(target)) {
+            setOpen(false);
+        }
+    });
+
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') {
+            setOpen(false);
+        }
+    });
+})();
+
+(function () {
     const pollConfig = document.getElementById('poll-config');
     if (!pollConfig) {
         return;
@@ -170,6 +210,7 @@
     const countDisplayInput = form.querySelector('[name="installment_count_display"]');
     const totalEl = document.getElementById('preview-total');
     const installmentEl = document.getElementById('preview-installment');
+    const profitEl = document.getElementById('preview-profit');
 
     const toNumber = (value) => {
         const n = Number(value);
@@ -210,11 +251,15 @@
         const count = installmentCountFromTimeframe(frequency, timeframeValue, timeframeUnit);
 
         const total = principal + (principal * interestRate / 100);
+        const profit = total - principal;
         const installment = total / count;
 
         countDisplayInput.value = String(count);
         totalEl.textContent = formatMoney(total);
         installmentEl.textContent = formatMoney(installment);
+        if (profitEl) {
+            profitEl.textContent = formatMoney(profit);
+        }
     };
 
     [principalInput, interestInput, frequencyInput, timeframeValueInput, timeframeUnitInput].forEach((el) => {

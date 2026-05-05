@@ -12,7 +12,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 
 $fullName = trim((string) ($_POST['full_name'] ?? ''));
 $username = trim((string) ($_POST['username'] ?? ''));
-$role = trim((string) ($_POST['role'] ?? 'collector'));
+$role = trim((string) ($_POST['role'] ?? 'collector_l1'));
 $password = (string) ($_POST['password'] ?? '');
 $confirmPassword = (string) ($_POST['confirm_password'] ?? '');
 
@@ -21,7 +21,7 @@ if ($fullName === '' || $username === '' || $password === '') {
     redirect('pages/users.php');
 }
 
-if (!in_array($role, ['admin', 'collector'], true)) {
+if (!in_array($role, ['admin', 'collector_l1', 'collector_l2', 'collector'], true)) {
     set_flash('error', 'Invalid role selected.');
     redirect('pages/users.php');
 }
@@ -54,6 +54,13 @@ $insertStmt->execute([
     'username' => $username,
     'password_hash' => $passwordHash,
     'role' => $role,
+]);
+$createdUserId = (int) $pdo->lastInsertId();
+
+log_activity($pdo, 'user.created', 'User created: ' . $fullName . '.', [
+    'user_id' => $createdUserId,
+    'username' => $username,
+    'role' => role_display_name($role),
 ]);
 
 set_flash('success', 'User created successfully.');
