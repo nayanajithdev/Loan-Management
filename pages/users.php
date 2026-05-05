@@ -66,7 +66,7 @@ require __DIR__ . '/../includes/layout_start.php';
                                 <td><?= e($user['full_name']) ?></td>
                                 <td><?= e($user['username']) ?></td>
                                 <td><span class="badge badge-<?= e($roleBadge) ?>"><?= e(role_display_name((string) $user['role'])) ?></span></td>
-                                <td><?= e($user['created_at']) ?></td>
+                                <td><?= e(display_datetime((string) $user['created_at'])) ?></td>
                             </tr>
                         <?php endforeach; ?>
                     <?php endif; ?>
@@ -96,6 +96,7 @@ require __DIR__ . '/../includes/layout_start.php';
             ?>
 
             <form class="form-grid" method="post" action="<?= e(url('actions/user_update.php')) ?>">
+                <?= csrf_input() ?>
                 <input type="hidden" name="user_id" value="<?= e((string) $editUser['id']) ?>">
 
                 <div class="field full">
@@ -135,6 +136,7 @@ require __DIR__ . '/../includes/layout_start.php';
 
             <hr style="border-color:#333; margin:16px 0;">
             <form method="post" action="<?= e(url('actions/user_delete.php')) ?>" data-confirm="Delete this user? This cannot be undone.">
+                <?= csrf_input() ?>
                 <input type="hidden" name="user_id" value="<?= e((string) $editUser['id']) ?>">
                 <button type="submit" class="btn" <?= $canDelete ? '' : 'disabled' ?>>Delete User</button>
                 <?php if ($isSelf): ?>
@@ -145,6 +147,7 @@ require __DIR__ . '/../includes/layout_start.php';
             </form>
         <?php else: ?>
             <form class="form-grid" method="post" action="<?= e(url('actions/user_save.php')) ?>">
+                <?= csrf_input() ?>
                 <div class="field full">
                     <label>Full Name</label>
                     <input type="text" name="full_name" required>

@@ -7,6 +7,7 @@ require_once __DIR__ . '/../includes/bootstrap.php';
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     redirect('login.php');
 }
+require_csrf('login.php');
 
 if (!has_superadmin($pdo)) {
     log_activity($pdo, 'auth.login_blocked', 'Login blocked because no owner exists.');

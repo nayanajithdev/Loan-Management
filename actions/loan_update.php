@@ -7,6 +7,7 @@ require_once __DIR__ . '/../includes/bootstrap.php';
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     redirect('pages/loans.php');
 }
+require_csrf('pages/loans.php');
 
 require_roles(['superadmin', 'admin', 'collector_l2', 'collector'], 'pages/loans.php');
 
@@ -187,7 +188,11 @@ try {
     if ($pdo->inTransaction()) {
         $pdo->rollBack();
     }
-    set_flash('error', 'Failed to update loan: ' . $e->getMessage());
+    log_activity($pdo, 'loan.update_failed', 'Loan update failed.', [
+        'loan_id' => $loanId,
+        'reason' => $e->getMessage(),
+    ]);
+    set_flash('error', 'Failed to update loan. Please try again.');
 }
 
 redirect('pages/loan_edit.php?loan_id=' . $loanId);

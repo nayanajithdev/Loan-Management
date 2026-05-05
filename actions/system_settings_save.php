@@ -8,6 +8,7 @@ require_roles(['superadmin'], 'pages/system_settings.php');
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     redirect('pages/system_settings.php');
 }
+require_csrf('pages/system_settings.php');
 
 $currencyLabel = strtoupper(trim((string) ($_POST['currency_label'] ?? 'LKR')));
 $timezone = trim((string) ($_POST['timezone'] ?? date_default_timezone_get()));

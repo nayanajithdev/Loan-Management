@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../includes/bootstrap.php';
+require_roles(['superadmin', 'admin', 'collector_l1', 'collector_l2', 'collector']);
 
 refresh_overdue_installments($pdo);
 
@@ -75,15 +76,29 @@ $stmt = $pdo->prepare($sql);
 $stmt->execute($params);
 $dueInstallments = $stmt->fetchAll();
 
-$selectedCollectionTotalStmt = $pdo->prepare('SELECT COALESCE(SUM(amount), 0) FROM collections WHERE collected_on = :selected_date');
-$selectedCollectionTotalStmt->execute(['selected_date' => $selectedDate]);
+if (is_collector_role($currentRole)) {
+    $selectedCollectionTotalStmt = $pdo->prepare(
+        "SELECT COALESCE(SUM(col.amount), 0)
+         FROM collections col
+         JOIN loans l ON l.id = col.loan_id
+         WHERE col.collected_on = :selected_date
+           AND (l.assigned_user_id = :assigned_user_id OR l.assigned_user_id IS NULL)"
+    );
+    $selectedCollectionTotalStmt->execute([
+        'selected_date' => $selectedDate,
+        'assigned_user_id' => $currentUserId,
+    ]);
+} else {
+    $selectedCollectionTotalStmt = $pdo->prepare('SELECT COALESCE(SUM(amount), 0) FROM collections WHERE collected_on = :selected_date');
+    $selectedCollectionTotalStmt->execute(['selected_date' => $selectedDate]);
+}
 $selectedCollectionTotal = (float) $selectedCollectionTotalStmt->fetchColumn();
 
 ob_start();
 ?>
 <div class="metric-box">
     <p>Collected Total (Selected Date)</p>
-    <h3>LKR <?= e(money($selectedCollectionTotal)) ?></h3>
+    <h3><?= e(money_label($pdo, $selectedCollectionTotal)) ?></h3>
 </div>
 <div class="metric-box">
     <p>Pending Count (Selected Date)</p>
@@ -117,10 +132,10 @@ else:
     <td><?= e($item['full_name']) ?></td>
     <td><?= e($item['phone']) ?></td>
     <td>#<?= e((string) $item['installment_no']) ?></td>
-    <td><?= e($item['due_date']) ?></td>
-    <td>LKR <?= e(money((float) $item['due_amount'])) ?></td>
-    <td>LKR <?= e(money((float) $item['paid_amount'])) ?></td>
-    <td>LKR <?= e(money($balance)) ?></td>
+    <td><?= e(display_date((string) $item['due_date'])) ?></td>
+    <td><?= e(money_label($pdo, (float) $item['due_amount'])) ?></td>
+    <td><?= e(money_label($pdo, (float) $item['paid_amount'])) ?></td>
+    <td><?= e(money_label($pdo, $balance)) ?></td>
     <td><span class="badge badge-<?= e(status_badge_class($displayStatus)) ?>"><?= e($displayStatus) ?></span></td>
 </tr>
 <?php

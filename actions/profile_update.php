@@ -3,10 +3,12 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../includes/bootstrap.php';
+require_roles(['superadmin', 'admin', 'collector_l1', 'collector_l2', 'collector']);
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     redirect('pages/profile.php');
 }
+require_csrf('pages/profile.php');
 
 $current = current_user();
 if (!$current) {

@@ -40,10 +40,13 @@
                 </button>
                 <div class="user-menu-dropdown" data-user-menu-dropdown>
                     <a class="user-menu-link" href="<?= e(url('pages/profile.php')) ?>">Account</a>
-                    <a class="user-menu-logout" href="<?= e(url('actions/auth_logout.php')) ?>">Logout</a>
+                    <form method="post" action="<?= e(url('actions/auth_logout.php')) ?>" class="user-menu-logout-form">
+                        <?= csrf_input() ?>
+                        <button type="submit" class="user-menu-logout">Logout</button>
+                    </form>
                 </div>
             </div>
         <?php endif; ?>
-        <div class="date-chip"><?= e(date('d M Y')) ?></div>
+        <div class="date-chip"><?= e(display_date(today(), today())) ?></div>
     </div>
 </header>

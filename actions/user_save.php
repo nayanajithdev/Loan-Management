@@ -9,6 +9,7 @@ require_roles(['superadmin', 'admin'], 'index.php');
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     redirect('pages/users.php');
 }
+require_csrf('pages/users.php');
 
 $fullName = trim((string) ($_POST['full_name'] ?? ''));
 $username = trim((string) ($_POST['username'] ?? ''));

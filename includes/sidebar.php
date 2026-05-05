@@ -1,6 +1,11 @@
 <?php
 $currentScript = basename((string) ($_SERVER['SCRIPT_NAME'] ?? ''));
 $businessName = system_setting($pdo, 'business_name', 'Loan Manager');
+$businessIconPath = business_icon_path($pdo);
+$businessInitial = strtoupper(substr(preg_replace('/\s+/', '', $businessName), 0, 1));
+if ($businessInitial === '') {
+    $businessInitial = 'L';
+}
 $iconSvgs = [
     'dashboard' => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg>',
     'customers' => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><path d="M16 3.128a4 4 0 0 1 0 7.744"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><circle cx="9" cy="7" r="4"/></svg>',
@@ -39,16 +44,22 @@ if (has_role(['superadmin'])) {
 
 if (has_role(['superadmin', 'admin'])) {
     $menuItems[] = ['key' => 'reports', 'label' => 'Reports', 'path' => 'pages/reports.php'];
-    $menuItems[] = ['key' => 'settings', 'label' => 'Settings', 'path' => 'pages/settings.php'];
+    $menuItems[] = ['key' => 'settings', 'label' => 'Business Settings', 'path' => 'pages/settings.php'];
     $menuItems[] = ['key' => 'system_settings', 'label' => 'System Settings', 'path' => 'pages/system_settings.php'];
 }
 ?>
 
 <aside class="sidebar">
     <div class="brand-card">
-        <div class="brand-avatar">L</div>
+        <div class="brand-avatar">
+            <?php if ($businessIconPath !== ''): ?>
+                <img src="<?= e(url($businessIconPath)) ?>" alt="Business icon">
+            <?php else: ?>
+                <?= e($businessInitial) ?>
+            <?php endif; ?>
+        </div>
         <div>
-            <div class="brand-sub">Business</div>
+            <div class="brand-sub">Business Profile</div>
             <div class="brand-name"><?= e($businessName) ?></div>
         </div>
     </div>

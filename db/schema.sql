@@ -67,9 +67,14 @@ CREATE TABLE IF NOT EXISTS collections (
     collected_on DATE NOT NULL,
     method VARCHAR(40) NOT NULL DEFAULT 'cash',
     note VARCHAR(255) DEFAULT NULL,
+    collected_by_user_id INT DEFAULT NULL,
+    payment_ref VARCHAR(50) DEFAULT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_collections_collected_by_user (collected_by_user_id),
+    INDEX idx_collections_payment_ref (payment_ref),
     FOREIGN KEY (loan_id) REFERENCES loans(id),
-    FOREIGN KEY (installment_id) REFERENCES loan_installments(id)
+    FOREIGN KEY (installment_id) REFERENCES loan_installments(id),
+    FOREIGN KEY (collected_by_user_id) REFERENCES users(id) ON DELETE SET NULL
 );
 
 CREATE TABLE IF NOT EXISTS customer_documents (

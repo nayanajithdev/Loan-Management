@@ -42,20 +42,19 @@ if ($realPath === false || $uploadsRoot === false || !str_starts_with(strtolower
     redirect('pages/customers.php?customer_id=' . (int) $doc['customer_id']);
 }
 
-$downloadName = (string) ($doc['original_name'] ?? $doc['stored_name'] ?? ('document-' . $docId));
+$viewName = (string) ($doc['original_name'] ?? $doc['stored_name'] ?? ('document-' . $docId));
 $mimeType = (string) ($doc['mime_type'] ?? 'application/octet-stream');
-log_activity($pdo, 'customer.document_download', 'Customer document downloaded.', [
+
+log_activity($pdo, 'customer.document_view', 'Customer document viewed.', [
     'customer_id' => (int) $doc['customer_id'],
     'document_id' => $docId,
-    'file_name' => $downloadName,
+    'file_name' => $viewName,
 ]);
 
-header('Content-Description: File Transfer');
 header('Content-Type: ' . $mimeType);
-header('Content-Disposition: attachment; filename="' . str_replace('"', '', $downloadName) . '"');
+header('Content-Disposition: inline; filename="' . str_replace('"', '', $viewName) . '"');
 header('Content-Length: ' . (string) filesize($absPath));
 header('X-Content-Type-Options: nosniff');
-header('Pragma: public');
 header('Cache-Control: private, must-revalidate');
 readfile($absPath);
 exit;

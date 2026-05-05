@@ -40,6 +40,7 @@ require __DIR__ . '/../includes/layout_start.php';
         <p>Please add an active customer first.</p>
     <?php else: ?>
         <form id="loan-form" class="form-grid" method="post" action="<?= e(url('actions/loan_save.php')) ?>">
+            <?= csrf_input() ?>
             <div class="field">
                 <label>Customer</label>
                 <select name="customer_id" required>
@@ -94,11 +95,11 @@ require __DIR__ . '/../includes/layout_start.php';
                 <div class="calc-preview-grid calc-preview-grid-three">
                     <div class="calc-preview-item">
                         <p>Total Repayable</p>
-                        <h3>LKR <span id="preview-total">0.00</span></h3>
+                        <h3><?= e(currency_label($pdo)) ?> <span id="preview-total">0.00</span></h3>
                     </div>
                     <div class="calc-preview-item">
                         <p>Per Installment</p>
-                        <h3>LKR <span id="preview-installment">0.00</span></h3>
+                        <h3><?= e(currency_label($pdo)) ?> <span id="preview-installment">0.00</span></h3>
                     </div>
                     <div class="calc-preview-item">
                         <p>No. of Installments</p>

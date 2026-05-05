@@ -52,6 +52,7 @@ require __DIR__ . '/../includes/layout_start.php';
         </div>
 
         <form method="post" action="<?= e(url('actions/backup_restore.php')) ?>" enctype="multipart/form-data" class="form-grid">
+            <?= csrf_input() ?>
             <div class="field full">
                 <label>Backup File (.sql or .zip)</label>
                 <input type="file" name="backup_file" accept=".sql,.zip,text/plain,application/sql,application/octet-stream,application/zip,application/x-zip-compressed" required>

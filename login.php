@@ -9,6 +9,7 @@ if (is_logged_in()) {
 }
 
 $superadminAvailable = has_superadmin($pdo);
+$faviconPath = business_icon_path($pdo);
 ?>
 <!doctype html>
 <html lang="en">
@@ -16,6 +17,9 @@ $superadminAvailable = has_superadmin($pdo);
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login | <?= e(APP_NAME) ?></title>
+    <?php if ($faviconPath !== ''): ?>
+        <link rel="icon" href="<?= e(url($faviconPath)) ?>">
+    <?php endif; ?>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -36,6 +40,7 @@ $superadminAvailable = has_superadmin($pdo);
             <a class="btn btn-primary" href="<?= e(url('setup_superadmin.php')) ?>">Create First Owner</a>
         <?php else: ?>
             <form method="post" action="<?= e(url('actions/auth_login.php')) ?>" class="form-grid auth-form-grid">
+                <?= csrf_input() ?>
                 <div class="field full">
                     <label>Username</label>
                     <input type="text" name="username" required autofocus>

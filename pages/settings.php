@@ -5,16 +5,23 @@ declare(strict_types=1);
 require_once __DIR__ . '/../includes/bootstrap.php';
 require_roles(['superadmin', 'admin']);
 
-$pageTitle = 'Settings';
+$pageTitle = 'Business Settings';
 $activePage = 'settings';
 
 $settings = system_settings_all($pdo);
 $get = static fn(string $key, string $default = ''): string => $settings[$key] ?? $default;
+$businessIconPath = business_icon_path($pdo);
+$businessName = trim($get('business_name', 'Loan Manager'));
+$businessInitial = strtoupper(substr(preg_replace('/\s+/', '', $businessName), 0, 1));
+if ($businessInitial === '') {
+    $businessInitial = 'L';
+}
 
 require __DIR__ . '/../includes/layout_start.php';
 ?>
 
-<form method="post" action="<?= e(url('actions/settings_save.php')) ?>">
+<form method="post" action="<?= e(url('actions/settings_save.php')) ?>" enctype="multipart/form-data">
+    <?= csrf_input() ?>
     <div class="settings-col">
         <h3 class="settings-subtitle">Business Settings</h3>
         <div class="form-grid settings-business-grid">
@@ -29,6 +36,22 @@ require __DIR__ . '/../includes/layout_start.php';
             <div class="field">
                 <label>Business Email</label>
                 <input type="email" name="business_email" maxlength="120" value="<?= e($get('business_email', '')) ?>">
+            </div>
+            <div class="field business-icon-field">
+                <label>Business Icon</label>
+                <div class="settings-icon-upload-wrap">
+                    <div class="settings-icon-preview">
+                        <?php if ($businessIconPath !== ''): ?>
+                            <img src="<?= e(url($businessIconPath)) ?>" alt="Business icon">
+                        <?php else: ?>
+                            <?= e($businessInitial) ?>
+                        <?php endif; ?>
+                    </div>
+                    <div class="settings-icon-input">
+                        <input type="file" name="business_icon" accept=".jpg,.jpeg,.png,.webp,.gif,.ico,image/*">
+                        <small>JPG, PNG, WEBP, GIF or ICO. Max 2MB.</small>
+                    </div>
+                </div>
             </div>
             <div class="field full">
                 <label>Business Address</label>

@@ -17,6 +17,7 @@ require __DIR__ . '/../includes/layout_start.php';
 ?>
 
 <form method="post" action="<?= e(url('actions/system_settings_save.php')) ?>">
+    <?= csrf_input() ?>
     <div class="settings-col">
         <h3 class="settings-subtitle">System Settings</h3>
         <?php if (!$canEditSystemSettings): ?>

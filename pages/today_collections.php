@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../includes/bootstrap.php';
+require_roles(['superadmin', 'admin', 'collector_l1', 'collector_l2', 'collector']);
 
 $pageTitle = 'Collection';
 $activePage = 'today_collections';
@@ -85,8 +86,22 @@ foreach ($dueInstallments as $item) {
     }
 }
 
-$selectedCollectionTotalStmt = $pdo->prepare('SELECT COALESCE(SUM(amount), 0) FROM collections WHERE collected_on = :selected_date');
-$selectedCollectionTotalStmt->execute(['selected_date' => $selectedDate]);
+if (is_collector_role($currentRole)) {
+    $selectedCollectionTotalStmt = $pdo->prepare(
+        "SELECT COALESCE(SUM(col.amount), 0)
+         FROM collections col
+         JOIN loans l ON l.id = col.loan_id
+         WHERE col.collected_on = :selected_date
+           AND (l.assigned_user_id = :assigned_user_id OR l.assigned_user_id IS NULL)"
+    );
+    $selectedCollectionTotalStmt->execute([
+        'selected_date' => $selectedDate,
+        'assigned_user_id' => $currentUserId,
+    ]);
+} else {
+    $selectedCollectionTotalStmt = $pdo->prepare('SELECT COALESCE(SUM(amount), 0) FROM collections WHERE collected_on = :selected_date');
+    $selectedCollectionTotalStmt->execute(['selected_date' => $selectedDate]);
+}
 $selectedCollectionTotal = (float) $selectedCollectionTotalStmt->fetchColumn();
 
 $returnParams = [
@@ -135,7 +150,7 @@ require __DIR__ . '/../includes/layout_start.php';
         <div class="metric-row" style="margin: 10px 0 14px;" id="collection-summary-metrics">
             <div class="metric-box">
                 <p>Collected Total (Selected Date)</p>
-                <h3>LKR <?= e(money($selectedCollectionTotal)) ?></h3>
+                <h3><?= e(money_label($pdo, $selectedCollectionTotal)) ?></h3>
             </div>
             <div class="metric-box">
                 <p>Pending Count (Selected Date)</p>
@@ -176,10 +191,10 @@ require __DIR__ . '/../includes/layout_start.php';
                             <td><?= e($item['full_name']) ?></td>
                             <td><?= e($item['phone']) ?></td>
                             <td>#<?= e((string) $item['installment_no']) ?></td>
-                            <td><?= e($item['due_date']) ?></td>
-                            <td>LKR <?= e(money((float) $item['due_amount'])) ?></td>
-                            <td>LKR <?= e(money((float) $item['paid_amount'])) ?></td>
-                            <td>LKR <?= e(money($balance)) ?></td>
+                            <td><?= e(display_date((string) $item['due_date'])) ?></td>
+                            <td><?= e(money_label($pdo, (float) $item['due_amount'])) ?></td>
+                            <td><?= e(money_label($pdo, (float) $item['paid_amount'])) ?></td>
+                            <td><?= e(money_label($pdo, $balance)) ?></td>
                             <td><span class="badge badge-<?= e(status_badge_class($displayStatus)) ?>"><?= e($displayStatus) ?></span></td>
                         </tr>
                     <?php endforeach; ?>
@@ -223,6 +238,7 @@ require __DIR__ . '/../includes/layout_start.php';
         </div>
 
         <form method="post" action="<?= e(url('actions/collection_save.php')) ?>" class="form-grid" data-confirm="Confirm this collection payment?">
+            <?= csrf_input() ?>
             <input type="hidden" name="loan_id" value="<?= e($hasSelectedInstallment ? (string) $selectedInstallment['loan_id'] : '') ?>">
             <input type="hidden" name="installment_id" value="<?= e($hasSelectedInstallment ? (string) $selectedInstallment['id'] : '') ?>">
             <input type="hidden" name="collected_on" value="<?= e($selectedDate) ?>">
@@ -230,19 +246,19 @@ require __DIR__ . '/../includes/layout_start.php';
 
             <div class="field full">
                 <label>Installment</label>
-                <input type="text" value="<?= e($hasSelectedInstallment ? ('#' . (string) $selectedInstallment['installment_no'] . ' | ' . $selectedInstallment['due_date']) : 'Not selected') ?>" readonly>
+                <input type="text" value="<?= e($hasSelectedInstallment ? ('#' . (string) $selectedInstallment['installment_no'] . ' | ' . display_date((string) $selectedInstallment['due_date'])) : 'Not selected') ?>" readonly>
             </div>
             <div class="field">
                 <label>Due Amount</label>
-                <input type="text" value="<?= e($hasSelectedInstallment ? ('LKR ' . money((float) $selectedInstallment['due_amount'])) : 'LKR 0.00') ?>" readonly>
+                <input type="text" value="<?= e($hasSelectedInstallment ? money_label($pdo, (float) $selectedInstallment['due_amount']) : money_label($pdo, 0.0)) ?>" readonly>
             </div>
             <div class="field">
                 <label>Already Paid</label>
-                <input type="text" value="<?= e($hasSelectedInstallment ? ('LKR ' . money((float) $selectedInstallment['paid_amount'])) : 'LKR 0.00') ?>" readonly>
+                <input type="text" value="<?= e($hasSelectedInstallment ? money_label($pdo, (float) $selectedInstallment['paid_amount']) : money_label($pdo, 0.0)) ?>" readonly>
             </div>
             <div class="field">
                 <label>Balance</label>
-                <input type="text" value="LKR <?= e(money($selectedBalance)) ?>" readonly>
+                <input type="text" value="<?= e(money_label($pdo, $selectedBalance)) ?>" readonly>
             </div>
             <div class="field">
                 <label>Amount Received</label>
@@ -269,7 +285,7 @@ require __DIR__ . '/../includes/layout_start.php';
 
 <div id="poll-config"
      data-poll-endpoint="<?= e(url('api/collection_poll.php')) ?>"
-     data-poll-interval="10000"
+     data-poll-interval="<?= e((string) poll_interval_ms($pdo)) ?>"
      data-poll-include-query="1"></div>
 
 <?php require __DIR__ . '/../includes/layout_end.php';

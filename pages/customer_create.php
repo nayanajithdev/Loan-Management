@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../includes/bootstrap.php';
+require_roles(['superadmin', 'admin', 'collector_l1', 'collector_l2', 'collector']);
 
 $pageTitle = 'Create Customer';
 $activePage = 'customers';
@@ -17,6 +18,7 @@ require __DIR__ . '/../includes/layout_start.php';
     </div>
 
     <form class="form-grid" method="post" action="<?= e(url('actions/customer_save.php')) ?>" enctype="multipart/form-data">
+        <?= csrf_input() ?>
         <div class="field">
             <label>Full Name</label>
             <input type="text" name="full_name" required>

@@ -50,10 +50,10 @@ require __DIR__ . '/../includes/layout_start.php';
                     <tr class="table-row-clickable" data-select-url="<?= e($selectUrl) ?>">
                         <td><?= e($loan['loan_number']) ?></td>
                         <td><?= e($loan['full_name']) ?></td>
-                        <td>LKR <?= e(money((float) $loan['principal_amount'])) ?></td>
-                        <td>LKR <?= e(money((float) $loan['total_amount'])) ?></td>
-                        <td>LKR <?= e(money((float) $loan['collected_amount'])) ?></td>
-                        <td>LKR <?= e(money($balance)) ?></td>
+                        <td><?= e(money_label($pdo, (float) $loan['principal_amount'])) ?></td>
+                        <td><?= e(money_label($pdo, (float) $loan['total_amount'])) ?></td>
+                        <td><?= e(money_label($pdo, (float) $loan['collected_amount'])) ?></td>
+                        <td><?= e(money_label($pdo, $balance)) ?></td>
                         <td>
                             <?php if (!empty($loan['assigned_user_name'])): ?>
                                 <?= e($loan['assigned_user_name']) ?>

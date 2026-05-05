@@ -3,9 +3,10 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../includes/bootstrap.php';
+require_roles(['superadmin', 'admin', 'collector_l1', 'collector_l2', 'collector']);
 
 $pageTitle = 'Profile';
-$activePage = 'settings';
+$activePage = 'profile';
 
 $authUser = current_user();
 if (!$authUser) {
@@ -42,6 +43,7 @@ require __DIR__ . '/../includes/layout_start.php';
         </div>
 
         <form method="post" action="<?= e(url('actions/profile_update.php')) ?>" enctype="multipart/form-data" class="form-grid profile-form-grid">
+            <?= csrf_input() ?>
             <div class="field full profile-avatar-row">
                 <div class="profile-avatar">
                     <?php if ($avatarPath !== ''): ?>
@@ -87,6 +89,7 @@ require __DIR__ . '/../includes/layout_start.php';
         </div>
 
         <form method="post" action="<?= e(url('actions/profile_password.php')) ?>" class="form-grid profile-password-grid">
+            <?= csrf_input() ?>
             <div class="field">
                 <label>Current Password</label>
                 <input type="password" name="current_password" required>

@@ -36,9 +36,110 @@ function money(float $amount): string
     return number_format($amount, 2);
 }
 
+function currency_label(PDO $pdo): string
+{
+    static $cached = null;
+
+    if ($cached !== null) {
+        return $cached;
+    }
+
+    $label = trim(system_setting($pdo, 'currency_label', 'LKR'));
+    $cached = $label !== '' ? $label : 'LKR';
+
+    return $cached;
+}
+
+function money_label(PDO $pdo, float $amount): string
+{
+    return currency_label($pdo) . ' ' . money($amount);
+}
+
+function poll_interval_ms(PDO $pdo): int
+{
+    $seconds = (int) system_setting($pdo, 'poll_interval_seconds', '10');
+    return max(3000, min(60000, $seconds * 1000));
+}
+
+function display_date(string $dateValue, ?string $fallback = null): string
+{
+    static $format = null;
+    if ($format === null) {
+        $saved = trim(system_setting(db(), 'date_format', 'd M Y'));
+        $format = $saved !== '' ? $saved : 'd M Y';
+    }
+
+    $date = DateTimeImmutable::createFromFormat('Y-m-d', $dateValue);
+    if (!$date) {
+        return $fallback ?? $dateValue;
+    }
+
+    return $date->format($format);
+}
+
+function display_datetime(string $dateTimeValue, ?string $fallback = null): string
+{
+    static $dateTimeFormat = null;
+    if ($dateTimeFormat === null) {
+        $saved = trim(system_setting(db(), 'date_format', 'd M Y'));
+        $dateTimeFormat = ($saved !== '' ? $saved : 'd M Y') . ' H:i:s';
+    }
+
+    try {
+        $date = new DateTimeImmutable($dateTimeValue);
+    } catch (Throwable) {
+        return $fallback ?? $dateTimeValue;
+    }
+
+    return $date->format($dateTimeFormat);
+}
+
 function today(): string
 {
     return date('Y-m-d');
+}
+
+function csrf_token(): string
+{
+    if (!isset($_SESSION['_csrf_token']) || !is_string($_SESSION['_csrf_token']) || $_SESSION['_csrf_token'] === '') {
+        try {
+            $_SESSION['_csrf_token'] = bin2hex(random_bytes(32));
+        } catch (Throwable) {
+            $_SESSION['_csrf_token'] = str_replace('.', '', uniqid('csrf_', true));
+        }
+    }
+
+    return (string) $_SESSION['_csrf_token'];
+}
+
+function csrf_input(): string
+{
+    return '<input type="hidden" name="_csrf" value="' . e(csrf_token()) . '">';
+}
+
+function csrf_is_valid(?string $submittedToken): bool
+{
+    if (!isset($_SESSION['_csrf_token']) || !is_string($_SESSION['_csrf_token'])) {
+        return false;
+    }
+    if ($submittedToken === null || $submittedToken === '') {
+        return false;
+    }
+
+    return hash_equals((string) $_SESSION['_csrf_token'], $submittedToken);
+}
+
+function require_csrf(string $redirectPath = 'index.php'): void
+{
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+        return;
+    }
+
+    $token = (string) ($_POST['_csrf'] ?? '');
+    if (!csrf_is_valid($token)) {
+        set_flash('error', 'Invalid request token. Please try again.');
+        redirect($redirectPath);
+    }
 }
 
 function redirect(string $path): void
@@ -145,14 +246,6 @@ function status_badge_class(string $status): string
         'defaulted', 'overdue', 'inactive' => 'danger',
         default => 'neutral',
     };
-}
-
-function loan_collected_total(PDO $pdo, int $loanId): float
-{
-    $stmt = $pdo->prepare('SELECT COALESCE(SUM(amount), 0) FROM collections WHERE loan_id = :loan_id');
-    $stmt->execute(['loan_id' => $loanId]);
-
-    return (float) $stmt->fetchColumn();
 }
 
 function refresh_overdue_installments(PDO $pdo): void
@@ -263,9 +356,7 @@ function ensure_user_schema(PDO $pdo): void
 
     if (!$roleColumn) {
         $pdo->exec("ALTER TABLE users ADD COLUMN role ENUM('superadmin','admin','collector','collector_l1','collector_l2') NOT NULL DEFAULT 'admin' AFTER password_hash");
-        return;
     }
-    $pdo->exec("ALTER TABLE users MODIFY COLUMN role ENUM('superadmin','admin','collector','collector_l1','collector_l2') NOT NULL DEFAULT 'admin'");
 }
 
 function ensure_user_profile_schema(PDO $pdo): void
@@ -318,11 +409,8 @@ function ensure_loan_interest_rate_type_schema(PDO $pdo): void
 
     if (!$col) {
         $pdo->exec("ALTER TABLE loans ADD COLUMN interest_rate_type ENUM('amount_based','monthly') NOT NULL DEFAULT 'amount_based' AFTER interest_rate");
-    } else {
-        $pdo->exec("ALTER TABLE loans MODIFY COLUMN interest_rate_type ENUM('amount_based','monthly') NOT NULL DEFAULT 'amount_based'");
+        $pdo->exec("UPDATE loans SET interest_rate_type = 'amount_based' WHERE interest_rate_type IS NULL OR interest_rate_type = ''");
     }
-
-    $pdo->exec("UPDATE loans SET interest_rate_type = 'amount_based' WHERE interest_rate_type IS NULL OR interest_rate_type = ''");
 }
 
 function ensure_loan_interest_rate_months_schema(PDO $pdo): void
@@ -332,21 +420,7 @@ function ensure_loan_interest_rate_months_schema(PDO $pdo): void
 
     if (!$col) {
         $pdo->exec('ALTER TABLE loans ADD COLUMN interest_rate_months INT NOT NULL DEFAULT 1 AFTER interest_rate_type');
-    } else {
-        $pdo->exec('ALTER TABLE loans MODIFY COLUMN interest_rate_months INT NOT NULL DEFAULT 1');
-    }
-
-    $pdo->exec('UPDATE loans SET interest_rate_months = 1 WHERE interest_rate_months IS NULL OR interest_rate_months < 1');
-}
-
-function ensure_customer_assignment_schema(PDO $pdo): void
-{
-    $colStmt = $pdo->query("SHOW COLUMNS FROM customers LIKE 'assigned_user_id'");
-    $col = $colStmt->fetch();
-
-    if (!$col) {
-        $pdo->exec('ALTER TABLE customers ADD COLUMN assigned_user_id INT NULL AFTER note');
-        $pdo->exec('ALTER TABLE customers ADD INDEX idx_customers_assigned_user (assigned_user_id)');
+        $pdo->exec('UPDATE loans SET interest_rate_months = 1 WHERE interest_rate_months IS NULL OR interest_rate_months < 1');
     }
 }
 
@@ -500,6 +574,48 @@ function customer_documents_upload_dir_rel(): string
     return 'uploads/customer_docs';
 }
 
+function business_icon_upload_dir_abs(): string
+{
+    return dirname(__DIR__) . DIRECTORY_SEPARATOR . 'uploads' . DIRECTORY_SEPARATOR . 'business_icons';
+}
+
+function business_icon_upload_dir_rel(): string
+{
+    return 'uploads/business_icons';
+}
+
+function business_icon_path(PDO $pdo): string
+{
+    $path = trim(system_setting($pdo, 'business_icon_path', ''));
+    if ($path === '') {
+        return '';
+    }
+
+    $normalized = str_replace('\\', '/', $path);
+    $requiredPrefix = business_icon_upload_dir_rel() . '/';
+    if (!str_starts_with(strtolower($normalized), strtolower($requiredPrefix))) {
+        return '';
+    }
+
+    $absPath = dirname(__DIR__) . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $normalized);
+    if (!is_file($absPath)) {
+        return '';
+    }
+
+    return $normalized;
+}
+
+function ensure_customer_docs_guard_file(string $uploadDirAbs): void
+{
+    $guardPath = $uploadDirAbs . DIRECTORY_SEPARATOR . '.htaccess';
+    if (is_file($guardPath)) {
+        return;
+    }
+
+    $guardContents = "<IfModule mod_authz_core.c>\n    Require all denied\n</IfModule>\n<IfModule !mod_authz_core.c>\n    Deny from all\n</IfModule>\n";
+    @file_put_contents($guardPath, $guardContents);
+}
+
 function store_customer_documents(PDO $pdo, int $customerId, string $customerCode, ?array $filesInput, int $uploadedByUserId = 0): int
 {
     $files = normalize_uploaded_files($filesInput);
@@ -520,6 +636,7 @@ function store_customer_documents(PDO $pdo, int $customerId, string $customerCod
     if (!is_dir($uploadDirAbs) && !mkdir($uploadDirAbs, 0775, true) && !is_dir($uploadDirAbs)) {
         throw new RuntimeException('Failed to create upload directory.');
     }
+    ensure_customer_docs_guard_file($uploadDirAbs);
 
     $insertStmt = $pdo->prepare(
         'INSERT INTO customer_documents (customer_id, original_name, stored_name, file_path, mime_type, file_size, uploaded_by_user_id)
@@ -561,12 +678,9 @@ function store_customer_documents(PDO $pdo, int $customerId, string $customerCod
             $originalName = $originalName === '' ? ('document.' . $ext) : basename($originalName);
 
             $baseName = pathinfo($originalName, PATHINFO_FILENAME);
-            $origExt = strtolower((string) pathinfo($originalName, PATHINFO_EXTENSION));
-            $finalExt = $origExt !== '' ? $origExt : $ext;
-
             $safeBase = preg_replace('/[^\w\-. ]+/u', '_', $baseName) ?: 'document';
             $safeBase = trim((string) $safeBase);
-            $safeExt = preg_replace('/[^a-z0-9]+/i', '', $finalExt) ?: $ext;
+            $safeExt = $ext;
 
             $candidateName = $safeBase . '.' . $safeExt;
             $absPath = $uploadDirAbs . DIRECTORY_SEPARATOR . $candidateName;
@@ -733,6 +847,68 @@ function can_view_all_customers(): bool
     return has_role(['superadmin', 'admin', 'collector_l2', 'collector']);
 }
 
+function can_access_customer(PDO $pdo, int $customerId, ?array $viewer = null): bool
+{
+    if ($customerId <= 0) {
+        return false;
+    }
+
+    $viewer = $viewer ?? current_user();
+    if (!$viewer) {
+        return false;
+    }
+
+    $viewerRole = (string) ($viewer['role'] ?? '');
+    if (in_array($viewerRole, ['superadmin', 'admin', 'collector_l2', 'collector'], true)) {
+        return true;
+    }
+
+    $viewerId = (int) ($viewer['id'] ?? 0);
+    if ($viewerId <= 0) {
+        return false;
+    }
+
+    $stmt = $pdo->prepare(
+        "SELECT 1
+         FROM customers c
+         WHERE c.id = :customer_id
+           AND (
+                EXISTS (
+                    SELECT 1
+                    FROM loans l_assigned
+                    WHERE l_assigned.customer_id = c.id
+                      AND l_assigned.assigned_user_id = :viewer_user_id
+                )
+                OR EXISTS (
+                    SELECT 1
+                    FROM loans l_unassigned
+                    WHERE l_unassigned.customer_id = c.id
+                      AND l_unassigned.assigned_user_id IS NULL
+                )
+                OR NOT EXISTS (
+                    SELECT 1
+                    FROM loans l_any
+                    WHERE l_any.customer_id = c.id
+                )
+           )
+         LIMIT 1"
+    );
+    $stmt->execute([
+        'customer_id' => $customerId,
+        'viewer_user_id' => $viewerId,
+    ]);
+
+    return (bool) $stmt->fetchColumn();
+}
+
+function require_customer_access(PDO $pdo, int $customerId, string $redirectPath = 'pages/customers.php'): void
+{
+    if (!can_access_customer($pdo, $customerId)) {
+        set_flash('error', 'You do not have permission to access that customer.');
+        redirect($redirectPath);
+    }
+}
+
 function require_roles(array $roles, string $redirectPath = 'index.php'): void
 {
     if (!has_role($roles)) {
@@ -796,72 +972,6 @@ function today_collection_goal(PDO $pdo, ?array $viewer = null): array
         'collected' => $collected,
         'remaining' => $remaining,
         'percentage' => $percentage,
-    ];
-}
-
-function customer_weekly_trend(PDO $pdo): array
-{
-    $stmt = $pdo->query(
-        "SELECT DATE(created_at) AS d, COUNT(*) AS c
-         FROM customers
-         WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL 13 DAY)
-         GROUP BY DATE(created_at)"
-    );
-    $rows = $stmt->fetchAll();
-
-    $map = [];
-    foreach ($rows as $row) {
-        $map[(string) $row['d']] = (int) $row['c'];
-    }
-
-    $values14 = [];
-    for ($i = 13; $i >= 0; $i--) {
-        $d = (new DateTimeImmutable(today()))->sub(new DateInterval('P' . $i . 'D'))->format('Y-m-d');
-        $values14[] = $map[$d] ?? 0;
-    }
-
-    $prev7 = array_sum(array_slice($values14, 0, 7));
-    $curr7 = array_sum(array_slice($values14, 7, 7));
-    $deltaPct = $prev7 > 0 ? (($curr7 - $prev7) / $prev7) * 100 : ($curr7 > 0 ? 100 : 0);
-
-    return [
-        'values' => array_slice($values14, 7, 7),
-        'current_week_total' => $curr7,
-        'delta_pct' => $deltaPct,
-        'is_up' => $deltaPct >= 0,
-    ];
-}
-
-function disbursed_weekly_trend(PDO $pdo): array
-{
-    $stmt = $pdo->query(
-        "SELECT DATE(created_at) AS d, COALESCE(SUM(principal_amount), 0) AS a
-         FROM loans
-         WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL 13 DAY)
-         GROUP BY DATE(created_at)"
-    );
-    $rows = $stmt->fetchAll();
-
-    $map = [];
-    foreach ($rows as $row) {
-        $map[(string) $row['d']] = (float) $row['a'];
-    }
-
-    $values14 = [];
-    for ($i = 13; $i >= 0; $i--) {
-        $d = (new DateTimeImmutable(today()))->sub(new DateInterval('P' . $i . 'D'))->format('Y-m-d');
-        $values14[] = $map[$d] ?? 0.0;
-    }
-
-    $prev7 = array_sum(array_slice($values14, 0, 7));
-    $curr7 = array_sum(array_slice($values14, 7, 7));
-    $deltaPct = $prev7 > 0 ? (($curr7 - $prev7) / $prev7) * 100 : ($curr7 > 0 ? 100 : 0);
-
-    return [
-        'values' => array_slice($values14, 7, 7),
-        'current_week_total' => $curr7,
-        'delta_pct' => $deltaPct,
-        'is_up' => $deltaPct >= 0,
     ];
 }
 
@@ -1102,30 +1212,6 @@ function sparkline_points_scaled(array $values, float $min, float $max, int $wid
         $x = $padding + ($count === 1 ? 0 : ($innerWidth * $i / ($count - 1)));
         $norm = (((float) $v) - $min) / $range;
         $norm = max(0.0, min(1.0, $norm));
-        $y = $padding + ($innerHeight * (1 - $norm));
-        $points[] = number_format($x, 2, '.', '') . ',' . number_format($y, 2, '.', '');
-    }
-
-    return implode(' ', $points);
-}
-
-function sparkline_points(array $values, int $width = 140, int $height = 46, int $padding = 4): string
-{
-    if (empty($values)) {
-        return '';
-    }
-
-    $min = min($values);
-    $max = max($values);
-    $range = max(1, $max - $min);
-    $count = count($values);
-    $innerWidth = $width - ($padding * 2);
-    $innerHeight = $height - ($padding * 2);
-
-    $points = [];
-    foreach ($values as $i => $v) {
-        $x = $padding + ($count === 1 ? 0 : ($innerWidth * $i / ($count - 1)));
-        $norm = ($v - $min) / $range;
         $y = $padding + ($innerHeight * (1 - $norm));
         $points[] = number_format($x, 2, '.', '') . ',' . number_format($y, 2, '.', '');
     }

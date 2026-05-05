@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../includes/bootstrap.php';
+require_roles(['superadmin', 'admin', 'collector_l2', 'collector']);
 
 $pageTitle = 'Calculator';
 $activePage = 'calculator';
@@ -71,15 +72,15 @@ require __DIR__ . '/../includes/layout_start.php';
             <div class="calc-preview-grid calc-preview-grid-three">
                 <div class="calc-preview-item">
                     <p>Total Repayable</p>
-                    <h3>LKR <span id="preview-total">0.00</span></h3>
+                    <h3><?= e(currency_label($pdo)) ?> <span id="preview-total">0.00</span></h3>
                 </div>
                 <div class="calc-preview-item">
                     <p>Per Installment</p>
-                    <h3>LKR <span id="preview-installment">0.00</span></h3>
+                    <h3><?= e(currency_label($pdo)) ?> <span id="preview-installment">0.00</span></h3>
                 </div>
                 <div class="calc-preview-item">
                     <p>Profit</p>
-                    <h3>LKR <span id="preview-profit">0.00</span></h3>
+                    <h3><?= e(currency_label($pdo)) ?> <span id="preview-profit">0.00</span></h3>
                 </div>
                 <div class="calc-preview-item">
                     <p>No. of Installments</p>

@@ -77,6 +77,7 @@ require __DIR__ . '/../includes/layout_start.php';
     <?php endif; ?>
 
     <form id="loan-form" class="form-grid" method="post" action="<?= e(url('actions/loan_update.php')) ?>">
+        <?= csrf_input() ?>
         <input type="hidden" name="loan_id" value="<?= e((string) $loan['id']) ?>">
 
         <div class="field">
@@ -177,11 +178,11 @@ require __DIR__ . '/../includes/layout_start.php';
             <div class="calc-preview-grid calc-preview-grid-three">
                 <div class="calc-preview-item">
                     <p>Total Repayable</p>
-                    <h3>LKR <span id="preview-total"><?= e(money((float) $loan['total_amount'])) ?></span></h3>
+                    <h3><?= e(currency_label($pdo)) ?> <span id="preview-total"><?= e(money((float) $loan['total_amount'])) ?></span></h3>
                 </div>
                 <div class="calc-preview-item">
                     <p>Per Installment</p>
-                    <h3>LKR <span id="preview-installment"><?= e(money((float) $loan['installment_amount'])) ?></span></h3>
+                    <h3><?= e(currency_label($pdo)) ?> <span id="preview-installment"><?= e(money((float) $loan['installment_amount'])) ?></span></h3>
                 </div>
                 <div class="calc-preview-item">
                     <p>No. of Installments</p>

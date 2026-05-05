@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../includes/bootstrap.php';
+require_roles(['superadmin', 'admin', 'collector_l1', 'collector_l2', 'collector']);
 
 $pageTitle = 'View Customer';
 $activePage = 'customers';
@@ -12,6 +13,7 @@ if ($customerId <= 0) {
     set_flash('error', 'Invalid customer selected.');
     redirect('pages/customers.php');
 }
+require_customer_access($pdo, $customerId);
 
 $stmt = $pdo->prepare('SELECT * FROM customers WHERE id = :id LIMIT 1');
 $stmt->execute(['id' => $customerId]);
@@ -56,6 +58,7 @@ require __DIR__ . '/../includes/layout_start.php';
     </div>
 
     <form class="form-grid" id="customer-edit-form" method="post" action="<?= e(url('actions/customer_update.php')) ?>" enctype="multipart/form-data">
+        <?= csrf_input() ?>
         <input type="hidden" name="customer_id" value="<?= e((string) $customer['id']) ?>">
 
         <div class="field">
@@ -121,9 +124,9 @@ require __DIR__ . '/../includes/layout_start.php';
                         <td class="doc-name-cell" title="<?= e($doc['original_name']) ?>"><?= e($doc['original_name']) ?></td>
                         <td><?= e($doc['mime_type']) ?></td>
                         <td><?= e(readable_file_size((int) $doc['file_size'])) ?></td>
-                        <td><?= e($doc['created_at']) ?></td>
+                        <td><?= e(display_datetime((string) $doc['created_at'])) ?></td>
                         <td>
-                            <a class="btn btn-icon" href="<?= e(url((string) $doc['file_path'])) ?>" target="_blank" rel="noopener" title="View" aria-label="View">
+                            <a class="btn btn-icon" href="<?= e(url('actions/customer_document_view.php?doc_id=' . (int) $doc['id'])) ?>" target="_blank" rel="noopener" title="View" aria-label="View">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-eye-icon lucide-eye"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/></svg>
                             </a>
                             <a class="btn btn-icon" href="<?= e(url('actions/customer_document_download.php?doc_id=' . (int) $doc['id'])) ?>" title="Download" aria-label="Download">

@@ -10,6 +10,7 @@ if (has_superadmin($pdo)) {
     }
     redirect('login.php');
 }
+$faviconPath = business_icon_path($pdo);
 ?>
 <!doctype html>
 <html lang="en">
@@ -17,6 +18,9 @@ if (has_superadmin($pdo)) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Create Owner | <?= e(APP_NAME) ?></title>
+    <?php if ($faviconPath !== ''): ?>
+        <link rel="icon" href="<?= e(url($faviconPath)) ?>">
+    <?php endif; ?>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -33,6 +37,7 @@ if (has_superadmin($pdo)) {
         <?php endif; ?>
 
         <form method="post" action="<?= e(url('actions/auth_setup_superadmin.php')) ?>" class="form-grid auth-form-grid">
+            <?= csrf_input() ?>
             <div class="field full">
                 <label>Full Name</label>
                 <input type="text" name="full_name" required autofocus>

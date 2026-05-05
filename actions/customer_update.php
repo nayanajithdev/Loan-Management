@@ -3,10 +3,12 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../includes/bootstrap.php';
+require_roles(['superadmin', 'admin', 'collector_l1', 'collector_l2', 'collector']);
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     redirect('pages/customers.php');
 }
+require_csrf('pages/customers.php');
 
 $customerId = (int) ($_POST['customer_id'] ?? 0);
 $fullName = trim((string) ($_POST['full_name'] ?? ''));
@@ -33,6 +35,7 @@ if (!$existsStmt->fetch()) {
     set_flash('error', 'Customer not found.');
     redirect('pages/customers.php');
 }
+require_customer_access($pdo, $customerId);
 
 try {
     $pdo->beginTransaction();
@@ -82,6 +85,10 @@ try {
     if ($pdo->inTransaction()) {
         $pdo->rollBack();
     }
-    set_flash('error', 'Failed to update customer: ' . $e->getMessage());
+    log_activity($pdo, 'customer.update_failed', 'Customer update failed.', [
+        'customer_id' => $customerId,
+        'reason' => $e->getMessage(),
+    ]);
+    set_flash('error', 'Failed to update customer. Please try again.');
     redirect('pages/customer_edit.php?customer_id=' . $customerId);
 }

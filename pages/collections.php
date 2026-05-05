@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../includes/bootstrap.php';
+require_roles(['superadmin', 'admin', 'collector_l1', 'collector_l2', 'collector']);
 
 $pageTitle = 'Collection History';
 $activePage = 'collections';
@@ -115,13 +116,13 @@ require __DIR__ . '/../includes/layout_start.php';
                     }
                     ?>
                     <tr>
-                        <td><?= e($item['collected_on']) ?></td>
+                        <td><?= e(display_date((string) $item['collected_on'])) ?></td>
                         <td><?= e($item['loan_number']) ?></td>
                         <td><?= e($item['full_name']) ?></td>
                         <td><?= e((string) ($item['collected_by_name'] ?? '-')) ?></td>
                         <td><?= e($item['method']) ?></td>
                         <td><?= e($note) ?></td>
-                        <td class="text-right">LKR <?= e(money((float) $item['amount'])) ?></td>
+                        <td class="text-right"><?= e(money_label($pdo, (float) $item['amount'])) ?></td>
                     </tr>
                 <?php endforeach; ?>
             <?php endif; ?>
@@ -133,6 +134,6 @@ require __DIR__ . '/../includes/layout_start.php';
 <div id="poll-config"
      data-poll-endpoint="<?= e(url('api/collection_history_poll.php')) ?>"
      data-poll-include-query="1"
-     data-poll-interval="10000"></div>
+     data-poll-interval="<?= e((string) poll_interval_ms($pdo)) ?>"></div>
 
 <?php require __DIR__ . '/../includes/layout_end.php';

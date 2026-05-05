@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../includes/bootstrap.php';
+require_roles(['superadmin', 'admin', 'collector_l1', 'collector_l2', 'collector']);
 
 $pageTitle = 'Customers';
 $activePage = 'customers';
@@ -109,7 +110,7 @@ require __DIR__ . '/../includes/layout_start.php';
                         <td><?= e($customer['customer_code']) ?></td>
                         <td><?= e($customer['full_name']) ?></td>
                         <td><?= e($customer['phone']) ?></td>
-                        <td>LKR <?= e(money((float) ($customer['running_principal'] ?? 0))) ?></td>
+                        <td><?= e(money_label($pdo, (float) ($customer['running_principal'] ?? 0))) ?></td>
                         <td>
                             <?php if ($overdueCount <= 0): ?>
                                 <span class="badge badge-success">Good</span>

@@ -3,10 +3,12 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../includes/bootstrap.php';
+require_roles(['superadmin', 'admin', 'collector_l1', 'collector_l2', 'collector']);
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     redirect('pages/customers.php');
 }
+require_csrf('pages/customer_create.php');
 
 $fullName = trim((string) ($_POST['full_name'] ?? ''));
 $phone = trim((string) ($_POST['phone'] ?? ''));
@@ -65,6 +67,10 @@ try {
     if ($pdo->inTransaction()) {
         $pdo->rollBack();
     }
-    set_flash('error', 'Failed to create customer: ' . $e->getMessage());
+    log_activity($pdo, 'customer.create_failed', 'Customer creation failed.', [
+        'reason' => $e->getMessage(),
+        'full_name' => $fullName,
+    ]);
+    set_flash('error', 'Failed to create customer. Please try again.');
     redirect('pages/customer_create.php');
 }

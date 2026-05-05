@@ -3,10 +3,12 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../includes/bootstrap.php';
+require_roles(['superadmin', 'admin', 'collector_l1', 'collector_l2', 'collector'], 'pages/today_collections.php');
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     redirect('pages/collections.php');
 }
+require_csrf('pages/today_collections.php');
 
 $loanId = (int) ($_POST['loan_id'] ?? 0);
 $preferredInstallmentId = isset($_POST['installment_id']) ? (int) $_POST['installment_id'] : 0;
@@ -62,6 +64,7 @@ if ($collectedOn > today()) {
 if (!in_array($method, ['cash', 'bank', 'online'], true)) {
     $method = 'cash';
 }
+$allowOverpayment = system_setting($pdo, 'allow_overpayment', '1') !== '0';
 
 try {
     $pdo->beginTransaction();
@@ -90,6 +93,22 @@ try {
 
     if (is_collector_role($currentRole) && $assignedUserId > 0 && $assignedUserId !== $currentUserId) {
         throw new RuntimeException('You can only collect payments for loans assigned to you (or unassigned loans).');
+    }
+    $outstandingStmt = $pdo->prepare(
+        "SELECT COALESCE(SUM(due_amount - paid_amount), 0)
+         FROM loan_installments
+         WHERE loan_id = :loan_id
+           AND status IN ('pending', 'partial', 'overdue')"
+    );
+    $outstandingStmt->execute(['loan_id' => $loanId]);
+    $outstanding = round((float) $outstandingStmt->fetchColumn(), 2);
+
+    if ($outstanding <= 0) {
+        throw new RuntimeException('This loan has no pending installments to collect.');
+    }
+
+    if (!$allowOverpayment && $amount > $outstanding) {
+        throw new RuntimeException('Overpayment is disabled. Maximum allowed amount is ' . money_label($pdo, $outstanding) . '.');
     }
 
     $remaining = $amount;
@@ -183,6 +202,10 @@ try {
     }
 
     if ($remaining > 0) {
+        if (!$allowOverpayment) {
+            throw new RuntimeException('Overpayment is disabled for this system.');
+        }
+
         $insertCollection->execute([
             'loan_id' => $loanId,
             'installment_id' => null,
@@ -242,7 +265,10 @@ try {
         'amount' => $amount,
         'collected_on' => $collectedOn,
     ]);
-    set_flash('error', 'Failed to record collection: ' . $e->getMessage());
+    $userError = $e instanceof RuntimeException
+        ? $e->getMessage()
+        : 'Failed to record collection. Please try again.';
+    set_flash('error', $userError);
 }
 
 redirect($returnTo);

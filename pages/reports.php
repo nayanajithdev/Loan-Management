@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../includes/bootstrap.php';
+require_roles(['superadmin', 'admin']);
 
 $pageTitle = 'Reports';
 $activePage = 'reports';
@@ -192,35 +193,35 @@ require __DIR__ . '/../includes/layout_start.php';
 <section class="card-grid dashboard-stat-grid">
     <article class="stat-card">
         <p class="stat-label">Collected (Range)</p>
-        <p class="stat-value">LKR <?= e(money($collectedTotal)) ?></p>
+        <p class="stat-value"><?= e(money_label($pdo, $collectedTotal)) ?></p>
         <p class="trend-meta"><?= e((string) $collectionCount) ?> transactions</p>
     </article>
     <article class="stat-card">
         <p class="stat-label">Average Collection</p>
-        <p class="stat-value">LKR <?= e(money($avgCollection)) ?></p>
+        <p class="stat-value"><?= e(money_label($pdo, $avgCollection)) ?></p>
         <p class="trend-meta"><?= e((string) ($collectionTotals['active_loans_touched'] ?? 0)) ?> loans touched</p>
     </article>
     <article class="stat-card">
         <p class="stat-label">Disbursed (New Loans)</p>
-        <p class="stat-value">LKR <?= e(money((float) ($loanTotals['disbursed_total'] ?? 0))) ?></p>
+        <p class="stat-value"><?= e(money_label($pdo, (float) ($loanTotals['disbursed_total'] ?? 0))) ?></p>
         <p class="trend-meta"><?= e((string) ($loanTotals['loans_created'] ?? 0)) ?> new loans</p>
     </article>
     <article class="stat-card">
         <p class="stat-label">Due Recovery (Range)</p>
         <p class="stat-value"><?= e(number_format($dueRecoveryPct, 1)) ?>%</p>
-        <p class="trend-meta">LKR <?= e(money($paidTotal)) ?> / <?= e(money($dueTotal)) ?></p>
+        <p class="trend-meta"><?= e(money_label($pdo, $paidTotal)) ?> / <?= e(money_label($pdo, $dueTotal)) ?></p>
     </article>
 </section>
 
 <section class="card-grid" style="grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));">
     <article class="stat-card">
         <p class="stat-label">Projected Profit (New Loans)</p>
-        <p class="stat-value">LKR <?= e(money((float) ($loanTotals['projected_profit'] ?? 0))) ?></p>
+        <p class="stat-value"><?= e(money_label($pdo, (float) ($loanTotals['projected_profit'] ?? 0))) ?></p>
     </article>
     <article class="stat-card">
         <p class="stat-label">Overdue Installments (Current)</p>
         <p class="stat-value"><?= e((string) ($overdueSnapshot['overdue_count'] ?? 0)) ?></p>
-        <p class="trend-meta">LKR <?= e(money((float) ($overdueSnapshot['overdue_amount'] ?? 0))) ?> overdue balance</p>
+        <p class="trend-meta"><?= e(money_label($pdo, (float) ($overdueSnapshot['overdue_amount'] ?? 0))) ?> overdue balance</p>
     </article>
     <article class="stat-card">
         <p class="stat-label">Installments Due (Range)</p>
@@ -249,10 +250,10 @@ require __DIR__ . '/../includes/layout_start.php';
                 <?php else: ?>
                     <?php foreach ($dailyCollections as $row): ?>
                         <tr>
-                            <td><?= e((string) $row['collected_on']) ?></td>
+                            <td><?= e(display_date((string) $row['collected_on'])) ?></td>
                             <td><?= e((string) $row['entries']) ?></td>
                             <td><?= e((string) $row['loans']) ?></td>
-                            <td class="text-right">LKR <?= e(money((float) $row['total_amount'])) ?></td>
+                            <td class="text-right"><?= e(money_label($pdo, (float) $row['total_amount'])) ?></td>
                         </tr>
                     <?php endforeach; ?>
                 <?php endif; ?>
@@ -284,7 +285,7 @@ require __DIR__ . '/../includes/layout_start.php';
                             <td><?= e((string) $row['collector_name']) ?></td>
                             <td><?= e(role_display_name((string) $row['role_name'])) ?></td>
                             <td><?= e((string) $row['entries']) ?></td>
-                            <td class="text-right">LKR <?= e(money((float) $row['total_amount'])) ?></td>
+                            <td class="text-right"><?= e(money_label($pdo, (float) $row['total_amount'])) ?></td>
                         </tr>
                     <?php endforeach; ?>
                 <?php endif; ?>
@@ -318,7 +319,7 @@ require __DIR__ . '/../includes/layout_start.php';
                             <td><?= e((string) $row['customer_code']) ?></td>
                             <td><?= e((string) $row['full_name']) ?></td>
                             <td><?= e((string) $row['entries']) ?></td>
-                            <td class="text-right">LKR <?= e(money((float) $row['total_amount'])) ?></td>
+                            <td class="text-right"><?= e(money_label($pdo, (float) $row['total_amount'])) ?></td>
                         </tr>
                     <?php endforeach; ?>
                 <?php endif; ?>
@@ -353,8 +354,8 @@ require __DIR__ . '/../includes/layout_start.php';
                             <td><?= e((string) $row['customer_name']) ?></td>
                             <td><?= e((string) $row['assigned_to']) ?></td>
                             <td><?= e((string) $row['overdue_installments']) ?></td>
-                            <td><?= e((string) $row['oldest_due_date']) ?></td>
-                            <td class="text-right">LKR <?= e(money((float) $row['overdue_balance'])) ?></td>
+                            <td><?= e(display_date((string) $row['oldest_due_date'])) ?></td>
+                            <td class="text-right"><?= e(money_label($pdo, (float) $row['overdue_balance'])) ?></td>
                         </tr>
                     <?php endforeach; ?>
                 <?php endif; ?>
@@ -387,13 +388,13 @@ require __DIR__ . '/../includes/layout_start.php';
             <?php else: ?>
                 <?php foreach ($recentCollections as $row): ?>
                     <tr>
-                        <td><?= e((string) $row['collected_on']) ?></td>
+                        <td><?= e(display_date((string) $row['collected_on'])) ?></td>
                         <td><?= e((string) $row['loan_number']) ?></td>
                         <td><?= e((string) $row['customer_name']) ?></td>
                         <td><?= e((string) $row['phone']) ?></td>
                         <td><?= e((string) $row['collected_by']) ?></td>
                         <td><?= e((string) $row['method']) ?></td>
-                        <td class="text-right">LKR <?= e(money((float) $row['amount'])) ?></td>
+                        <td class="text-right"><?= e(money_label($pdo, (float) $row['amount'])) ?></td>
                     </tr>
                 <?php endforeach; ?>
             <?php endif; ?>

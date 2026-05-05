@@ -68,6 +68,7 @@ function run_restore_sql(string $sql): void
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     redirect('pages/backup.php');
 }
+require_csrf('pages/backup.php');
 
 $confirmed = (string) ($_POST['confirm_replace'] ?? '') === '1';
 if (!$confirmed) {
@@ -179,6 +180,7 @@ try {
 
         remove_tree_contents($customerDocsDir);
         remove_tree_contents($avatarDir);
+        ensure_customer_docs_guard_file($customerDocsDir);
 
         for ($i = 0; $i < $zip->numFiles; $i++) {
             $entryName = (string) $zip->getNameIndex($i);
@@ -243,6 +245,14 @@ try {
         ? 'Full backup restored successfully (database + files).'
         : 'Database backup restored successfully.');
 } catch (Throwable $e) {
-    set_flash('error', $e->getMessage());
+    $message = $e->getMessage();
+    if (str_starts_with($message, 'Restore failed:')) {
+        $message = 'Restore failed. Please verify the backup file format and data consistency.';
+    }
+    log_activity($pdo, 'backup.restore_failed', 'Backup restore failed.', [
+        'file_name' => $fileName ?? '',
+        'reason' => $e->getMessage(),
+    ]);
+    set_flash('error', $message);
 }
 redirect('pages/backup.php');

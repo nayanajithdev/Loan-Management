@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../includes/bootstrap.php';
+require_roles(['superadmin', 'admin', 'collector_l1', 'collector_l2', 'collector']);
 
 $current = current_user();
 $currentRole = (string) ($current['role'] ?? '');
@@ -58,13 +59,13 @@ else:
         }
 ?>
 <tr>
-    <td><?= e($item['collected_on']) ?></td>
+    <td><?= e(display_date((string) $item['collected_on'])) ?></td>
     <td><?= e($item['loan_number']) ?></td>
     <td><?= e($item['full_name']) ?></td>
     <td><?= e((string) ($item['collected_by_name'] ?? '-')) ?></td>
     <td><?= e($item['method']) ?></td>
     <td><?= e($note) ?></td>
-    <td class="text-right">LKR <?= e(money((float) $item['amount'])) ?></td>
+    <td class="text-right"><?= e(money_label($pdo, (float) $item['amount'])) ?></td>
 </tr>
 <?php
     endforeach;

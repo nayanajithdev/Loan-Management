@@ -8,6 +8,7 @@ require_roles(['superadmin', 'admin', 'collector_l2', 'collector'], 'pages/loans
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     redirect('pages/loans.php');
 }
+require_csrf('pages/loan_create.php');
 
 $customerId = (int) ($_POST['customer_id'] ?? 0);
 $principal = (float) ($_POST['principal_amount'] ?? 0);
@@ -145,7 +146,12 @@ try {
     if ($pdo->inTransaction()) {
         $pdo->rollBack();
     }
-    set_flash('error', 'Failed to create loan: ' . $e->getMessage());
+    log_activity($pdo, 'loan.create_failed', 'Loan creation failed.', [
+        'customer_id' => $customerId,
+        'principal_amount' => $principal,
+        'reason' => $e->getMessage(),
+    ]);
+    set_flash('error', 'Failed to create loan. Please try again.');
 }
 
 redirect('pages/loans.php');

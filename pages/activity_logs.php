@@ -125,7 +125,7 @@ require __DIR__ . '/../includes/layout_start.php';
                     }
                     ?>
                     <tr>
-                        <td><?= e((string) $row['created_at']) ?></td>
+                        <td><?= e(display_datetime((string) $row['created_at'])) ?></td>
                         <td><?= e((string) $row['actor_name']) ?><br><small style="color: var(--muted);">@<?= e((string) $row['actor_username']) ?></small></td>
                         <td><?= e(role_display_name((string) $row['actor_role'])) ?></td>
                         <td><?= e((string) $row['action_key']) ?></td>
