@@ -174,6 +174,43 @@
 })();
 
 (function () {
+    const normalizeSafeLocalUrl = (rawUrl) => {
+        if (typeof rawUrl !== 'string') {
+            return null;
+        }
+
+        const trimmed = rawUrl.trim();
+        if (!trimmed) {
+            return null;
+        }
+
+        // Block control characters in case of malformed/injected attributes.
+        if (/[\u0000-\u001F\u007F]/.test(trimmed)) {
+            return null;
+        }
+
+        let parsed;
+        try {
+            parsed = new URL(trimmed, window.location.origin);
+        } catch (_error) {
+            return null;
+        }
+
+        if (!['http:', 'https:'].includes(parsed.protocol)) {
+            return null;
+        }
+
+        if (parsed.origin !== window.location.origin) {
+            return null;
+        }
+
+        if (!parsed.pathname.startsWith('/')) {
+            return null;
+        }
+
+        return `${parsed.pathname}${parsed.search}${parsed.hash}`;
+    };
+
     document.addEventListener('click', (event) => {
         const target = event.target;
         if (!(target instanceof Element)) {
@@ -189,9 +226,9 @@
             return;
         }
 
-        const url = row.getAttribute('data-select-url');
-        if (url) {
-            window.location.href = url;
+        const safeUrl = normalizeSafeLocalUrl(row.getAttribute('data-select-url'));
+        if (safeUrl) {
+            window.location.assign(safeUrl);
         }
     });
 })();
