@@ -14,10 +14,11 @@ $loanId = (int) ($_POST['loan_id'] ?? 0);
 $customerId = (int) ($_POST['customer_id'] ?? 0);
 $principal = (float) ($_POST['principal_amount'] ?? 0);
 $interestRate = (float) ($_POST['interest_rate'] ?? 0);
+$interestRateType = normalize_interest_rate_type(trim((string) ($_POST['interest_rate_type'] ?? 'amount_based')));
+$interestRateMonths = normalize_interest_rate_months((int) ($_POST['interest_rate_months'] ?? 1));
 $frequency = trim((string) ($_POST['installment_frequency'] ?? 'daily'));
 $timeframeValue = (int) ($_POST['timeframe_value'] ?? 0);
 $timeframeUnit = trim((string) ($_POST['timeframe_unit'] ?? 'days'));
-$firstDueDate = trim((string) ($_POST['first_due_date'] ?? ''));
 $status = trim((string) ($_POST['status'] ?? 'active'));
 $notes = trim((string) ($_POST['notes'] ?? ''));
 $assignedUserIdRaw = trim((string) ($_POST['assigned_user_id'] ?? ''));
@@ -29,7 +30,7 @@ if ($loanId <= 0) {
     redirect('pages/loans.php');
 }
 
-if ($customerId <= 0 || $principal <= 0 || $timeframeValue <= 0 || $firstDueDate === '') {
+if ($customerId <= 0 || $principal <= 0 || $timeframeValue <= 0) {
     set_flash('error', 'Please fill all required loan fields correctly.');
     redirect('pages/loan_edit.php?loan_id=' . $loanId);
 }
@@ -68,7 +69,7 @@ if ($canEditAssignment && $assignedUserId !== null && $assignedUserId > 0) {
 }
 
 $installmentCount = installment_count_from_timeframe($frequency, $timeframeValue, $timeframeUnit);
-$totalAmount = round($principal + (($principal * $interestRate) / 100), 2);
+$totalAmount = loan_total_amount($principal, $interestRate, $interestRateType, $interestRateMonths);
 $installmentAmount = round($totalAmount / $installmentCount, 2);
 
 try {
@@ -80,6 +81,11 @@ try {
 
     if (!$loan) {
         throw new RuntimeException('Loan not found.');
+    }
+
+    $firstDueDate = (string) ($loan['first_due_date'] ?? '');
+    if ($firstDueDate === '') {
+        $firstDueDate = (new DateTimeImmutable(today()))->add(new DateInterval('P1D'))->format('Y-m-d');
     }
 
     $countStmt = $pdo->prepare('SELECT COUNT(*) FROM collections WHERE loan_id = :loan_id');
@@ -103,6 +109,8 @@ try {
                 customer_id = :customer_id,
                 principal_amount = :principal_amount,
                 interest_rate = :interest_rate,
+                interest_rate_type = :interest_rate_type,
+                interest_rate_months = :interest_rate_months,
                 total_amount = :total_amount,
                 installment_frequency = :installment_frequency,
                 installment_count = :installment_count,
@@ -115,6 +123,8 @@ try {
         $updateLoan->bindValue(':customer_id', $customerId, PDO::PARAM_INT);
         $updateLoan->bindValue(':principal_amount', $principal);
         $updateLoan->bindValue(':interest_rate', $interestRate);
+        $updateLoan->bindValue(':interest_rate_type', $interestRateType, PDO::PARAM_STR);
+        $updateLoan->bindValue(':interest_rate_months', $interestRateType === 'monthly' ? $interestRateMonths : 1, PDO::PARAM_INT);
         $updateLoan->bindValue(':total_amount', $totalAmount);
         $updateLoan->bindValue(':installment_frequency', $frequency, PDO::PARAM_STR);
         $updateLoan->bindValue(':installment_count', $installmentCount, PDO::PARAM_INT);
@@ -167,6 +177,8 @@ try {
         'loan_id' => $loanId,
         'customer_id' => $customerId,
         'assigned_user_id' => $assignedUserId,
+        'interest_rate_type' => $interestRateType,
+        'interest_rate_months' => $interestRateType === 'monthly' ? $interestRateMonths : 1,
         'status' => $status,
         'repayment_locked' => $collectionsCount > 0 ? 1 : 0,
     ]);

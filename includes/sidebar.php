@@ -18,7 +18,7 @@ $iconSvgs = [
 
 $menuItems = [
     ['key' => 'dashboard', 'label' => 'Dashboard', 'path' => 'index.php'],
-    ['key' => 'today_collections', 'label' => 'Collection', 'path' => 'pages/today_collections.php'],
+    ['key' => 'today_collections', 'label' => 'Today Collection', 'path' => 'pages/today_collections.php'],
     ['key' => 'collections', 'label' => 'Collection History', 'path' => 'pages/collections.php'],
     ['key' => 'customers', 'label' => 'Customers', 'path' => 'pages/customers.php'],
 ];

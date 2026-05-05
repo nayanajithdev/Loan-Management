@@ -46,6 +46,8 @@ $defaultTimeframeValue = match ((string) $loan['installment_frequency']) {
     default => (int) $loan['installment_count'],
 };
 $defaultTimeframeUnit = (string) $loan['installment_frequency'] === 'monthly' ? 'months' : 'days';
+$defaultInterestRateType = normalize_interest_rate_type((string) ($loan['interest_rate_type'] ?? 'amount_based'));
+$defaultInterestRateMonths = normalize_interest_rate_months((int) ($loan['interest_rate_months'] ?? 1));
 
 require __DIR__ . '/../includes/layout_start.php';
 ?>
@@ -53,7 +55,21 @@ require __DIR__ . '/../includes/layout_start.php';
 <section class="panel">
     <div class="panel-head">
         <h2 class="panel-title">Edit Loan</h2>
-        <a class="btn" href="<?= e(url('pages/loans.php')) ?>">Back to Loan List</a>
+        <div class="panel-head-actions">
+            <a class="btn" href="<?= e(url('pages/customer_edit.php?customer_id=' . (int) $loan['customer_id'])) ?>">
+                <span class="btn-icon-inline" aria-hidden="true">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-user-icon lucide-user"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                </span>
+                View Customer
+            </a>
+            <a class="btn" href="<?= e(url('pages/collections.php?customer_id=' . (int) $loan['customer_id'])) ?>">Collection History</a>
+            <a class="btn" href="<?= e(url('pages/loans.php')) ?>">
+                <span class="btn-icon-inline" aria-hidden="true">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-arrow-left-icon lucide-arrow-left"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>
+                </span>
+                Back to Loan List
+            </a>
+        </div>
     </div>
 
     <?php if ($hasCollections): ?>
@@ -85,7 +101,20 @@ require __DIR__ . '/../includes/layout_start.php';
 
         <div class="field">
             <label>Interest Rate (%)</label>
-            <input type="number" step="0.01" name="interest_rate" value="<?= e((string) $loan['interest_rate']) ?>" required <?= $hasCollections ? 'readonly' : '' ?>>
+            <div class="combo-field combo-field-interest">
+                <input type="number" step="0.01" name="interest_rate" value="<?= e((string) $loan['interest_rate']) ?>" required <?= $hasCollections ? 'readonly' : '' ?>>
+                <select name="interest_rate_type" required <?= $hasCollections ? 'disabled' : '' ?>>
+                    <option value="amount_based" <?= $defaultInterestRateType === 'amount_based' ? 'selected' : '' ?>>Amount Based</option>
+                    <option value="monthly" <?= $defaultInterestRateType === 'monthly' ? 'selected' : '' ?>>Monthly</option>
+                </select>
+            </div>
+            <?php if ($hasCollections): ?>
+                <input type="hidden" name="interest_rate_type" value="<?= e($defaultInterestRateType) ?>">
+            <?php endif; ?>
+        </div>
+        <div class="field" data-interest-months-field>
+            <label>Calculate Interest Rate (months)</label>
+            <input type="number" min="1" name="interest_rate_months" value="<?= e((string) $defaultInterestRateMonths) ?>" <?= $hasCollections ? 'readonly' : '' ?>>
         </div>
 
         <div class="field">
@@ -112,16 +141,6 @@ require __DIR__ . '/../includes/layout_start.php';
                     <input type="hidden" name="timeframe_unit" value="<?= e($defaultTimeframeUnit) ?>">
                 <?php endif; ?>
             </div>
-        </div>
-
-        <div class="field">
-            <label>No. of Installments (Auto)</label>
-            <input type="number" name="installment_count_display" id="installment-count-display" value="<?= e((string) $loan['installment_count']) ?>" readonly>
-        </div>
-
-        <div class="field">
-            <label>First Due Date</label>
-            <input type="date" name="first_due_date" value="<?= e((string) $loan['first_due_date']) ?>" required <?= $hasCollections ? 'readonly' : '' ?>>
         </div>
 
         <div class="field">
@@ -155,7 +174,7 @@ require __DIR__ . '/../includes/layout_start.php';
 
         <div class="field full loan-preview-field">
             <label>Repayment Preview</label>
-            <div class="calc-preview-grid">
+            <div class="calc-preview-grid calc-preview-grid-three">
                 <div class="calc-preview-item">
                     <p>Total Repayable</p>
                     <h3>LKR <span id="preview-total"><?= e(money((float) $loan['total_amount'])) ?></span></h3>
@@ -163,6 +182,10 @@ require __DIR__ . '/../includes/layout_start.php';
                 <div class="calc-preview-item">
                     <p>Per Installment</p>
                     <h3>LKR <span id="preview-installment"><?= e(money((float) $loan['installment_amount'])) ?></span></h3>
+                </div>
+                <div class="calc-preview-item">
+                    <p>No. of Installments</p>
+                    <h3><span id="preview-installment-count"><?= e((string) $loan['installment_count']) ?></span></h3>
                 </div>
             </div>
         </div>

@@ -6,8 +6,8 @@ require_once __DIR__ . '/../includes/bootstrap.php';
 
 $pageTitle = 'Calculator';
 $activePage = 'calculator';
-$defaultFirstDueDate = (new DateTimeImmutable(today()))->add(new DateInterval('P1D'))->format('Y-m-d');
 $defaultInterestRate = system_setting($pdo, 'default_interest_rate', '0.00');
+$defaultInterestRateType = 'amount_based';
 $defaultFrequency = system_setting($pdo, 'default_installment_frequency', 'daily');
 $defaultTimeframeValue = (int) system_setting($pdo, 'default_timeframe_value', '30');
 $defaultTimeframeUnit = system_setting($pdo, 'default_timeframe_unit', 'days');
@@ -36,7 +36,17 @@ require __DIR__ . '/../includes/layout_start.php';
         </div>
         <div class="field">
             <label>Interest Rate (%)</label>
-            <input type="number" step="0.01" name="interest_rate" value="<?= e($defaultInterestRate) ?>" required>
+            <div class="combo-field combo-field-interest">
+                <input type="number" step="0.01" name="interest_rate" value="<?= e($defaultInterestRate) ?>" required>
+                <select name="interest_rate_type" required>
+                    <option value="amount_based" <?= $defaultInterestRateType === 'amount_based' ? 'selected' : '' ?>>Amount Based</option>
+                    <option value="monthly" <?= $defaultInterestRateType === 'monthly' ? 'selected' : '' ?>>Monthly</option>
+                </select>
+            </div>
+        </div>
+        <div class="field" data-interest-months-field>
+            <label>Calculate Interest Rate (months)</label>
+            <input type="number" min="1" name="interest_rate_months" value="1">
         </div>
         <div class="field">
             <label>Installment Frequency</label>
@@ -56,14 +66,6 @@ require __DIR__ . '/../includes/layout_start.php';
                 </select>
             </div>
         </div>
-        <div class="field">
-            <label>No. of Installments (Auto)</label>
-            <input type="number" name="installment_count_display" id="installment-count-display" value="<?= e((string) $defaultInstallmentCount) ?>" readonly>
-        </div>
-        <div class="field">
-            <label>First Due Date</label>
-            <input type="date" name="first_due_date" value="<?= e($defaultFirstDueDate) ?>" readonly>
-        </div>
         <div class="field full">
             <label>Repayment Preview</label>
             <div class="calc-preview-grid calc-preview-grid-three">
@@ -78,6 +80,10 @@ require __DIR__ . '/../includes/layout_start.php';
                 <div class="calc-preview-item">
                     <p>Profit</p>
                     <h3>LKR <span id="preview-profit">0.00</span></h3>
+                </div>
+                <div class="calc-preview-item">
+                    <p>No. of Installments</p>
+                    <h3><span id="preview-installment-count"><?= e((string) $defaultInstallmentCount) ?></span></h3>
                 </div>
             </div>
         </div>

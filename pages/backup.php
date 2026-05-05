@@ -27,12 +27,13 @@ require __DIR__ . '/../includes/layout_start.php';
 
         <div class="backup-note">
             <h3>What this download contains</h3>
-            <p>This SQL file includes current database structure and saved records.</p>
+            <p>SQL backup includes current database structure and saved records.</p>
             <p class="backup-table-list"><?= e(implode(', ', $tableNames)) ?></p>
         </div>
 
         <div class="backup-actions">
             <a class="btn btn-primary" href="<?= e(url('actions/backup_download.php')) ?>">Download Backup (.sql)</a>
+            <a class="btn" href="<?= e(url('actions/backup_download.php?mode=full')) ?>">Download Full Backup (.zip)</a>
         </div>
     </article>
 
@@ -52,8 +53,8 @@ require __DIR__ . '/../includes/layout_start.php';
 
         <form method="post" action="<?= e(url('actions/backup_restore.php')) ?>" enctype="multipart/form-data" class="form-grid">
             <div class="field full">
-                <label>Backup File (.sql)</label>
-                <input type="file" name="backup_file" accept=".sql,text/plain,application/sql,application/octet-stream" required>
+                <label>Backup File (.sql or .zip)</label>
+                <input type="file" name="backup_file" accept=".sql,.zip,text/plain,application/sql,application/octet-stream,application/zip,application/x-zip-compressed" required>
             </div>
             <div class="field full">
                 <label class="backup-checkbox">

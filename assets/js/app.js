@@ -241,13 +241,16 @@
 
     const principalInput = form.querySelector('[name="principal_amount"]');
     const interestInput = form.querySelector('[name="interest_rate"]');
+    const interestTypeInput = form.querySelector('[name="interest_rate_type"]');
+    const interestMonthsInput = form.querySelector('[name="interest_rate_months"]');
+    const interestMonthsField = form.querySelector('[data-interest-months-field]');
     const frequencyInput = form.querySelector('[name="installment_frequency"]');
     const timeframeValueInput = form.querySelector('[name="timeframe_value"]');
     const timeframeUnitInput = form.querySelector('[name="timeframe_unit"]');
-    const countDisplayInput = form.querySelector('[name="installment_count_display"]');
     const totalEl = document.getElementById('preview-total');
     const installmentEl = document.getElementById('preview-installment');
     const profitEl = document.getElementById('preview-profit');
+    const installmentCountEl = document.getElementById('preview-installment-count');
 
     const toNumber = (value) => {
         const n = Number(value);
@@ -279,19 +282,39 @@
         return Math.max(totalDays, 1);
     };
 
+    const toggleInterestMonthsField = () => {
+        if (!interestTypeInput || !interestMonthsField || !interestMonthsInput) {
+            return;
+        }
+
+        const isMonthly = interestTypeInput.value === 'monthly';
+        interestMonthsField.style.display = isMonthly ? '' : 'none';
+        interestMonthsInput.disabled = !isMonthly;
+        interestMonthsInput.required = isMonthly;
+        if (isMonthly && toNumber(interestMonthsInput.value) < 1) {
+            interestMonthsInput.value = '1';
+        }
+    };
+
     const updatePreview = () => {
         const principal = toNumber(principalInput.value);
         const interestRate = toNumber(interestInput.value);
+        const interestType = interestTypeInput && interestTypeInput.value === 'monthly'
+            ? 'monthly'
+            : 'amount_based';
+        const interestMonths = Math.max(toNumber(interestMonthsInput ? interestMonthsInput.value : 1), 1);
         const timeframeValue = Math.max(toNumber(timeframeValueInput.value), 1);
         const timeframeUnit = timeframeUnitInput.value === 'months' ? 'months' : 'days';
         const frequency = frequencyInput.value;
         const count = installmentCountFromTimeframe(frequency, timeframeValue, timeframeUnit);
-
-        const total = principal + (principal * interestRate / 100);
+        const monthlyFactor = interestType === 'monthly' ? interestMonths : 1;
+        const total = principal + ((principal * interestRate / 100) * monthlyFactor);
         const profit = total - principal;
         const installment = total / count;
 
-        countDisplayInput.value = String(count);
+        if (installmentCountEl) {
+            installmentCountEl.textContent = String(count);
+        }
         totalEl.textContent = formatMoney(total);
         installmentEl.textContent = formatMoney(installment);
         if (profitEl) {
@@ -299,10 +322,22 @@
         }
     };
 
-    [principalInput, interestInput, frequencyInput, timeframeValueInput, timeframeUnitInput].forEach((el) => {
+    [principalInput, interestInput, interestTypeInput, frequencyInput, timeframeValueInput, timeframeUnitInput].forEach((el) => {
+        if (!el) {
+            return;
+        }
         el.addEventListener('input', updatePreview);
         el.addEventListener('change', updatePreview);
     });
+    if (interestMonthsInput) {
+        interestMonthsInput.addEventListener('input', updatePreview);
+        interestMonthsInput.addEventListener('change', updatePreview);
+    }
+    if (interestTypeInput) {
+        interestTypeInput.addEventListener('change', toggleInterestMonthsField);
+        interestTypeInput.addEventListener('input', toggleInterestMonthsField);
+    }
 
+    toggleInterestMonthsField();
     updatePreview();
 })();

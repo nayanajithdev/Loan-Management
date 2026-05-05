@@ -13,6 +13,8 @@ ensure_user_profile_schema($pdo);
 ensure_collection_user_schema($pdo);
 ensure_collection_payment_ref_schema($pdo);
 ensure_loan_assignment_schema($pdo);
+ensure_loan_interest_rate_type_schema($pdo);
+ensure_loan_interest_rate_months_schema($pdo);
 ensure_customer_documents_schema($pdo);
 ensure_customer_note_schema($pdo);
 ensure_system_settings_schema($pdo);

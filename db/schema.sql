@@ -30,6 +30,8 @@ CREATE TABLE IF NOT EXISTS loans (
     assigned_user_id INT DEFAULT NULL,
     principal_amount DECIMAL(12,2) NOT NULL,
     interest_rate DECIMAL(5,2) NOT NULL DEFAULT 0,
+    interest_rate_type ENUM('amount_based','monthly') NOT NULL DEFAULT 'amount_based',
+    interest_rate_months INT NOT NULL DEFAULT 1,
     total_amount DECIMAL(12,2) NOT NULL,
     installment_frequency ENUM('daily', 'weekly', 'monthly') NOT NULL,
     installment_count INT NOT NULL,

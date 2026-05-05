@@ -12,13 +12,14 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 $customerId = (int) ($_POST['customer_id'] ?? 0);
 $principal = (float) ($_POST['principal_amount'] ?? 0);
 $interestRate = (float) ($_POST['interest_rate'] ?? 0);
+$interestRateType = normalize_interest_rate_type(trim((string) ($_POST['interest_rate_type'] ?? 'amount_based')));
+$interestRateMonths = normalize_interest_rate_months((int) ($_POST['interest_rate_months'] ?? 1));
 $frequency = trim((string) ($_POST['installment_frequency'] ?? 'daily'));
 $timeframeValue = (int) ($_POST['timeframe_value'] ?? 0);
 $timeframeUnit = trim((string) ($_POST['timeframe_unit'] ?? 'days'));
-$firstDueDate = trim((string) ($_POST['first_due_date'] ?? ''));
 $notes = trim((string) ($_POST['notes'] ?? ''));
 
-if ($customerId <= 0 || $principal <= 0 || $timeframeValue <= 0 || $firstDueDate === '') {
+if ($customerId <= 0 || $principal <= 0 || $timeframeValue <= 0) {
     set_flash('error', 'Please fill all required loan fields correctly.');
     redirect('pages/loans.php');
 }
@@ -33,12 +34,6 @@ if (!in_array($timeframeUnit, ['days', 'months'], true)) {
     redirect('pages/loans.php');
 }
 
-$minimumFirstDueDate = (new DateTimeImmutable(today()))->add(new DateInterval('P1D'))->format('Y-m-d');
-if ($firstDueDate < $minimumFirstDueDate) {
-    set_flash('error', 'First due date must be tomorrow or later.');
-    redirect('pages/loan_create.php');
-}
-
 $installmentCount = installment_count_from_timeframe($frequency, $timeframeValue, $timeframeUnit);
 
 $customerStmt = $pdo->prepare('SELECT id FROM customers WHERE id = :id');
@@ -48,11 +43,12 @@ if (!$customerStmt->fetch()) {
     redirect('pages/loans.php');
 }
 
-$totalAmount = round($principal + (($principal * $interestRate) / 100), 2);
+$totalAmount = loan_total_amount($principal, $interestRate, $interestRateType, $interestRateMonths);
 $installmentAmount = round($totalAmount / $installmentCount, 2);
 
 $loanNumber = next_loan_number($pdo);
 $startDate = today();
+$firstDueDate = (new DateTimeImmutable($startDate))->add(new DateInterval('P1D'))->format('Y-m-d');
 
 try {
     $pdo->beginTransaction();
@@ -63,6 +59,8 @@ try {
             customer_id,
             principal_amount,
             interest_rate,
+            interest_rate_type,
+            interest_rate_months,
             total_amount,
             installment_frequency,
             installment_count,
@@ -75,6 +73,8 @@ try {
             :customer_id,
             :principal_amount,
             :interest_rate,
+            :interest_rate_type,
+            :interest_rate_months,
             :total_amount,
             :installment_frequency,
             :installment_count,
@@ -90,6 +90,8 @@ try {
         'customer_id' => $customerId,
         'principal_amount' => $principal,
         'interest_rate' => $interestRate,
+        'interest_rate_type' => $interestRateType,
+        'interest_rate_months' => $interestRateType === 'monthly' ? $interestRateMonths : 1,
         'total_amount' => $totalAmount,
         'installment_frequency' => $frequency,
         'installment_count' => $installmentCount,
@@ -132,6 +134,8 @@ try {
         'loan_id' => $loanId,
         'customer_id' => $customerId,
         'principal_amount' => $principal,
+        'interest_rate_type' => $interestRateType,
+        'interest_rate_months' => $interestRateType === 'monthly' ? $interestRateMonths : 1,
         'total_amount' => $totalAmount,
         'installment_count' => $installmentCount,
         'installment_frequency' => $frequency,

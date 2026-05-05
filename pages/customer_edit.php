@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../includes/bootstrap.php';
 
-$pageTitle = 'Edit Customer';
+$pageTitle = 'View Customer';
 $activePage = 'customers';
 $customerId = (int) ($_GET['customer_id'] ?? 0);
 
@@ -22,6 +22,13 @@ if (!$customer) {
     redirect('pages/customers.php');
 }
 
+$latestLoanStmt = $pdo->prepare('SELECT id FROM loans WHERE customer_id = :customer_id ORDER BY id DESC LIMIT 1');
+$latestLoanStmt->execute(['customer_id' => $customerId]);
+$latestLoanId = (int) ($latestLoanStmt->fetchColumn() ?: 0);
+$viewLoanUrl = $latestLoanId > 0
+    ? url('pages/loan_edit.php?loan_id=' . $latestLoanId)
+    : url('pages/loans.php');
+
 $docStmt = $pdo->prepare(
     'SELECT id, original_name, file_path, mime_type, file_size, created_at
      FROM customer_documents
@@ -36,47 +43,55 @@ require __DIR__ . '/../includes/layout_start.php';
 
 <section class="panel">
     <div class="panel-head">
-        <h2 class="panel-title">Edit Customer</h2>
-        <a class="btn" href="<?= e(url('pages/customers.php?customer_id=' . $customerId)) ?>">Back to Customers</a>
+        <h2 class="panel-title">View Customer</h2>
+        <div class="panel-head-actions">
+            <label class="edit-mode-switch" for="customer-edit-switch" title="Enable or disable edit mode">
+                <input type="checkbox" id="customer-edit-switch">
+                <span class="edit-mode-slider"></span>
+                <span class="edit-mode-label" id="customer-edit-label">Edit Off</span>
+            </label>
+            <a class="btn" href="<?= e($viewLoanUrl) ?>">View Loan</a>
+            <a class="btn" href="<?= e(url('pages/customers.php')) ?>">Back to Customers</a>
+        </div>
     </div>
 
-    <form class="form-grid" method="post" action="<?= e(url('actions/customer_update.php')) ?>" enctype="multipart/form-data">
+    <form class="form-grid" id="customer-edit-form" method="post" action="<?= e(url('actions/customer_update.php')) ?>" enctype="multipart/form-data">
         <input type="hidden" name="customer_id" value="<?= e((string) $customer['id']) ?>">
 
         <div class="field">
             <label>Full Name</label>
-            <input type="text" name="full_name" value="<?= e($customer['full_name']) ?>" required>
+            <input type="text" name="full_name" value="<?= e($customer['full_name']) ?>" required readonly data-editable>
         </div>
         <div class="field">
             <label>Phone</label>
-            <input type="text" name="phone" value="<?= e($customer['phone']) ?>" required>
+            <input type="text" name="phone" value="<?= e($customer['phone']) ?>" required readonly data-editable>
         </div>
         <div class="field">
             <label>NIC / ID</label>
-            <input type="text" name="nic" value="<?= e((string) $customer['nic']) ?>">
+            <input type="text" name="nic" value="<?= e((string) $customer['nic']) ?>" readonly data-editable>
         </div>
         <div class="field full">
             <label>Status</label>
-            <select name="status">
+            <select name="status" disabled data-editable>
                 <option value="active" <?= $customer['status'] === 'active' ? 'selected' : '' ?>>Active</option>
                 <option value="inactive" <?= $customer['status'] === 'inactive' ? 'selected' : '' ?>>Inactive</option>
             </select>
         </div>
         <div class="field" style="grid-column: span 6;">
             <label>Address</label>
-            <textarea name="address"><?= e((string) $customer['address']) ?></textarea>
+            <textarea name="address" readonly data-editable><?= e((string) $customer['address']) ?></textarea>
         </div>
         <div class="field" style="grid-column: span 6;">
             <label>Note</label>
-            <textarea name="note" placeholder="Optional"><?= e((string) ($customer['note'] ?? '')) ?></textarea>
+            <textarea name="note" placeholder="Optional" readonly data-editable><?= e((string) ($customer['note'] ?? '')) ?></textarea>
         </div>
         <div class="field full">
             <label>Add Documents (Images or PDF)</label>
-            <input type="file" name="documents[]" accept=".jpg,.jpeg,.png,.webp,.gif,.pdf,application/pdf,image/*" multiple>
+            <input type="file" name="documents[]" accept=".jpg,.jpeg,.png,.webp,.gif,.pdf,application/pdf,image/*" multiple disabled data-editable>
             <small>You can add more files. Max 10MB each.</small>
         </div>
         <div class="field full form-actions">
-            <button type="submit" class="btn btn-primary customer-submit-btn">Update Customer</button>
+            <button type="submit" class="btn btn-primary customer-submit-btn" id="customer-update-submit" disabled>Update Customer</button>
         </div>
     </form>
 </section>
@@ -122,5 +137,41 @@ require __DIR__ . '/../includes/layout_start.php';
         </div>
     <?php endif; ?>
 </section>
+
+<script>
+(() => {
+    const toggle = document.getElementById('customer-edit-switch');
+    const toggleLabel = document.getElementById('customer-edit-label');
+    const form = document.getElementById('customer-edit-form');
+    const submitBtn = document.getElementById('customer-update-submit');
+    if (!toggle || !toggleLabel || !form || !submitBtn) {
+        return;
+    }
+
+    const editableFields = form.querySelectorAll('[data-editable]');
+
+    const setEditing = (enabled) => {
+        editableFields.forEach((el) => {
+            if (el instanceof HTMLSelectElement || el instanceof HTMLInputElement && el.type === 'file') {
+                el.disabled = !enabled;
+                return;
+            }
+            if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) {
+                el.readOnly = !enabled;
+            }
+        });
+
+        submitBtn.disabled = !enabled;
+        toggle.checked = enabled;
+        toggleLabel.textContent = enabled ? 'Edit On' : 'Edit Off';
+    };
+
+    toggle.addEventListener('change', () => {
+        setEditing(toggle.checked);
+    });
+
+    setEditing(false);
+})();
+</script>
 
 <?php require __DIR__ . '/../includes/layout_end.php';

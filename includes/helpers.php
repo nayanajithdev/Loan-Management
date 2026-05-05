@@ -91,6 +91,35 @@ function installment_count_from_timeframe(string $frequency, int $timeframeValue
     return max($count, 1);
 }
 
+function normalize_interest_rate_type(string $value): string
+{
+    return in_array($value, ['amount_based', 'monthly'], true) ? $value : 'amount_based';
+}
+
+function normalize_interest_rate_months(int $months): int
+{
+    return max($months, 1);
+}
+
+function loan_total_amount(
+    float $principal,
+    float $interestRate,
+    string $interestRateType,
+    int $interestRateMonths = 1
+): float {
+    $principal = max($principal, 0);
+    $interestRate = max($interestRate, 0);
+    $interestRateType = normalize_interest_rate_type($interestRateType);
+    $interestRateMonths = normalize_interest_rate_months($interestRateMonths);
+
+    $baseInterest = $principal * ($interestRate / 100);
+    $multiplier = $interestRateType === 'monthly'
+        ? $interestRateMonths
+        : 1.0;
+
+    return round($principal + ($baseInterest * $multiplier), 2);
+}
+
 function next_loan_number(PDO $pdo): string
 {
     $stmt = $pdo->query('SELECT id FROM loans ORDER BY id DESC LIMIT 1');
@@ -280,6 +309,34 @@ function ensure_loan_assignment_schema(PDO $pdo): void
         $pdo->exec('ALTER TABLE loans ADD COLUMN assigned_user_id INT NULL AFTER customer_id');
         $pdo->exec('ALTER TABLE loans ADD INDEX idx_loans_assigned_user (assigned_user_id)');
     }
+}
+
+function ensure_loan_interest_rate_type_schema(PDO $pdo): void
+{
+    $colStmt = $pdo->query("SHOW COLUMNS FROM loans LIKE 'interest_rate_type'");
+    $col = $colStmt->fetch();
+
+    if (!$col) {
+        $pdo->exec("ALTER TABLE loans ADD COLUMN interest_rate_type ENUM('amount_based','monthly') NOT NULL DEFAULT 'amount_based' AFTER interest_rate");
+    } else {
+        $pdo->exec("ALTER TABLE loans MODIFY COLUMN interest_rate_type ENUM('amount_based','monthly') NOT NULL DEFAULT 'amount_based'");
+    }
+
+    $pdo->exec("UPDATE loans SET interest_rate_type = 'amount_based' WHERE interest_rate_type IS NULL OR interest_rate_type = ''");
+}
+
+function ensure_loan_interest_rate_months_schema(PDO $pdo): void
+{
+    $colStmt = $pdo->query("SHOW COLUMNS FROM loans LIKE 'interest_rate_months'");
+    $col = $colStmt->fetch();
+
+    if (!$col) {
+        $pdo->exec('ALTER TABLE loans ADD COLUMN interest_rate_months INT NOT NULL DEFAULT 1 AFTER interest_rate_type');
+    } else {
+        $pdo->exec('ALTER TABLE loans MODIFY COLUMN interest_rate_months INT NOT NULL DEFAULT 1');
+    }
+
+    $pdo->exec('UPDATE loans SET interest_rate_months = 1 WHERE interest_rate_months IS NULL OR interest_rate_months < 1');
 }
 
 function ensure_customer_assignment_schema(PDO $pdo): void

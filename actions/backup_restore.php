@@ -5,6 +5,66 @@ declare(strict_types=1);
 require_once __DIR__ . '/../includes/bootstrap.php';
 require_roles(['superadmin', 'admin']);
 
+function remove_tree_contents(string $dir): void
+{
+    if (!is_dir($dir)) {
+        return;
+    }
+
+    $it = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($dir, FilesystemIterator::SKIP_DOTS),
+        RecursiveIteratorIterator::CHILD_FIRST
+    );
+
+    foreach ($it as $item) {
+        $path = $item->getPathname();
+        if ($item->isDir()) {
+            @rmdir($path);
+        } else {
+            @unlink($path);
+        }
+    }
+}
+
+function run_restore_sql(string $sql): void
+{
+    if (!extension_loaded('mysqli')) {
+        throw new RuntimeException('mysqli extension is required for restore.');
+    }
+
+    $mysqli = mysqli_init();
+    if ($mysqli === false) {
+        throw new RuntimeException('Failed to initialize database restore connection.');
+    }
+
+    $connected = @$mysqli->real_connect(DB_HOST, DB_USER, DB_PASS, DB_NAME, (int) DB_PORT);
+    if (!$connected) {
+        throw new RuntimeException('Database connection failed for restore.');
+    }
+
+    $mysqli->set_charset('utf8mb4');
+    $script = "SET FOREIGN_KEY_CHECKS=0;\n" . $sql . "\nSET FOREIGN_KEY_CHECKS=1;\n";
+
+    if (!$mysqli->multi_query($script)) {
+        $errorMsg = $mysqli->error;
+        $mysqli->close();
+        throw new RuntimeException('Restore failed: ' . $errorMsg);
+    }
+
+    do {
+        if ($result = $mysqli->store_result()) {
+            $result->free();
+        }
+        if ($mysqli->errno) {
+            $errorMsg = $mysqli->error;
+            $mysqli->close();
+            throw new RuntimeException('Restore failed: ' . $errorMsg);
+        }
+    } while ($mysqli->more_results() && $mysqli->next_result());
+
+    $mysqli->close();
+}
+
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     redirect('pages/backup.php');
 }
@@ -42,68 +102,147 @@ if ($size <= 0 || $size > 150 * 1024 * 1024) {
 }
 
 $extension = strtolower((string) pathinfo($fileName, PATHINFO_EXTENSION));
-if ($extension !== 'sql') {
-    set_flash('error', 'Only .sql backup files are allowed.');
-    redirect('pages/backup.php');
-}
-
-$sql = file_get_contents($tmpName);
-if ($sql === false || trim($sql) === '') {
-    set_flash('error', 'Unable to read uploaded SQL file.');
-    redirect('pages/backup.php');
-}
-
-$sql = preg_replace('/^\xEF\xBB\xBF/', '', $sql) ?? $sql;
-if (preg_match('/\bDROP\s+DATABASE\b/i', $sql) || preg_match('/\bCREATE\s+DATABASE\b/i', $sql)) {
-    set_flash('error', 'Unsafe SQL detected (database-level statements are not allowed).');
-    redirect('pages/backup.php');
-}
-
-if (!extension_loaded('mysqli')) {
-    set_flash('error', 'mysqli extension is required for restore.');
+if (!in_array($extension, ['sql', 'zip'], true)) {
+    set_flash('error', 'Only .sql or .zip backup files are allowed.');
     redirect('pages/backup.php');
 }
 
 @set_time_limit(0);
 
-$mysqli = mysqli_init();
-if ($mysqli === false) {
-    set_flash('error', 'Failed to initialize database restore connection.');
-    redirect('pages/backup.php');
-}
+try {
+    $sql = '';
+    $restoredUploads = 0;
+    $restoreMode = 'sql';
 
-$connected = @$mysqli->real_connect(DB_HOST, DB_USER, DB_PASS, DB_NAME, (int) DB_PORT);
-if (!$connected) {
-    set_flash('error', 'Database connection failed for restore.');
-    redirect('pages/backup.php');
-}
+    if ($extension === 'sql') {
+        $sqlRaw = file_get_contents($tmpName);
+        if ($sqlRaw === false || trim($sqlRaw) === '') {
+            throw new RuntimeException('Unable to read uploaded SQL file.');
+        }
+        $sql = (string) $sqlRaw;
+    } else {
+        if (!class_exists('ZipArchive')) {
+            throw new RuntimeException('ZipArchive extension is required to restore .zip backups.');
+        }
 
-$mysqli->set_charset('utf8mb4');
-$script = "SET FOREIGN_KEY_CHECKS=0;\n" . $sql . "\nSET FOREIGN_KEY_CHECKS=1;\n";
+        $restoreMode = 'full';
+        $zip = new ZipArchive();
+        $openRes = $zip->open($tmpName);
+        if ($openRes !== true) {
+            throw new RuntimeException('Unable to open uploaded ZIP backup.');
+        }
 
-if (!$mysqli->multi_query($script)) {
-    $errorMsg = $mysqli->error;
-    $mysqli->close();
-    set_flash('error', 'Restore failed: ' . $errorMsg);
-    redirect('pages/backup.php');
-}
+        $sqlEntryName = '';
+        for ($i = 0; $i < $zip->numFiles; $i++) {
+            $name = (string) $zip->getNameIndex($i);
+            $lower = strtolower($name);
+            if ($lower === 'database/backup.sql' || $lower === 'backup.sql') {
+                $sqlEntryName = $name;
+                break;
+            }
+            if ($sqlEntryName === '' && str_ends_with($lower, '.sql')) {
+                $sqlEntryName = $name;
+            }
+        }
 
-do {
-    if ($result = $mysqli->store_result()) {
-        $result->free();
+        if ($sqlEntryName === '') {
+            $zip->close();
+            throw new RuntimeException('No SQL file found inside ZIP backup.');
+        }
+
+        $sqlRaw = $zip->getFromName($sqlEntryName);
+        if ($sqlRaw === false || trim((string) $sqlRaw) === '') {
+            $zip->close();
+            throw new RuntimeException('SQL content inside ZIP backup is empty or unreadable.');
+        }
+        $sql = (string) $sqlRaw;
+
+        $projectRoot = dirname(__DIR__);
+        $uploadsRoot = $projectRoot . DIRECTORY_SEPARATOR . 'uploads';
+        $customerDocsDir = $uploadsRoot . DIRECTORY_SEPARATOR . 'customer_docs';
+        $avatarDir = $uploadsRoot . DIRECTORY_SEPARATOR . 'profile_avatars';
+
+        if (!is_dir($uploadsRoot) && !mkdir($uploadsRoot, 0775, true) && !is_dir($uploadsRoot)) {
+            $zip->close();
+            throw new RuntimeException('Failed to prepare uploads directory.');
+        }
+
+        if (!is_dir($customerDocsDir) && !mkdir($customerDocsDir, 0775, true) && !is_dir($customerDocsDir)) {
+            $zip->close();
+            throw new RuntimeException('Failed to prepare customer documents directory.');
+        }
+
+        if (!is_dir($avatarDir) && !mkdir($avatarDir, 0775, true) && !is_dir($avatarDir)) {
+            $zip->close();
+            throw new RuntimeException('Failed to prepare profile avatars directory.');
+        }
+
+        remove_tree_contents($customerDocsDir);
+        remove_tree_contents($avatarDir);
+
+        for ($i = 0; $i < $zip->numFiles; $i++) {
+            $entryName = (string) $zip->getNameIndex($i);
+            if ($entryName === '' || str_ends_with($entryName, '/')) {
+                continue;
+            }
+
+            $normalized = str_replace('\\', '/', $entryName);
+            if (!str_starts_with($normalized, 'uploads/')) {
+                continue;
+            }
+
+            $relative = substr($normalized, strlen('uploads/'));
+            if ($relative === false || $relative === '') {
+                continue;
+            }
+
+            if (str_contains($relative, '../') || str_starts_with($relative, '/')) {
+                continue;
+            }
+
+            $targetAbs = $uploadsRoot . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $relative);
+            $targetDir = dirname($targetAbs);
+            if (!is_dir($targetDir) && !mkdir($targetDir, 0775, true) && !is_dir($targetDir)) {
+                continue;
+            }
+
+            $stream = $zip->getStream($entryName);
+            if ($stream === false) {
+                continue;
+            }
+
+            $out = @fopen($targetAbs, 'wb');
+            if ($out === false) {
+                fclose($stream);
+                continue;
+            }
+
+            stream_copy_to_stream($stream, $out);
+            fclose($stream);
+            fclose($out);
+            $restoredUploads++;
+        }
+
+        $zip->close();
     }
-    if ($mysqli->errno) {
-        $errorMsg = $mysqli->error;
-        $mysqli->close();
-        set_flash('error', 'Restore failed: ' . $errorMsg);
-        redirect('pages/backup.php');
-    }
-} while ($mysqli->more_results() && $mysqli->next_result());
 
-$mysqli->close();
-log_activity($pdo, 'backup.restore', 'Database backup restored successfully.', [
-    'file_name' => $fileName,
-    'file_size' => $size,
-]);
-set_flash('success', 'Backup restored successfully.');
+    $sql = preg_replace('/^\xEF\xBB\xBF/', '', $sql) ?? $sql;
+    if (preg_match('/\bDROP\s+DATABASE\b/i', $sql) || preg_match('/\bCREATE\s+DATABASE\b/i', $sql)) {
+        throw new RuntimeException('Unsafe SQL detected (database-level statements are not allowed).');
+    }
+
+    run_restore_sql($sql);
+
+    log_activity($pdo, 'backup.restore', 'Backup restored successfully.', [
+        'mode' => $restoreMode,
+        'file_name' => $fileName,
+        'file_size' => $size,
+        'uploads_restored' => $restoredUploads ?? 0,
+    ]);
+    set_flash('success', $restoreMode === 'full'
+        ? 'Full backup restored successfully (database + files).'
+        : 'Database backup restored successfully.');
+} catch (Throwable $e) {
+    set_flash('error', $e->getMessage());
+}
 redirect('pages/backup.php');
