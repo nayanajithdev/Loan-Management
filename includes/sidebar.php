@@ -97,7 +97,7 @@ if (has_role(['superadmin', 'admin'])) {
     </div>
 
     <div class="sidebar-footer">
-        <p>Multi-user edition</p>
-        <small>Roles: Owner, Manager, Collector L1, Collector L2.</small>
+        <p>LoanDesk v1.1</p>
+        <small>Multi-User Loan Management System</small>
     </div>
 </aside>

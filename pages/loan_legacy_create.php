@@ -5,7 +5,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/../includes/bootstrap.php';
 require_roles(['superadmin', 'admin', 'collector_l2', 'collector']);
 
-$pageTitle = 'Create Loan';
+$pageTitle = 'Add Old Loan';
 $activePage = 'loans';
 
 $customers = $pdo->query("SELECT id, customer_code, full_name FROM customers WHERE status = 'active' ORDER BY full_name ASC")->fetchAll();
@@ -22,21 +22,14 @@ if (!in_array($defaultTimeframeUnit, ['days', 'months'], true)) {
     $defaultTimeframeUnit = 'days';
 }
 $defaultTimeframeValue = max(1, $defaultTimeframeValue);
-$defaultInstallmentCount = installment_count_from_timeframe($defaultFrequency, $defaultTimeframeValue, $defaultTimeframeUnit);
 
 require __DIR__ . '/../includes/layout_start.php';
 ?>
 
 <section class="panel">
     <div class="panel-head">
-        <h2 class="panel-title">Create Loan</h2>
+        <h2 class="panel-title">Add Old Loan</h2>
         <div style="display:flex; gap:8px;">
-            <a class="btn" href="<?= e(url('pages/loan_legacy_create.php')) ?>">
-                <span class="btn-icon-inline" aria-hidden="true">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-plus-icon lucide-plus"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
-                </span>
-                Add Old Loan
-            </a>
             <a class="btn" href="<?= e(url('pages/customer_create.php')) ?>">
                 <span class="btn-icon-inline" aria-hidden="true">
                     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-plus-icon lucide-plus"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
@@ -55,8 +48,9 @@ require __DIR__ . '/../includes/layout_start.php';
     <?php if (!$customers): ?>
         <p>Please add an active customer first.</p>
     <?php else: ?>
-        <form id="loan-form" class="form-grid" method="post" action="<?= e(url('actions/loan_save.php')) ?>">
+        <form id="legacy-loan-form" class="form-grid" method="post" action="<?= e(url('actions/loan_legacy_save.php')) ?>">
             <?= csrf_input() ?>
+
             <div class="field">
                 <label>Customer</label>
                 <select name="customer_id" required>
@@ -66,10 +60,12 @@ require __DIR__ . '/../includes/layout_start.php';
                     <?php endforeach; ?>
                 </select>
             </div>
+
             <div class="field">
                 <label>Principal Amount</label>
                 <input type="number" step="0.01" name="principal_amount" required>
             </div>
+
             <div class="field">
                 <label>Interest Rate (%)</label>
                 <div class="combo-field combo-field-interest">
@@ -80,10 +76,12 @@ require __DIR__ . '/../includes/layout_start.php';
                     </select>
                 </div>
             </div>
-            <div class="field" data-interest-months-field>
+
+            <div class="field" data-legacy-interest-months-field>
                 <label>Calculate Interest Rate (months)</label>
                 <input type="number" min="1" name="interest_rate_months" value="1">
             </div>
+
             <div class="field">
                 <label>Installment Frequency</label>
                 <select name="installment_frequency" required>
@@ -92,6 +90,7 @@ require __DIR__ . '/../includes/layout_start.php';
                     <option value="monthly" <?= $defaultFrequency === 'monthly' ? 'selected' : '' ?>>Monthly</option>
                 </select>
             </div>
+
             <div class="field">
                 <label>Timeframe</label>
                 <div class="combo-field">
@@ -102,29 +101,53 @@ require __DIR__ . '/../includes/layout_start.php';
                     </select>
                 </div>
             </div>
+
+            <div class="field">
+                <label>Loan Issued Date</label>
+                <input type="date" name="issued_date" value="<?= e(today()) ?>" max="<?= e(today()) ?>" required>
+            </div>
+
+            <div class="field">
+                <label>How Much Collected (Including Today)</label>
+                <input type="number" step="0.01" min="0" name="collected_amount" value="0.00" required>
+                <small>Next collection schedule starts from tomorrow.</small>
+            </div>
+
             <div class="field full">
                 <label>Notes</label>
                 <textarea name="notes" placeholder="Optional"></textarea>
             </div>
+
             <div class="field full loan-preview-field">
                 <label>Repayment Preview</label>
                 <div class="calc-preview-grid calc-preview-grid-three">
                     <div class="calc-preview-item">
                         <p>Total Repayable</p>
-                        <h3><?= e(currency_label($pdo)) ?> <span id="preview-total">0.00</span></h3>
+                        <h3><?= e(currency_label($pdo)) ?> <span id="legacy-preview-total">0.00</span></h3>
                     </div>
                     <div class="calc-preview-item">
-                        <p>Per Installment</p>
-                        <h3><?= e(currency_label($pdo)) ?> <span id="preview-installment">0.00</span></h3>
+                        <p>Collected So Far</p>
+                        <h3><?= e(currency_label($pdo)) ?> <span id="legacy-preview-collected">0.00</span></h3>
                     </div>
                     <div class="calc-preview-item">
-                        <p>No. of Installments</p>
-                        <h3><span id="preview-installment-count"><?= e((string) $defaultInstallmentCount) ?></span></h3>
+                        <p>Left to Collect</p>
+                        <h3><?= e(currency_label($pdo)) ?> <span id="legacy-preview-remaining">0.00</span></h3>
+                    </div>
+                </div>
+                <div class="calc-preview-grid" style="margin-top:10px;">
+                    <div class="calc-preview-item">
+                        <p>Per Installment (Remaining Plan)</p>
+                        <h3><?= e(currency_label($pdo)) ?> <span id="legacy-preview-installment">0.00</span></h3>
+                    </div>
+                    <div class="calc-preview-item">
+                        <p>No. of Installments (Remaining)</p>
+                        <h3><span id="legacy-preview-installment-count">0</span></h3>
                     </div>
                 </div>
             </div>
+
             <div class="field full loan-submit-field">
-                <button type="submit" class="btn btn-primary">Create Loan</button>
+                <button type="submit" class="btn btn-primary">Save Old Loan</button>
             </div>
         </form>
     <?php endif; ?>

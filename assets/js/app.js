@@ -234,6 +234,179 @@
 })();
 
 (function () {
+    const form = document.querySelector('[data-customer-search-form]');
+    const tbody = document.querySelector('[data-customer-table-body]');
+    if (!(form instanceof HTMLFormElement) || !(tbody instanceof HTMLElement)) {
+        return;
+    }
+
+    const input = form.querySelector('[data-customer-search-input]');
+    const resetLink = form.querySelector('[data-customer-search-reset]');
+    const endpoint = form.getAttribute('data-search-endpoint');
+    if (!(input instanceof HTMLInputElement) || !(endpoint && endpoint.trim() !== '')) {
+        return;
+    }
+
+    const normalizeSafeLocalUrl = (rawUrl) => {
+        if (typeof rawUrl !== 'string') {
+            return null;
+        }
+
+        const trimmed = rawUrl.trim();
+        if (!trimmed || /[\u0000-\u001F\u007F]/.test(trimmed)) {
+            return null;
+        }
+
+        let parsed;
+        try {
+            parsed = new URL(trimmed, window.location.origin);
+        } catch (_error) {
+            return null;
+        }
+
+        if (!['http:', 'https:'].includes(parsed.protocol)) {
+            return null;
+        }
+
+        if (parsed.origin !== window.location.origin || !parsed.pathname.startsWith('/')) {
+            return null;
+        }
+
+        return `${parsed.pathname}${parsed.search}${parsed.hash}`;
+    };
+
+    const buildEndpoint = (query) => {
+        const url = new URL(endpoint, window.location.origin);
+        if (query !== '') {
+            url.searchParams.set('q', query);
+        }
+        url.searchParams.set('_ts', String(Date.now()));
+        return url.toString();
+    };
+
+    const createCell = (text) => {
+        const td = document.createElement('td');
+        td.textContent = String(text ?? '');
+        return td;
+    };
+
+    const createBadgeCell = (badgeClass, label) => {
+        const td = document.createElement('td');
+        const badge = document.createElement('span');
+        badge.className = `badge ${badgeClass}`;
+        badge.textContent = String(label ?? '');
+        td.appendChild(badge);
+        return td;
+    };
+
+    const renderRows = (rows, emptyMessage) => {
+        tbody.textContent = '';
+
+        if (!Array.isArray(rows) || rows.length === 0) {
+            const tr = document.createElement('tr');
+            const td = document.createElement('td');
+            td.colSpan = 6;
+            td.textContent = String(emptyMessage || 'No customers yet.');
+            tr.appendChild(td);
+            tbody.appendChild(tr);
+            return;
+        }
+
+        rows.forEach((row) => {
+            const tr = document.createElement('tr');
+            tr.className = 'table-row-clickable';
+
+            const safeSelectUrl = normalizeSafeLocalUrl(row.select_url);
+            if (safeSelectUrl) {
+                tr.dataset.selectUrl = safeSelectUrl;
+            }
+
+            tr.appendChild(createCell(row.customer_code));
+            tr.appendChild(createCell(row.full_name));
+            tr.appendChild(createCell(row.phone));
+            tr.appendChild(createCell(row.running_principal));
+            tr.appendChild(createBadgeCell(String(row.quality_badge_class || 'badge-neutral'), row.quality_label));
+            tr.appendChild(createBadgeCell(String(row.status_badge_class || 'badge-neutral'), row.status_label));
+            tbody.appendChild(tr);
+        });
+    };
+
+    const updateQueryString = (query) => {
+        const url = new URL(window.location.href);
+        if (query === '') {
+            url.searchParams.delete('q');
+        } else {
+            url.searchParams.set('q', query);
+        }
+        window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`);
+    };
+
+    let debounceTimer = null;
+    let activeController = null;
+
+    const runSearch = async () => {
+        const query = input.value.trim();
+
+        if (activeController) {
+            activeController.abort();
+        }
+        activeController = new AbortController();
+
+        try {
+            const response = await fetch(buildEndpoint(query), {
+                method: 'GET',
+                headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                cache: 'no-store',
+                signal: activeController.signal,
+            });
+
+            if (!response.ok) {
+                return false;
+            }
+
+            const payload = await response.json();
+            renderRows(payload.rows, payload.empty_message);
+            updateQueryString(query);
+            return true;
+        } catch (error) {
+            if (error && typeof error === 'object' && 'name' in error && error.name === 'AbortError') {
+                return false;
+            }
+            return false;
+        }
+    };
+
+    const queueSearch = () => {
+        if (debounceTimer !== null) {
+            clearTimeout(debounceTimer);
+        }
+        debounceTimer = window.setTimeout(runSearch, 300);
+    };
+
+    input.addEventListener('input', queueSearch);
+
+    form.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        if (debounceTimer !== null) {
+            clearTimeout(debounceTimer);
+        }
+        const ok = await runSearch();
+        if (!ok) {
+            form.submit();
+        }
+    });
+
+    if (resetLink instanceof HTMLElement) {
+        resetLink.addEventListener('click', (event) => {
+            event.preventDefault();
+            input.value = '';
+            runSearch();
+            input.focus();
+        });
+    }
+})();
+
+(function () {
     const form = document.getElementById('loan-form');
     if (!form) {
         return;
@@ -323,6 +496,122 @@
     };
 
     [principalInput, interestInput, interestTypeInput, frequencyInput, timeframeValueInput, timeframeUnitInput].forEach((el) => {
+        if (!el) {
+            return;
+        }
+        el.addEventListener('input', updatePreview);
+        el.addEventListener('change', updatePreview);
+    });
+    if (interestMonthsInput) {
+        interestMonthsInput.addEventListener('input', updatePreview);
+        interestMonthsInput.addEventListener('change', updatePreview);
+    }
+    if (interestTypeInput) {
+        interestTypeInput.addEventListener('change', toggleInterestMonthsField);
+        interestTypeInput.addEventListener('input', toggleInterestMonthsField);
+    }
+
+    toggleInterestMonthsField();
+    updatePreview();
+})();
+
+(function () {
+    const form = document.getElementById('legacy-loan-form');
+    if (!form) {
+        return;
+    }
+
+    const principalInput = form.querySelector('[name="principal_amount"]');
+    const interestInput = form.querySelector('[name="interest_rate"]');
+    const interestTypeInput = form.querySelector('[name="interest_rate_type"]');
+    const interestMonthsInput = form.querySelector('[name="interest_rate_months"]');
+    const interestMonthsField = form.querySelector('[data-legacy-interest-months-field]');
+    const frequencyInput = form.querySelector('[name="installment_frequency"]');
+    const timeframeValueInput = form.querySelector('[name="timeframe_value"]');
+    const timeframeUnitInput = form.querySelector('[name="timeframe_unit"]');
+    const collectedInput = form.querySelector('[name="collected_amount"]');
+    const totalEl = document.getElementById('legacy-preview-total');
+    const collectedEl = document.getElementById('legacy-preview-collected');
+    const remainingEl = document.getElementById('legacy-preview-remaining');
+    const installmentEl = document.getElementById('legacy-preview-installment');
+    const installmentCountEl = document.getElementById('legacy-preview-installment-count');
+
+    const toNumber = (value) => {
+        const n = Number(value);
+        return Number.isFinite(n) ? n : 0;
+    };
+
+    const formatMoney = (value) => {
+        return new Intl.NumberFormat('en-US', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+        }).format(value);
+    };
+
+    const installmentCountFromTimeframe = (frequency, timeframeValue, timeframeUnit) => {
+        const safeTimeframe = Math.max(timeframeValue, 1);
+        const totalDays = timeframeUnit === 'months' ? safeTimeframe * 30 : safeTimeframe;
+
+        if (frequency === 'weekly') {
+            return Math.max(Math.ceil(totalDays / 7), 1);
+        }
+
+        if (frequency === 'monthly') {
+            if (timeframeUnit === 'months') {
+                return safeTimeframe;
+            }
+            return Math.max(Math.ceil(totalDays / 30), 1);
+        }
+
+        return Math.max(totalDays, 1);
+    };
+
+    const toggleInterestMonthsField = () => {
+        if (!interestTypeInput || !interestMonthsField || !interestMonthsInput) {
+            return;
+        }
+
+        const isMonthly = interestTypeInput.value === 'monthly';
+        interestMonthsField.style.display = isMonthly ? '' : 'none';
+        interestMonthsInput.disabled = !isMonthly;
+        interestMonthsInput.required = isMonthly;
+        if (isMonthly && toNumber(interestMonthsInput.value) < 1) {
+            interestMonthsInput.value = '1';
+        }
+    };
+
+    const updatePreview = () => {
+        const principal = Math.max(toNumber(principalInput.value), 0);
+        const interestRate = Math.max(toNumber(interestInput.value), 0);
+        const interestType = interestTypeInput && interestTypeInput.value === 'monthly'
+            ? 'monthly'
+            : 'amount_based';
+        const interestMonths = Math.max(toNumber(interestMonthsInput ? interestMonthsInput.value : 1), 1);
+        const timeframeValue = Math.max(toNumber(timeframeValueInput.value), 1);
+        const timeframeUnit = timeframeUnitInput.value === 'months' ? 'months' : 'days';
+        const frequency = frequencyInput.value;
+        const originalCount = installmentCountFromTimeframe(frequency, timeframeValue, timeframeUnit);
+        const monthlyFactor = interestType === 'monthly' ? interestMonths : 1;
+        const total = principal + ((principal * interestRate / 100) * monthlyFactor);
+
+        const safeCollectedRaw = Math.max(toNumber(collectedInput.value), 0);
+        const collected = Math.min(safeCollectedRaw, total);
+        const remaining = Math.max(total - collected, 0);
+
+        const originalInstallment = originalCount > 0 ? total / originalCount : 0;
+        const remainingCount = remaining > 0
+            ? Math.max(Math.ceil(remaining / Math.max(originalInstallment, 0.01)), 1)
+            : 0;
+        const remainingInstallment = remainingCount > 0 ? remaining / remainingCount : 0;
+
+        totalEl.textContent = formatMoney(total);
+        collectedEl.textContent = formatMoney(collected);
+        remainingEl.textContent = formatMoney(remaining);
+        installmentEl.textContent = formatMoney(remainingInstallment);
+        installmentCountEl.textContent = String(remainingCount);
+    };
+
+    [principalInput, interestInput, interestTypeInput, frequencyInput, timeframeValueInput, timeframeUnitInput, collectedInput].forEach((el) => {
         if (!el) {
             return;
         }

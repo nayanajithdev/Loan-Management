@@ -49,9 +49,9 @@ require __DIR__ . '/../includes/layout_start.php';
                     </div>
                     <div class="settings-icon-input">
                         <input type="file" name="business_icon" accept=".jpg,.jpeg,.png,.webp,.gif,.ico,image/*">
-                        <small>JPG, PNG, WEBP, GIF or ICO. Max 2MB.</small>
                     </div>
                 </div>
+                <small>JPG, PNG, WEBP, GIF or ICO. Max 2MB.</small>
             </div>
             <div class="field full">
                 <label>Business Address</label>
