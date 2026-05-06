@@ -65,12 +65,43 @@ if (!function_exists('env_value')) {
 
 load_env_file(__DIR__ . '/../.env');
 
+if (!function_exists('load_local_db_config')) {
+    function load_local_db_config(string $path): array
+    {
+        if (!is_file($path) || !is_readable($path)) {
+            return [];
+        }
+
+        $config = require $path;
+        return is_array($config) ? $config : [];
+    }
+}
+
+if (!function_exists('db_config_value')) {
+    function db_config_value(string $envKey, string $localKey, string $default, array $localDbConfig): string
+    {
+        $env = env_value($envKey, '');
+        if ($env !== '') {
+            return $env;
+        }
+
+        $local = $localDbConfig[$localKey] ?? null;
+        if (is_string($local) && $local !== '') {
+            return $local;
+        }
+
+        return $default;
+    }
+}
+
+$localDbConfig = load_local_db_config(__DIR__ . '/database.local.php');
+
 const APP_NAME = 'Loan Management System';
-define('DB_HOST', env_value('DB_HOST', '127.0.0.1'));
-define('DB_PORT', env_value('DB_PORT', '3306'));
-define('DB_NAME', env_value('DB_NAME', 'loan_management'));
-define('DB_USER', env_value('DB_USER', 'root'));
-define('DB_PASS', env_value('DB_PASS', ''));
+define('DB_HOST', db_config_value('DB_HOST', 'host', '127.0.0.1', $localDbConfig));
+define('DB_PORT', db_config_value('DB_PORT', 'port', '3306', $localDbConfig));
+define('DB_NAME', db_config_value('DB_NAME', 'name', 'loan_management', $localDbConfig));
+define('DB_USER', db_config_value('DB_USER', 'user', 'root', $localDbConfig));
+define('DB_PASS', db_config_value('DB_PASS', 'pass', '', $localDbConfig));
 
 date_default_timezone_set('Asia/Colombo');
 
