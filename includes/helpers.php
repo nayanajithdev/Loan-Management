@@ -55,6 +55,42 @@ function money_label(PDO $pdo, float $amount): string
     return currency_label($pdo) . ' ' . money($amount);
 }
 
+function timezone_offset_for_mysql(string $timezoneIdentifier): string
+{
+    try {
+        $timezone = new DateTimeZone($timezoneIdentifier);
+    } catch (Throwable) {
+        $timezone = new DateTimeZone('UTC');
+    }
+
+    $now = new DateTimeImmutable('now', $timezone);
+    $offsetSeconds = $timezone->getOffset($now);
+    $sign = $offsetSeconds >= 0 ? '+' : '-';
+    $abs = abs($offsetSeconds);
+    $hours = intdiv($abs, 3600);
+    $minutes = intdiv($abs % 3600, 60);
+
+    return sprintf('%s%02d:%02d', $sign, $hours, $minutes);
+}
+
+function sync_mysql_session_timezone(PDO $pdo, ?string $timezoneIdentifier = null): void
+{
+    $timezoneIdentifier = trim((string) $timezoneIdentifier);
+    if ($timezoneIdentifier === '') {
+        $timezoneIdentifier = date_default_timezone_get();
+    }
+
+    $offset = timezone_offset_for_mysql($timezoneIdentifier);
+
+    try {
+        $stmt = $pdo->prepare('SET time_zone = :tz');
+        $stmt->execute(['tz' => $offset]);
+    } catch (Throwable) {
+        // Some hosting environments may block session timezone changes.
+        // Keep app running and fallback to server timezone behavior.
+    }
+}
+
 function poll_interval_ms(PDO $pdo): int
 {
     $seconds = (int) system_setting($pdo, 'poll_interval_seconds', '10');

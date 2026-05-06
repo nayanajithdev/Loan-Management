@@ -17,6 +17,7 @@ require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/helpers.php';
 
 $pdo = db();
+sync_mysql_session_timezone($pdo, date_default_timezone_get());
 ensure_user_schema($pdo);
 ensure_user_profile_schema($pdo);
 ensure_collection_user_schema($pdo);
@@ -33,6 +34,7 @@ ensure_activity_logs_schema($pdo);
 $configuredTimezone = trim(system_setting($pdo, 'timezone', ''));
 if ($configuredTimezone !== '' && in_array($configuredTimezone, timezone_identifiers_list(), true)) {
     date_default_timezone_set($configuredTimezone);
+    sync_mysql_session_timezone($pdo, $configuredTimezone);
 }
 $flash = get_flash();
 
