@@ -159,7 +159,7 @@ require __DIR__ . '/../includes/layout_start.php';
         </div>
 
         <div class="table-wrap">
-            <table>
+            <table class="due-installments-table">
                 <thead>
                 <tr>
                     <th>Loan</th>

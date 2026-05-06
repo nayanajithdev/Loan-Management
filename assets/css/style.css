@@ -1175,6 +1175,14 @@ textarea {
     background: rgba(255, 122, 26, 0.08);
 }
 
+.due-installments-table tbody tr.table-row-clickable:nth-child(odd):not(.row-selected) {
+    background: rgba(255, 255, 255, 0.015);
+}
+
+.due-installments-table tbody tr.table-row-clickable:nth-child(even):not(.row-selected) {
+    background: transparent;
+}
+
 .combo-field-search {
     grid-template-columns: 1fr 110px;
 }
