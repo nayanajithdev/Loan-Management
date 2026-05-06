@@ -40,11 +40,6 @@ PHP + MySQL loan management system for small lending businesses.
    - You will be redirected to `setup_superadmin.php`
    - Create the first owner account.
 
-## Existing installations migration
-- If you already have data from old single-user build, run:
-  - `db/migration_multi_user.sql`
-- Then login with the promoted owner account.
-
 ## Next phase ideas
 - Edit/delete customers and loans
 - Print receipt after collection
