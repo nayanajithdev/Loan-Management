@@ -93,7 +93,7 @@ require __DIR__ . '/../includes/layout_start.php';
     </div>
 
     <div class="table-wrap">
-        <table>
+        <table class="zebra-table activity-logs-table">
             <thead>
             <tr>
                 <th>Time</th>

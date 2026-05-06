@@ -155,7 +155,7 @@ require __DIR__ . '/includes/layout_start.php';
         <h2 class="panel-title">Recent Collections</h2>
     </div>
     <div class="table-wrap">
-        <table>
+        <table class="zebra-table dashboard-recent-table">
             <thead>
             <tr>
                 <th>Date</th>

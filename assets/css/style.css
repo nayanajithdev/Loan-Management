@@ -1229,6 +1229,14 @@ textarea {
     background: transparent;
 }
 
+.zebra-table tbody tr:nth-child(odd):not(.table-row-clickable:hover):not(.row-selected) {
+    background: rgba(255, 255, 255, 0.015);
+}
+
+.zebra-table tbody tr:nth-child(even):not(.table-row-clickable:hover):not(.row-selected) {
+    background: transparent;
+}
+
 .combo-field-search {
     grid-template-columns: 1fr 110px;
 }

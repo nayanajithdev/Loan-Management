@@ -34,7 +34,7 @@ require __DIR__ . '/../includes/layout_start.php';
         </div>
     </div>
     <div class="table-wrap">
-        <table>
+        <table class="zebra-table loans-table">
             <thead>
             <tr>
                 <th>Loan No</th>
