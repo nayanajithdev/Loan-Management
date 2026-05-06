@@ -92,7 +92,7 @@ require __DIR__ . '/../includes/layout_start.php';
         </div>
     </form>
     <div class="table-wrap">
-        <table>
+        <table class="collection-history-table">
             <thead>
             <tr>
                 <th>Date</th>

@@ -1221,6 +1221,14 @@ textarea {
     background: transparent;
 }
 
+.collection-history-table tbody tr:nth-child(odd) {
+    background: rgba(255, 255, 255, 0.015);
+}
+
+.collection-history-table tbody tr:nth-child(even) {
+    background: transparent;
+}
+
 .combo-field-search {
     grid-template-columns: 1fr 110px;
 }
