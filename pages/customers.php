@@ -9,8 +9,96 @@ $pageTitle = 'Customers';
 $activePage = 'customers';
 
 $current = current_user();
+$currentUserId = (int) ($current['id'] ?? 0);
 $searchTerm = trim((string) ($_GET['q'] ?? ''));
-$customers = customer_list_rows($pdo, $current, $searchTerm);
+$searchTerm = mb_substr($searchTerm, 0, 120);
+$searchClause = " AND (
+    c.customer_code LIKE :search_code ESCAPE '\\\\'
+    OR c.full_name LIKE :search_name ESCAPE '\\\\'
+    OR c.phone LIKE :search_phone ESCAPE '\\\\'
+    OR c.nic LIKE :search_nic ESCAPE '\\\\'
+)";
+
+if (can_view_all_customers()) {
+    $sql =
+        "SELECT
+            c.*,
+            COALESCE((
+                SELECT SUM(l.principal_amount)
+                FROM loans l
+                WHERE l.customer_id = c.id
+                  AND l.status = 'active'
+            ), 0) AS running_principal,
+            COALESCE((
+                SELECT COUNT(*)
+                FROM loan_installments li
+                JOIN loans lq ON lq.id = li.loan_id
+                WHERE lq.customer_id = c.id
+                  AND (
+                      (li.paid_on IS NOT NULL AND li.paid_on > li.due_date)
+                      OR (li.paid_on IS NULL AND li.due_date < CURDATE() AND li.status IN ('pending', 'partial', 'overdue'))
+                  )
+            ), 0) AS overdue_installment_count
+         FROM customers c
+         WHERE 1=1" . ($searchTerm !== '' ? $searchClause : '') . "
+         ORDER BY c.id DESC";
+    $customerStmt = $pdo->prepare($sql);
+    $params = [];
+} else {
+    $sql =
+        "SELECT
+            c.*,
+            COALESCE((
+                SELECT SUM(l2.principal_amount)
+                FROM loans l2
+                WHERE l2.customer_id = c.id
+                  AND l2.status = 'active'
+            ), 0) AS running_principal,
+            COALESCE((
+                SELECT COUNT(*)
+                FROM loan_installments li
+                JOIN loans lq ON lq.id = li.loan_id
+                WHERE lq.customer_id = c.id
+                  AND (
+                      (li.paid_on IS NOT NULL AND li.paid_on > li.due_date)
+                      OR (li.paid_on IS NULL AND li.due_date < CURDATE() AND li.status IN ('pending', 'partial', 'overdue'))
+                  )
+            ), 0) AS overdue_installment_count
+         FROM customers c
+         WHERE (
+                EXISTS (
+                    SELECT 1
+                    FROM loans l_assigned
+                    WHERE l_assigned.customer_id = c.id
+                      AND l_assigned.assigned_user_id = :uid
+                )
+                OR EXISTS (
+                    SELECT 1
+                    FROM loans l_unassigned
+                    WHERE l_unassigned.customer_id = c.id
+                      AND l_unassigned.assigned_user_id IS NULL
+                )
+                OR NOT EXISTS (
+                    SELECT 1
+                    FROM loans l_any
+                    WHERE l_any.customer_id = c.id
+                )
+         )" . ($searchTerm !== '' ? $searchClause : '') . "
+         ORDER BY c.id DESC";
+    $customerStmt = $pdo->prepare($sql);
+    $params = ['uid' => $currentUserId];
+}
+
+if ($searchTerm !== '') {
+    $searchValue = '%' . str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $searchTerm) . '%';
+    $params['search_code'] = $searchValue;
+    $params['search_name'] = $searchValue;
+    $params['search_phone'] = $searchValue;
+    $params['search_nic'] = $searchValue;
+}
+
+$customerStmt->execute($params);
+$customers = $customerStmt->fetchAll();
 
 require __DIR__ . '/../includes/layout_start.php';
 ?>
@@ -22,8 +110,6 @@ require __DIR__ . '/../includes/layout_start.php';
             <form
                 method="get"
                 class="panel-head-actions"
-                data-customer-search-form
-                data-search-endpoint="<?= e(url('api/customers_search.php')) ?>"
             >
                 <input
                     type="text"
@@ -31,14 +117,14 @@ require __DIR__ . '/../includes/layout_start.php';
                     class="search"
                     placeholder="Search customer"
                     value="<?= e($searchTerm) ?>"
-                    data-customer-search-input
-                    autocomplete="off"
                 >
-                <a
-                    class="btn"
-                    href="<?= e(url('pages/customers.php')) ?>"
-                    data-customer-search-reset
-                >Reset</a>
+                <button type="submit" class="btn">Search</button>
+                <?php if ($searchTerm !== ''): ?>
+                    <a
+                        class="btn"
+                        href="<?= e(url('pages/customers.php')) ?>"
+                    >Reset</a>
+                <?php endif; ?>
             </form>
             <a class="btn btn-primary" href="<?= e(url('pages/customer_create.php')) ?>">New Customer</a>
         </div>
@@ -56,7 +142,7 @@ require __DIR__ . '/../includes/layout_start.php';
                 <th>Status</th>
             </tr>
             </thead>
-            <tbody data-customer-table-body>
+            <tbody>
             <?php if (!$customers): ?>
                 <tr>
                     <td colspan="6">
