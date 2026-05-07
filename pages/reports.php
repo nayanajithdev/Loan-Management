@@ -147,8 +147,11 @@ $recentSql = "SELECT
 
 $recentParams = ['from_date' => $fromDate, 'to_date' => $toDate];
 if ($search !== '') {
-    $recentSql .= " AND (l.loan_number LIKE :q OR cu.full_name LIKE :q OR cu.phone LIKE :q)";
-    $recentParams['q'] = '%' . $search . '%';
+    $recentSql .= " AND (l.loan_number LIKE :q_loan OR cu.full_name LIKE :q_name OR cu.phone LIKE :q_phone)";
+    $searchLike = '%' . $search . '%';
+    $recentParams['q_loan'] = $searchLike;
+    $recentParams['q_name'] = $searchLike;
+    $recentParams['q_phone'] = $searchLike;
 }
 
 $recentSql .= " ORDER BY c.id DESC LIMIT 120";

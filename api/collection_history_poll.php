@@ -9,6 +9,8 @@ $current = current_user();
 $currentRole = (string) ($current['role'] ?? '');
 $currentUserId = (int) ($current['id'] ?? 0);
 $selectedCustomerId = (int) ($_GET['customer_id'] ?? 0);
+$search = trim((string) ($_GET['q'] ?? ''));
+$search = mb_substr($search, 0, 120);
 
 $scopeSql = '';
 $params = [];
@@ -17,10 +19,22 @@ if (is_collector_role($currentRole)) {
     $params['assigned_user_id'] = $currentUserId;
 }
 
-$customerFilterSql = '';
+$legacyCustomerFilterSql = '';
 if ($selectedCustomerId > 0) {
-    $customerFilterSql = $scopeSql === '' ? ' WHERE c.id = :customer_id' : ' AND c.id = :customer_id';
+    $legacyCustomerFilterSql = $scopeSql === '' ? ' WHERE c.id = :customer_id' : ' AND c.id = :customer_id';
     $params['customer_id'] = $selectedCustomerId;
+}
+
+$searchFilterSql = '';
+if ($search !== '') {
+    $searchFilterSql = ($scopeSql === '' && $legacyCustomerFilterSql === '')
+        ? ' WHERE '
+        : ' AND ';
+    $searchFilterSql .= '(l.loan_number LIKE :search_loan ESCAPE \'\\\\\' OR c.full_name LIKE :search_name ESCAPE \'\\\\\' OR c.phone LIKE :search_phone ESCAPE \'\\\\\')';
+    $searchTerm = '%' . str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $search) . '%';
+    $params['search_loan'] = $searchTerm;
+    $params['search_name'] = $searchTerm;
+    $params['search_phone'] = $searchTerm;
 }
 
 $collectionsStmt = $pdo->prepare(
@@ -38,7 +52,7 @@ $collectionsStmt = $pdo->prepare(
      JOIN loans l ON l.id = col.loan_id
      JOIN customers c ON c.id = l.customer_id
      LEFT JOIN users u ON u.id = col.collected_by_user_id
-     {$scopeSql}{$customerFilterSql}
+     {$scopeSql}{$legacyCustomerFilterSql}{$searchFilterSql}
      GROUP BY COALESCE(col.payment_ref, CONCAT('legacy-', col.id)), l.loan_number, c.full_name
      ORDER BY latest_id DESC
      LIMIT 50"

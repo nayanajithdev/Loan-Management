@@ -13,6 +13,8 @@ $current = current_user();
 $currentRole = (string) ($current['role'] ?? '');
 $currentUserId = (int) ($current['id'] ?? 0);
 $selectedCustomerId = (int) ($_GET['customer_id'] ?? 0);
+$search = trim((string) ($_GET['q'] ?? ''));
+$search = mb_substr($search, 0, 120);
 
 $scopeSql = '';
 $params = [];
@@ -21,26 +23,23 @@ if (is_collector_role($currentRole)) {
     $params['assigned_user_id'] = $currentUserId;
 }
 
-$customerFilterSql = '';
+$legacyCustomerFilterSql = '';
 if ($selectedCustomerId > 0) {
-    $customerFilterSql = $scopeSql === '' ? ' WHERE c.id = :customer_id' : ' AND c.id = :customer_id';
+    $legacyCustomerFilterSql = $scopeSql === '' ? ' WHERE c.id = :customer_id' : ' AND c.id = :customer_id';
     $params['customer_id'] = $selectedCustomerId;
 }
 
-$customerListSql = "SELECT DISTINCT c.id, c.full_name
-                    FROM customers c
-                    LEFT JOIN loans l ON l.customer_id = c.id";
-if (is_collector_role($currentRole)) {
-    $customerListSql .= " WHERE (l.assigned_user_id = :assigned_user_id OR l.assigned_user_id IS NULL OR l.id IS NULL)";
+$searchFilterSql = '';
+if ($search !== '') {
+    $searchFilterSql = ($scopeSql === '' && $legacyCustomerFilterSql === '')
+        ? ' WHERE '
+        : ' AND ';
+    $searchFilterSql .= '(l.loan_number LIKE :search_loan ESCAPE \'\\\\\' OR c.full_name LIKE :search_name ESCAPE \'\\\\\' OR c.phone LIKE :search_phone ESCAPE \'\\\\\')';
+    $searchTerm = '%' . str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $search) . '%';
+    $params['search_loan'] = $searchTerm;
+    $params['search_name'] = $searchTerm;
+    $params['search_phone'] = $searchTerm;
 }
-$customerListSql .= " ORDER BY c.full_name ASC";
-$customerListStmt = $pdo->prepare($customerListSql);
-if (is_collector_role($currentRole)) {
-    $customerListStmt->execute(['assigned_user_id' => $currentUserId]);
-} else {
-    $customerListStmt->execute();
-}
-$customerOptions = $customerListStmt->fetchAll();
 
 $collectionsStmt = $pdo->prepare(
     "SELECT
@@ -57,7 +56,7 @@ $collectionsStmt = $pdo->prepare(
      JOIN loans l ON l.id = col.loan_id
      JOIN customers c ON c.id = l.customer_id
      LEFT JOIN users u ON u.id = col.collected_by_user_id
-     {$scopeSql}{$customerFilterSql}
+     {$scopeSql}{$legacyCustomerFilterSql}{$searchFilterSql}
      GROUP BY COALESCE(col.payment_ref, CONCAT('legacy-', col.id)), l.loan_number, c.full_name
      ORDER BY latest_id DESC
      LIMIT 50"
@@ -75,20 +74,16 @@ require __DIR__ . '/../includes/layout_start.php';
         <h2 class="panel-title">Collection History</h2>
     </div>
     <form method="get" class="form-grid" style="margin-bottom: 12px;">
-        <div class="field">
-            <label>Customer</label>
-            <select name="customer_id">
-                <option value="0">All Customers</option>
-                <?php foreach ($customerOptions as $customer): ?>
-                    <option value="<?= e((string) $customer['id']) ?>" <?= (int) $customer['id'] === $selectedCustomerId ? 'selected' : '' ?>>
-                        <?= e((string) $customer['full_name']) ?>
-                    </option>
-                <?php endforeach; ?>
-            </select>
+        <div class="field" style="grid-column: span 5;">
+            <label>Search (Loan No / Customer Name / Phone)</label>
+            <input type="text" name="q" value="<?= e($search) ?>" placeholder="Type and search">
+            <?php if ($selectedCustomerId > 0): ?>
+                <input type="hidden" name="customer_id" value="<?= e((string) $selectedCustomerId) ?>">
+            <?php endif; ?>
         </div>
-        <div class="field reports-filter-actions" style="grid-column: span 12; justify-content: flex-start;">
-            <a class="btn" href="<?= e(url('pages/collections.php')) ?>">Reset</a>
+        <div class="field reports-filter-actions" style="grid-column: span 3; justify-content: flex-start; align-self: end;">
             <button type="submit" class="btn btn-primary">Apply</button>
+            <a class="btn" href="<?= e(url('pages/collections.php')) ?>">Reset</a>
         </div>
     </form>
     <div class="table-wrap">

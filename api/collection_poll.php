@@ -66,8 +66,11 @@ if (is_collector_role($currentRole)) {
     $params['assigned_user_id'] = $currentUserId;
 }
 if ($search !== '') {
-    $sql .= " AND (l.loan_number LIKE :q OR c.full_name LIKE :q OR c.phone LIKE :q)";
-    $params['q'] = '%' . $search . '%';
+    $sql .= " AND (l.loan_number LIKE :q_loan OR c.full_name LIKE :q_name OR c.phone LIKE :q_phone)";
+    $searchLike = '%' . $search . '%';
+    $params['q_loan'] = $searchLike;
+    $params['q_name'] = $searchLike;
+    $params['q_phone'] = $searchLike;
 }
 
 $sql .= ' ORDER BY li.due_date ASC, c.full_name ASC, li.installment_no ASC';
@@ -110,11 +113,10 @@ $summaryHtml = ob_get_clean();
 ob_start();
 if (!$dueInstallments):
 ?>
-<tr><td colspan="9">No due installments for selected date.</td></tr>
+<tr><td colspan="7">No due installments for selected date.</td></tr>
 <?php
 else:
     foreach ($dueInstallments as $item):
-        $balance = round((float) $item['due_amount'] - (float) $item['paid_amount'], 2);
         $displayStatus = $item['status'];
         if ($item['status'] !== 'paid' && $item['due_date'] < $todayForStatus) {
             $displayStatus = 'overdue';
@@ -134,8 +136,6 @@ else:
     <td>#<?= e((string) $item['installment_no']) ?></td>
     <td><?= e(display_date((string) $item['due_date'])) ?></td>
     <td><?= e(money_label($pdo, (float) $item['due_amount'])) ?></td>
-    <td><?= e(money_label($pdo, (float) $item['paid_amount'])) ?></td>
-    <td><?= e(money_label($pdo, $balance)) ?></td>
     <td><span class="badge badge-<?= e(status_badge_class($displayStatus)) ?>"><?= e($displayStatus) ?></span></td>
 </tr>
 <?php

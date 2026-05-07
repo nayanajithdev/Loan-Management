@@ -59,6 +59,18 @@ require __DIR__ . '/../includes/layout_start.php';
                 </span>
                 Back to Customers
             </a>
+            <?php if (has_role(['superadmin', 'admin'])): ?>
+                <form method="post" action="<?= e(url('actions/customer_delete.php')) ?>" class="inline-form" onsubmit="return confirm('Delete this customer permanently? This action cannot be undone.');">
+                    <?= csrf_input() ?>
+                    <input type="hidden" name="customer_id" value="<?= e((string) $customerId) ?>">
+                    <button type="submit" class="btn btn-danger">
+                        <span class="btn-icon-inline" aria-hidden="true">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-trash-icon lucide-trash"><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                        </span>
+                        Delete Customer
+                    </button>
+                </form>
+            <?php endif; ?>
         </div>
     </div>
 

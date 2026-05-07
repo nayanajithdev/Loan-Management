@@ -43,6 +43,7 @@ $selectedInstallmentId = (int) ($_GET['selected_installment'] ?? 0);
 $current = current_user();
 $currentRole = (string) ($current['role'] ?? '');
 $currentUserId = (int) ($current['id'] ?? 0);
+$canBackdatePaid = has_role(['superadmin', 'admin']);
 
 $sql = "SELECT
             li.id,
@@ -68,8 +69,11 @@ if (is_collector_role($currentRole)) {
     $params['assigned_user_id'] = $currentUserId;
 }
 if ($search !== '') {
-    $sql .= " AND (l.loan_number LIKE :q OR c.full_name LIKE :q OR c.phone LIKE :q)";
-    $params['q'] = '%' . $search . '%';
+    $sql .= " AND (l.loan_number LIKE :q_loan OR c.full_name LIKE :q_name OR c.phone LIKE :q_phone)";
+    $searchLike = '%' . $search . '%';
+    $params['q_loan'] = $searchLike;
+    $params['q_name'] = $searchLike;
+    $params['q_phone'] = $searchLike;
 }
 
 $sql .= ' ORDER BY li.due_date ASC, c.full_name ASC, li.installment_no ASC';
@@ -85,6 +89,10 @@ foreach ($dueInstallments as $item) {
         break;
     }
 }
+
+$hasSelectedInstallment = $selectedInstallment !== null;
+$isFutureInstallmentSelected = $hasSelectedInstallment && (string) $selectedInstallment['due_date'] > $todayDate;
+$effectiveCollectedOn = $isFutureDate ? $todayDate : $selectedDate;
 
 if (is_collector_role($currentRole)) {
     $selectedCollectionTotalStmt = $pdo->prepare(
@@ -168,14 +176,12 @@ require __DIR__ . '/../includes/layout_start.php';
                     <th>Inst.</th>
                     <th>Due Date</th>
                     <th>Due</th>
-                    <th>Paid</th>
-                    <th>Balance</th>
                     <th>Status</th>
                 </tr>
                 </thead>
                 <tbody id="collection-due-table-body">
                 <?php if (!$dueInstallments): ?>
-                    <tr><td colspan="9">No due installments for selected date.</td></tr>
+                    <tr><td colspan="7">No due installments for selected date.</td></tr>
                 <?php else: ?>
                     <?php foreach ($dueInstallments as $item): ?>
                         <?php $balance = round((float) $item['due_amount'] - (float) $item['paid_amount'], 2); ?>
@@ -193,8 +199,6 @@ require __DIR__ . '/../includes/layout_start.php';
                             <td>#<?= e((string) $item['installment_no']) ?></td>
                             <td><?= e(display_date((string) $item['due_date'])) ?></td>
                             <td><?= e(money_label($pdo, (float) $item['due_amount'])) ?></td>
-                            <td><?= e(money_label($pdo, (float) $item['paid_amount'])) ?></td>
-                            <td><?= e(money_label($pdo, $balance)) ?></td>
                             <td><span class="badge badge-<?= e(status_badge_class($displayStatus)) ?>"><?= e($displayStatus) ?></span></td>
                         </tr>
                     <?php endforeach; ?>
@@ -210,7 +214,6 @@ require __DIR__ . '/../includes/layout_start.php';
         </div>
 
         <?php
-        $hasSelectedInstallment = $selectedInstallment !== null;
         $selectedBalance = $hasSelectedInstallment
             ? round((float) $selectedInstallment['due_amount'] - (float) $selectedInstallment['paid_amount'], 2)
             : 0.0;
@@ -218,10 +221,10 @@ require __DIR__ . '/../includes/layout_start.php';
 
         <p>
             <?php
-            if ($isFutureDate) {
-                echo 'Future date view only. Saving collection is disabled.';
+            if ($hasSelectedInstallment && $isFutureInstallmentSelected) {
+                echo 'Future installment selected. Collection will be recorded for today.';
             } else {
-                echo $hasSelectedInstallment ? 'Selected installment is ready for collection.' : 'Select an installment from the left table.';
+                echo $hasSelectedInstallment ? 'Selected installment is ready for collection.' : 'Select an installment to continue.';
             }
             ?>
         </p>
@@ -241,47 +244,75 @@ require __DIR__ . '/../includes/layout_start.php';
             <?= csrf_input() ?>
             <input type="hidden" name="loan_id" value="<?= e($hasSelectedInstallment ? (string) $selectedInstallment['loan_id'] : '') ?>">
             <input type="hidden" name="installment_id" value="<?= e($hasSelectedInstallment ? (string) $selectedInstallment['id'] : '') ?>">
-            <input type="hidden" name="collected_on" value="<?= e($selectedDate) ?>">
+            <input type="hidden" name="collected_on" value="<?= e($effectiveCollectedOn) ?>">
             <input type="hidden" name="return_to" value="<?= e($returnTo) ?>">
 
             <div class="field full">
                 <label>Installment</label>
-                <input type="text" value="<?= e($hasSelectedInstallment ? ('#' . (string) $selectedInstallment['installment_no'] . ' | ' . display_date((string) $selectedInstallment['due_date'])) : 'Not selected') ?>" readonly>
+                <div class="readonly-value"><?= e($hasSelectedInstallment ? ('#' . (string) $selectedInstallment['installment_no'] . ' | ' . display_date((string) $selectedInstallment['due_date'])) : 'Not selected') ?></div>
             </div>
             <div class="field">
                 <label>Due Amount</label>
-                <input type="text" value="<?= e($hasSelectedInstallment ? money_label($pdo, (float) $selectedInstallment['due_amount']) : money_label($pdo, 0.0)) ?>" readonly>
-            </div>
-            <div class="field">
-                <label>Already Paid</label>
-                <input type="text" value="<?= e($hasSelectedInstallment ? money_label($pdo, (float) $selectedInstallment['paid_amount']) : money_label($pdo, 0.0)) ?>" readonly>
-            </div>
-            <div class="field">
-                <label>Balance</label>
-                <input type="text" value="<?= e(money_label($pdo, $selectedBalance)) ?>" readonly>
+                <div class="readonly-value"><?= e($hasSelectedInstallment ? money_label($pdo, (float) $selectedInstallment['due_amount']) : money_label($pdo, 0.0)) ?></div>
             </div>
             <div class="field">
                 <label>Amount Received</label>
-                <input type="number" name="amount" step="0.01" min="0.01" value="<?= e($hasSelectedInstallment ? (string) $selectedBalance : '') ?>" <?= $hasSelectedInstallment && !$isFutureDate ? 'required' : 'disabled' ?>>
+                <input type="number" name="amount" step="0.01" min="0.01" value="<?= e($hasSelectedInstallment ? (string) $selectedBalance : '') ?>" <?= $hasSelectedInstallment ? 'required' : 'disabled' ?>>
             </div>
             <div class="field">
                 <label>Method</label>
-                <select name="method" <?= $hasSelectedInstallment && !$isFutureDate ? '' : 'disabled' ?>>
+                <select name="method" <?= $hasSelectedInstallment ? '' : 'disabled' ?>>
                     <option value="cash">Cash</option>
                     <option value="bank">Bank Transfer</option>
                     <option value="online">Online</option>
                 </select>
             </div>
+            <?php if ($canBackdatePaid): ?>
+                <div class="field full">
+                    <label class="choice-check">
+                        <input type="checkbox" name="backdated_entry" id="backdated-entry-toggle" value="1" <?= $hasSelectedInstallment && !$isFutureInstallmentSelected ? '' : 'disabled' ?>>
+                        <span class="choice-check-box" aria-hidden="true">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-check-icon lucide-check"><path d="M20 6 9 17l-5-5"/></svg>
+                        </span>
+                        <span class="choice-check-label">Backdated Entry (paid on an earlier date)</span>
+                    </label>
+                </div>
+                <div class="field" id="paid-date-field" style="display:none;">
+                    <label>Paid Date (Actual)</label>
+                    <input type="date" name="paid_on_date" id="paid-on-date-input" value="<?= e($hasSelectedInstallment ? (string) $selectedInstallment['due_date'] : $effectiveCollectedOn) ?>" max="<?= e($effectiveCollectedOn) ?>" <?= $hasSelectedInstallment && !$isFutureInstallmentSelected ? '' : 'disabled' ?>>
+                </div>
+            <?php endif; ?>
             <div class="field full">
                 <label>Note</label>
-                <textarea name="note" placeholder="Optional" <?= $hasSelectedInstallment && !$isFutureDate ? '' : 'disabled' ?>></textarea>
+                <textarea name="note" placeholder="Optional" <?= $hasSelectedInstallment ? '' : 'disabled' ?>></textarea>
             </div>
             <div class="field" style="align-self:end;">
-                <button type="submit" class="btn btn-primary" <?= $hasSelectedInstallment && !$isFutureDate ? '' : 'disabled' ?>>Save Collection</button>
+                <button type="submit" class="btn btn-primary" <?= $hasSelectedInstallment ? '' : 'disabled' ?>>Save Collection</button>
             </div>
         </form>
     </section>
 </div>
+<?php if ($canBackdatePaid): ?>
+<script>
+(() => {
+    const toggle = document.getElementById('backdated-entry-toggle');
+    const field = document.getElementById('paid-date-field');
+    const input = document.getElementById('paid-on-date-input');
+    if (!toggle || !field || !input) {
+        return;
+    }
+
+    const sync = () => {
+        const enabled = toggle.checked && !toggle.disabled;
+        field.style.display = enabled ? '' : 'none';
+        input.required = enabled;
+    };
+
+    toggle.addEventListener('change', sync);
+    sync();
+})();
+</script>
+<?php endif; ?>
 
 <div id="poll-config"
      data-poll-endpoint="<?= e(url('api/collection_poll.php')) ?>"

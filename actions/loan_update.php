@@ -93,7 +93,13 @@ try {
     $countStmt->execute(['loan_id' => $loanId]);
     $collectionsCount = (int) $countStmt->fetchColumn();
 
-    if ($collectionsCount > 0) {
+    $outstandingStmt = $pdo->prepare('SELECT COALESCE(SUM(due_amount - paid_amount), 0) FROM loan_installments WHERE loan_id = :loan_id');
+    $outstandingStmt->execute(['loan_id' => $loanId]);
+    $currentOutstanding = (float) $outstandingStmt->fetchColumn();
+    $hasLegacyPreCollected = $collectionsCount === 0 && ($currentOutstanding + 0.009) < (float) $loan['total_amount'];
+    $repaymentLocked = $collectionsCount > 0 || $hasLegacyPreCollected;
+
+    if ($repaymentLocked) {
         $updateLocked = $pdo->prepare(
             'UPDATE loans SET
                 status = :status,
@@ -181,9 +187,17 @@ try {
         'interest_rate_type' => $interestRateType,
         'interest_rate_months' => $interestRateType === 'monthly' ? $interestRateMonths : 1,
         'status' => $status,
-        'repayment_locked' => $collectionsCount > 0 ? 1 : 0,
+        'repayment_locked' => $repaymentLocked ? 1 : 0,
+        'legacy_pre_collected' => $hasLegacyPreCollected ? 1 : 0,
     ]);
-    set_flash('success', $collectionsCount > 0 ? 'Loan updated (repayment structure locked because collections exist).' : 'Loan updated successfully.');
+    if ($repaymentLocked) {
+        $lockedReason = $hasLegacyPreCollected
+            ? 'Loan updated (repayment structure locked because this old loan has pre-collected value).'
+            : 'Loan updated (repayment structure locked because collections exist).';
+        set_flash('success', $lockedReason);
+    } else {
+        set_flash('success', 'Loan updated successfully.');
+    }
 } catch (Throwable $e) {
     if ($pdo->inTransaction()) {
         $pdo->rollBack();

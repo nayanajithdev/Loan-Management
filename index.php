@@ -55,7 +55,7 @@ require __DIR__ . '/includes/layout_start.php';
 </div>
 
 <section class="card-grid dashboard-stat-grid" id="dashboard-stat-cards">
-    <article class="stat-card goal-mini-card" id="dashboard-goal-card">
+    <article class="stat-card goal-mini-card card-clickable" id="dashboard-goal-card" data-select-url="<?= e(url('pages/today_collections.php')) ?>">
         <p class="stat-label">Today's Collections</p>
         <p class="goal-mini-collected"><?= e(money_label($pdo, $todayGoal['collected'])) ?></p>
         <p class="goal-mini-target">Target: <?= e(money_label($pdo, $todayGoal['target'])) ?></p>

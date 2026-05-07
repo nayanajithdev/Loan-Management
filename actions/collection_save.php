@@ -16,6 +16,8 @@ $amount = round((float) ($_POST['amount'] ?? 0), 2);
 $collectedOn = trim((string) ($_POST['collected_on'] ?? ''));
 $method = trim((string) ($_POST['method'] ?? 'cash'));
 $note = trim((string) ($_POST['note'] ?? ''));
+$backdatedEntry = (int) ($_POST['backdated_entry'] ?? 0) === 1;
+$paidOnDateInput = trim((string) ($_POST['paid_on_date'] ?? ''));
 $collectedByUserId = (int) (current_user()['id'] ?? 0);
 try {
     $paymentRef = 'PAY-' . date('YmdHis') . '-' . bin2hex(random_bytes(4));
@@ -61,6 +63,35 @@ if ($collectedOn > today()) {
     redirect($returnTo);
 }
 
+$current = current_user();
+$currentRole = (string) ($current['role'] ?? '');
+$canBackdatePaid = in_array($currentRole, ['superadmin', 'admin'], true);
+$paidOnDate = $collectedOn;
+if ($backdatedEntry) {
+    if (!$canBackdatePaid) {
+        set_flash('error', 'You do not have permission to use backdated entry.');
+        redirect($returnTo);
+    }
+
+    $paidDateObj = DateTimeImmutable::createFromFormat('Y-m-d', $paidOnDateInput);
+    if (!$paidDateObj || $paidDateObj->format('Y-m-d') !== $paidOnDateInput) {
+        set_flash('error', 'Invalid paid date.');
+        redirect($returnTo);
+    }
+
+    if ($paidOnDateInput > $collectedOn) {
+        set_flash('error', 'Paid date cannot be later than recorded date.');
+        redirect($returnTo);
+    }
+
+    if ($paidOnDateInput > today()) {
+        set_flash('error', 'Paid date cannot be in the future.');
+        redirect($returnTo);
+    }
+
+    $paidOnDate = $paidOnDateInput;
+}
+
 if (!in_array($method, ['cash', 'bank', 'online'], true)) {
     $method = 'cash';
 }
@@ -77,8 +108,6 @@ try {
         throw new RuntimeException('Loan not found.');
     }
 
-    $current = current_user();
-    $currentRole = (string) ($current['role'] ?? '');
     $currentUserId = (int) ($current['id'] ?? 0);
     $currentUserName = (string) ($current['full_name'] ?? 'Unknown');
     $loanNumber = (string) ($loan['loan_number'] ?? ('#' . $loanId));
@@ -182,7 +211,7 @@ try {
 
         $updateInstallment->execute([
             'paid_amount' => $newPaid,
-            'paid_on' => $status === 'paid' ? $collectedOn : null,
+            'paid_on' => $status === 'paid' ? $paidOnDate : null,
             'status' => $status,
             'id' => $inst['id'],
         ]);
@@ -250,10 +279,12 @@ try {
         'loan_number' => $loanNumber,
         'amount' => $amount,
         'collected_on' => $collectedOn,
-        'method' => $method,
-        'payment_ref' => $paymentRef,
-        'assigned_user' => $assignedUser !== null ? (string) ($assignedUser['full_name'] ?? '') : 'Unassigned',
-    ]);
+            'method' => $method,
+            'payment_ref' => $paymentRef,
+            'backdated_entry' => $backdatedEntry ? 1 : 0,
+            'paid_on_date' => $paidOnDate,
+            'assigned_user' => $assignedUser !== null ? (string) ($assignedUser['full_name'] ?? '') : 'Unassigned',
+        ]);
 
     set_flash('success', 'Collection recorded successfully.');
 } catch (Throwable $e) {

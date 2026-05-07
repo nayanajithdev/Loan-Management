@@ -44,13 +44,18 @@ $params = [
 
 if ($search !== '') {
     $sql .= " AND (
-        al.action_key LIKE :q
-        OR al.description LIKE :q
-        OR COALESCE(u.full_name, '') LIKE :q
-        OR COALESCE(u.username, '') LIKE :q
-        OR COALESCE(al.ip_address, '') LIKE :q
+        al.action_key LIKE :q_action
+        OR al.description LIKE :q_desc
+        OR COALESCE(u.full_name, '') LIKE :q_name
+        OR COALESCE(u.username, '') LIKE :q_username
+        OR COALESCE(al.ip_address, '') LIKE :q_ip
     )";
-    $params['q'] = '%' . $search . '%';
+    $searchLike = '%' . $search . '%';
+    $params['q_action'] = $searchLike;
+    $params['q_desc'] = $searchLike;
+    $params['q_name'] = $searchLike;
+    $params['q_username'] = $searchLike;
+    $params['q_ip'] = $searchLike;
 }
 
 $sql .= ' ORDER BY al.id DESC LIMIT 600';

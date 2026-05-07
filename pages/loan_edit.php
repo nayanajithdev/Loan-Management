@@ -39,6 +39,11 @@ $collectionCountStmt = $pdo->prepare('SELECT COUNT(*) FROM collections WHERE loa
 $collectionCountStmt->execute(['loan_id' => $loanId]);
 $collectionCount = (int) $collectionCountStmt->fetchColumn();
 $hasCollections = $collectionCount > 0;
+$outstandingStmt = $pdo->prepare('SELECT COALESCE(SUM(due_amount - paid_amount), 0) FROM loan_installments WHERE loan_id = :loan_id');
+$outstandingStmt->execute(['loan_id' => $loanId]);
+$currentOutstanding = (float) $outstandingStmt->fetchColumn();
+$hasLegacyPreCollected = !$hasCollections && ($currentOutstanding + 0.009) < (float) $loan['total_amount'];
+$repaymentLocked = $hasCollections || $hasLegacyPreCollected;
 
 $defaultTimeframeValue = match ((string) $loan['installment_frequency']) {
     'weekly' => (int) $loan['installment_count'] * 7,
@@ -69,11 +74,29 @@ require __DIR__ . '/../includes/layout_start.php';
                 </span>
                 Back to Loan List
             </a>
+            <?php if ($canEditAssignment): ?>
+                <form method="post" action="<?= e(url('actions/loan_delete.php')) ?>" class="inline-form" onsubmit="return confirm('Delete this loan permanently? This action cannot be undone.');">
+                    <?= csrf_input() ?>
+                    <input type="hidden" name="loan_id" value="<?= e((string) $loanId) ?>">
+                    <button type="submit" class="btn btn-danger">
+                        <span class="btn-icon-inline" aria-hidden="true">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-trash-icon lucide-trash"><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                        </span>
+                        Delete Loan
+                    </button>
+                </form>
+            <?php endif; ?>
         </div>
     </div>
 
-    <?php if ($hasCollections): ?>
-        <div class="flash flash-error">This loan already has collections. Repayment structure fields are locked. You can still update assignment, notes and status.</div>
+    <?php if ($repaymentLocked): ?>
+        <div class="flash flash-warning">
+            <?php if ($hasCollections): ?>
+                This loan already has collections. Repayment structure fields are locked. You can still update assignment, notes and status.
+            <?php else: ?>
+                This old loan has pre-collected value. Repayment structure fields are locked to protect collected totals. You can still update assignment, notes and status.
+            <?php endif; ?>
+        </div>
     <?php endif; ?>
 
     <form id="loan-form" class="form-grid" method="post" action="<?= e(url('actions/loan_update.php')) ?>">
@@ -82,7 +105,7 @@ require __DIR__ . '/../includes/layout_start.php';
 
         <div class="field">
             <label>Customer</label>
-            <select name="customer_id" required <?= $hasCollections ? 'disabled' : '' ?>>
+            <select name="customer_id" required <?= $repaymentLocked ? 'disabled' : '' ?>>
                 <option value="">Select customer</option>
                 <?php foreach ($customers as $customer): ?>
                     <option value="<?= e((string) $customer['id']) ?>" <?= (int) $loan['customer_id'] === (int) $customer['id'] ? 'selected' : '' ?>>
@@ -90,42 +113,42 @@ require __DIR__ . '/../includes/layout_start.php';
                     </option>
                 <?php endforeach; ?>
             </select>
-            <?php if ($hasCollections): ?>
+            <?php if ($repaymentLocked): ?>
                 <input type="hidden" name="customer_id" value="<?= e((string) $loan['customer_id']) ?>">
             <?php endif; ?>
         </div>
 
         <div class="field">
             <label>Principal Amount</label>
-            <input type="number" step="0.01" name="principal_amount" value="<?= e((string) $loan['principal_amount']) ?>" required <?= $hasCollections ? 'readonly' : '' ?>>
+            <input type="number" step="0.01" name="principal_amount" value="<?= e((string) $loan['principal_amount']) ?>" required <?= $repaymentLocked ? 'readonly' : '' ?>>
         </div>
 
         <div class="field">
             <label>Interest Rate (%)</label>
             <div class="combo-field combo-field-interest">
-                <input type="number" step="0.01" name="interest_rate" value="<?= e((string) $loan['interest_rate']) ?>" required <?= $hasCollections ? 'readonly' : '' ?>>
-                <select name="interest_rate_type" required <?= $hasCollections ? 'disabled' : '' ?>>
+                <input type="number" step="0.01" name="interest_rate" value="<?= e((string) $loan['interest_rate']) ?>" required <?= $repaymentLocked ? 'readonly' : '' ?>>
+                <select name="interest_rate_type" required <?= $repaymentLocked ? 'disabled' : '' ?>>
                     <option value="amount_based" <?= $defaultInterestRateType === 'amount_based' ? 'selected' : '' ?>>Amount Based</option>
                     <option value="monthly" <?= $defaultInterestRateType === 'monthly' ? 'selected' : '' ?>>Monthly</option>
                 </select>
             </div>
-            <?php if ($hasCollections): ?>
+            <?php if ($repaymentLocked): ?>
                 <input type="hidden" name="interest_rate_type" value="<?= e($defaultInterestRateType) ?>">
             <?php endif; ?>
         </div>
         <div class="field" data-interest-months-field>
             <label>Calculate Interest Rate (months)</label>
-            <input type="number" min="1" name="interest_rate_months" value="<?= e((string) $defaultInterestRateMonths) ?>" <?= $hasCollections ? 'readonly' : '' ?>>
+            <input type="number" min="1" name="interest_rate_months" value="<?= e((string) $defaultInterestRateMonths) ?>" <?= $repaymentLocked ? 'readonly' : '' ?>>
         </div>
 
         <div class="field">
             <label>Installment Frequency</label>
-            <select name="installment_frequency" required <?= $hasCollections ? 'disabled' : '' ?>>
+            <select name="installment_frequency" required <?= $repaymentLocked ? 'disabled' : '' ?>>
                 <option value="daily" <?= $loan['installment_frequency'] === 'daily' ? 'selected' : '' ?>>Daily</option>
                 <option value="weekly" <?= $loan['installment_frequency'] === 'weekly' ? 'selected' : '' ?>>Weekly</option>
                 <option value="monthly" <?= $loan['installment_frequency'] === 'monthly' ? 'selected' : '' ?>>Monthly</option>
             </select>
-            <?php if ($hasCollections): ?>
+            <?php if ($repaymentLocked): ?>
                 <input type="hidden" name="installment_frequency" value="<?= e((string) $loan['installment_frequency']) ?>">
             <?php endif; ?>
         </div>
@@ -133,12 +156,12 @@ require __DIR__ . '/../includes/layout_start.php';
         <div class="field">
             <label>Timeframe</label>
             <div class="combo-field">
-                <input type="number" min="1" name="timeframe_value" value="<?= e((string) $defaultTimeframeValue) ?>" required <?= $hasCollections ? 'readonly' : '' ?>>
-                <select name="timeframe_unit" required <?= $hasCollections ? 'disabled' : '' ?>>
+                <input type="number" min="1" name="timeframe_value" value="<?= e((string) $defaultTimeframeValue) ?>" required <?= $repaymentLocked ? 'readonly' : '' ?>>
+                <select name="timeframe_unit" required <?= $repaymentLocked ? 'disabled' : '' ?>>
                     <option value="days" <?= $defaultTimeframeUnit === 'days' ? 'selected' : '' ?>>Days</option>
                     <option value="months" <?= $defaultTimeframeUnit === 'months' ? 'selected' : '' ?>>Months</option>
                 </select>
-                <?php if ($hasCollections): ?>
+                <?php if ($repaymentLocked): ?>
                     <input type="hidden" name="timeframe_unit" value="<?= e($defaultTimeframeUnit) ?>">
                 <?php endif; ?>
             </div>

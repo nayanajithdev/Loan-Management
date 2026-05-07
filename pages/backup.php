@@ -51,7 +51,7 @@ require __DIR__ . '/../includes/layout_start.php';
             <p>Restoring a backup will replace current database structure and data. Download a fresh backup first if needed.</p>
         </div>
 
-        <form method="post" action="<?= e(url('actions/backup_restore.php')) ?>" enctype="multipart/form-data" class="form-grid">
+        <form method="post" action="<?= e(url('actions/backup_restore.php')) ?>" enctype="multipart/form-data" class="form-grid backup-form">
             <?= csrf_input() ?>
             <div class="field full">
                 <label>Backup File (.sql or .zip)</label>

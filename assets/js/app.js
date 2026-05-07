@@ -1,4 +1,26 @@
 (function () {
+    const dateInputs = document.querySelectorAll('input[type="date"]');
+    dateInputs.forEach((input) => {
+        if (!(input instanceof HTMLInputElement)) {
+            return;
+        }
+
+        input.addEventListener('click', () => {
+            if (input.disabled || input.readOnly) {
+                return;
+            }
+            if (typeof input.showPicker === 'function') {
+                try {
+                    input.showPicker();
+                } catch (_error) {
+                    // Ignore browser restrictions; native behavior still applies.
+                }
+            }
+        });
+    });
+})();
+
+(function () {
     const menu = document.querySelector('[data-user-menu]');
     if (!menu) {
         return;
@@ -221,12 +243,12 @@
             return;
         }
 
-        const row = target.closest('tr[data-select-url]');
-        if (!row) {
+        const selectTarget = target.closest('[data-select-url]');
+        if (!selectTarget) {
             return;
         }
 
-        const safeUrl = normalizeSafeLocalUrl(row.getAttribute('data-select-url'));
+        const safeUrl = normalizeSafeLocalUrl(selectTarget.getAttribute('data-select-url'));
         if (safeUrl) {
             window.location.assign(safeUrl);
         }
