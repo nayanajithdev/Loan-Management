@@ -13,7 +13,7 @@ if (!$authUser) {
     redirect('login.php');
 }
 
-$userStmt = $pdo->prepare('SELECT id, full_name, username, role, avatar_path FROM users WHERE id = :id LIMIT 1');
+$userStmt = $pdo->prepare('SELECT id, full_name, username, email, role, avatar_path FROM users WHERE id = :id LIMIT 1');
 $userStmt->execute(['id' => (int) $authUser['id']]);
 $user = $userStmt->fetch();
 
@@ -69,6 +69,10 @@ require __DIR__ . '/../includes/layout_start.php';
             <div class="field">
                 <label>Username</label>
                 <input type="text" name="username" maxlength="100" value="<?= e((string) $user['username']) ?>" required>
+            </div>
+            <div class="field">
+                <label>Email</label>
+                <input type="email" name="email" maxlength="190" value="<?= e((string) ($user['email'] ?? '')) ?>" required>
             </div>
 
             <div class="field">

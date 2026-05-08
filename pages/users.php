@@ -10,7 +10,7 @@ $pageTitle = 'Users';
 $activePage = 'users';
 
 $users = $pdo->query(
-    "SELECT id, full_name, username, role, created_at
+    "SELECT id, full_name, username, email, role, status, created_at
      FROM users
      ORDER BY FIELD(role, 'superadmin', 'admin', 'collector_l2', 'collector_l1', 'collector'), id ASC"
 )->fetchAll();
@@ -51,21 +51,26 @@ require __DIR__ . '/../includes/layout_start.php';
                     <tr>
                         <th>Name</th>
                         <th>Username</th>
+                        <th>Email</th>
                         <th>Role</th>
+                        <th>Status</th>
                         <th>Created</th>
                     </tr>
                     </thead>
                     <tbody>
                     <?php if (!$users): ?>
-                        <tr><td colspan="4">No users found.</td></tr>
+                        <tr><td colspan="6">No users found.</td></tr>
                     <?php else: ?>
                         <?php foreach ($users as $user): ?>
                             <?php $roleBadge = $user['role'] === 'superadmin' ? 'info' : ($user['role'] === 'admin' ? 'warning' : 'neutral'); ?>
+                            <?php $statusBadge = ((string) $user['status']) === 'active' ? 'success' : 'danger'; ?>
                             <tr class="table-row-clickable <?= $isEditMode && (int) $user['id'] === (int) $editUser['id'] ? 'row-selected' : '' ?>"
                                 data-select-url="<?= e(url('pages/users.php?edit_user=' . (int) $user['id'])) ?>">
                                 <td><?= e($user['full_name']) ?></td>
                                 <td><?= e($user['username']) ?></td>
+                                <td><?= e((string) ($user['email'] ?? '-')) ?></td>
                                 <td><span class="badge badge-<?= e($roleBadge) ?>"><?= e(role_display_name((string) $user['role'])) ?></span></td>
+                                <td><span class="badge badge-<?= e($statusBadge) ?>"><?= e((string) $user['status']) ?></span></td>
                                 <td><?= e(display_datetime((string) $user['created_at'])) ?></td>
                             </tr>
                         <?php endforeach; ?>
@@ -93,6 +98,7 @@ require __DIR__ . '/../includes/layout_start.php';
             $isTargetSuperadmin = $editUser['role'] === 'superadmin';
             $canDelete = !$isSelf && !($isTargetSuperadmin || $currentRole === 'admin' && $isTargetSuperadmin);
             $canChangeRole = !($currentRole === 'admin' && $isTargetSuperadmin);
+            $canChangeStatus = ((string) $currentRole) === 'superadmin' && !$isTargetSuperadmin && !$isSelf;
             ?>
 
             <form class="form-grid" method="post" action="<?= e(url('actions/user_update.php')) ?>">
@@ -108,6 +114,10 @@ require __DIR__ . '/../includes/layout_start.php';
                     <input type="text" name="username" value="<?= e($editUser['username']) ?>" required>
                 </div>
                 <div class="field full">
+                    <label>Email</label>
+                    <input type="email" name="email" value="<?= e((string) ($editUser['email'] ?? '')) ?>" required>
+                </div>
+                <div class="field full">
                     <label>Role</label>
                     <select name="role" <?= $canChangeRole ? '' : 'disabled' ?>>
                         <?php if ($editUser['role'] === 'superadmin'): ?>
@@ -119,6 +129,19 @@ require __DIR__ . '/../includes/layout_start.php';
                     </select>
                     <?php if (!$canChangeRole): ?>
                         <input type="hidden" name="role" value="<?= e($editUser['role']) ?>">
+                    <?php endif; ?>
+                </div>
+                <div class="field full">
+                    <label>Status</label>
+                    <select name="status" <?= $canChangeStatus ? '' : 'disabled' ?>>
+                        <option value="active" <?= ((string) $editUser['status']) === 'active' ? 'selected' : '' ?>>Active</option>
+                        <option value="inactive" <?= ((string) $editUser['status']) === 'inactive' ? 'selected' : '' ?>>Inactive</option>
+                    </select>
+                    <?php if (!$canChangeStatus): ?>
+                        <input type="hidden" name="status" value="<?= e((string) $editUser['status']) ?>">
+                    <?php endif; ?>
+                    <?php if (((string) $currentRole) !== 'superadmin'): ?>
+                        <small>Only owner can change user active/inactive.</small>
                     <?php endif; ?>
                 </div>
                 <div class="field full">
@@ -157,6 +180,10 @@ require __DIR__ . '/../includes/layout_start.php';
                     <input type="text" name="username" required>
                 </div>
                 <div class="field full">
+                    <label>Email</label>
+                    <input type="email" name="email" required>
+                </div>
+                <div class="field full">
                     <label>Role</label>
                     <select name="role" required>
                         <option value="admin">Manager</option>
@@ -172,6 +199,7 @@ require __DIR__ . '/../includes/layout_start.php';
                     <label>Confirm Password</label>
                     <input type="password" name="confirm_password" minlength="6" required>
                 </div>
+                <input type="hidden" name="status" value="active">
                 <div class="field full" style="align-self:end;">
                     <button type="submit" class="btn btn-primary">Create User</button>
                 </div>

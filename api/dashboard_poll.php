@@ -22,6 +22,7 @@ $openProjectedProfitValue = (float) $stats['expected_open_profit'];
 $profitTotal = $closedProfitValue + $openProjectedProfitValue;
 $closedProfitPct = $profitTotal > 0 ? ($closedProfitValue / $profitTotal) * 100 : 0;
 $openProjectedPct = $profitTotal > 0 ? ($openProjectedProfitValue / $profitTotal) * 100 : 0;
+$isTodayTargetCompleted = (float) $todayGoal['target'] > 0 && (float) $todayGoal['collected'] >= (float) $todayGoal['target'];
 
 if ($isCollectorScope) {
     $recentStmt = $pdo->prepare(
@@ -48,10 +49,12 @@ if ($isCollectorScope) {
 
 ob_start();
 ?>
-<article class="stat-card goal-mini-card" id="dashboard-goal-card">
+<article class="stat-card goal-mini-card card-clickable" id="dashboard-goal-card" data-select-url="<?= e(url('pages/today_collections.php')) ?>">
     <p class="stat-label">Today's Collections</p>
     <p class="goal-mini-collected"><?= e(money_label($pdo, $todayGoal['collected'])) ?></p>
-    <p class="goal-mini-target">Target: <?= e(money_label($pdo, $todayGoal['target'])) ?></p>
+    <p class="goal-mini-target <?= $isTodayTargetCompleted ? 'goal-mini-target-success' : '' ?>">
+        <?= $isTodayTargetCompleted ? 'Target completed' : ('Target: ' . money_label($pdo, $todayGoal['target'])) ?>
+    </p>
     <div class="goal-progress">
         <span style="width: <?= e((string) $todayGoal['percentage']) ?>%"></span>
     </div>

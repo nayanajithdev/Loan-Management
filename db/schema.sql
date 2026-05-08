@@ -5,10 +5,27 @@ CREATE TABLE IF NOT EXISTS users (
     id INT AUTO_INCREMENT PRIMARY KEY,
     full_name VARCHAR(120) NOT NULL,
     username VARCHAR(80) NOT NULL UNIQUE,
+    email VARCHAR(190) NULL,
     password_hash VARCHAR(255) NOT NULL,
     role ENUM('superadmin', 'admin', 'collector', 'collector_l1', 'collector_l2') NOT NULL DEFAULT 'admin',
+    status ENUM('active', 'inactive') NOT NULL DEFAULT 'active',
     avatar_path VARCHAR(255) DEFAULT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_users_email (email)
+);
+
+CREATE TABLE IF NOT EXISTS password_reset_tokens (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    token_hash CHAR(64) NOT NULL,
+    expires_at DATETIME NOT NULL,
+    used_at DATETIME NULL,
+    requested_ip VARCHAR(45) NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_password_reset_tokens_token_hash (token_hash),
+    INDEX idx_password_reset_tokens_user_id (user_id),
+    INDEX idx_password_reset_tokens_expires_at (expires_at),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS customers (

@@ -13,6 +13,20 @@ function url(string $path = ''): string
     return rtrim(BASE_PATH, '/') . '/' . $path;
 }
 
+function absolute_url(string $path = ''): string
+{
+    $configured = trim(env_value('APP_URL', ''));
+    if ($configured !== '') {
+        return rtrim($configured, '/') . '/' . ltrim($path, '/');
+    }
+
+    $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+    $host = (string) ($_SERVER['HTTP_HOST'] ?? 'localhost');
+    $base = BASE_PATH === '/' ? '' : BASE_PATH;
+
+    return $scheme . '://' . $host . $base . '/' . ltrim($path, '/');
+}
+
 function e(string $value): string
 {
     return htmlspecialchars($value, ENT_QUOTES, 'UTF-8');
@@ -393,6 +407,85 @@ function ensure_user_schema(PDO $pdo): void
     if (!$roleColumn) {
         $pdo->exec("ALTER TABLE users ADD COLUMN role ENUM('superadmin','admin','collector','collector_l1','collector_l2') NOT NULL DEFAULT 'admin' AFTER password_hash");
     }
+}
+
+function ensure_user_email_schema(PDO $pdo): void
+{
+    $emailColStmt = $pdo->query("SHOW COLUMNS FROM users LIKE 'email'");
+    $emailColumn = $emailColStmt->fetch();
+
+    if (!$emailColumn) {
+        $pdo->exec('ALTER TABLE users ADD COLUMN email VARCHAR(190) NULL AFTER username');
+    }
+
+    // Normalize blanks before adding a unique key.
+    $pdo->exec("UPDATE users SET email = NULL WHERE email IS NOT NULL AND TRIM(email) = ''");
+
+    $indexStmt = $pdo->prepare(
+        "SELECT COUNT(*) FROM information_schema.statistics
+         WHERE table_schema = DATABASE() AND table_name = 'users' AND index_name = 'uq_users_email'"
+    );
+    $indexStmt->execute();
+    $hasIndex = (int) $indexStmt->fetchColumn() > 0;
+    if (!$hasIndex) {
+        $duplicateStmt = $pdo->query(
+            "SELECT COUNT(*) FROM (
+                SELECT LOWER(TRIM(email)) AS normalized_email
+                FROM users
+                WHERE email IS NOT NULL AND TRIM(email) <> ''
+                GROUP BY LOWER(TRIM(email))
+                HAVING COUNT(*) > 1
+            ) AS duplicate_emails"
+        );
+        $hasDuplicates = (int) $duplicateStmt->fetchColumn() > 0;
+
+        if ($hasDuplicates) {
+            error_log('Skipped users email unique key migration: duplicate emails exist.');
+            return;
+        }
+
+        try {
+            $pdo->exec('ALTER TABLE users ADD UNIQUE KEY uq_users_email (email)');
+        } catch (PDOException $e) {
+            // Never break bootstrap on runtime migration mismatch.
+            error_log('Failed to add users email unique key at startup: ' . $e->getMessage());
+        }
+    }
+}
+
+function ensure_user_status_schema(PDO $pdo): void
+{
+    $statusColStmt = $pdo->query("SHOW COLUMNS FROM users LIKE 'status'");
+    $statusColumn = $statusColStmt->fetch();
+
+    if (!$statusColumn) {
+        $pdo->exec("ALTER TABLE users ADD COLUMN status ENUM('active','inactive') NOT NULL DEFAULT 'active' AFTER role");
+        return;
+    }
+
+    $statusType = strtolower((string) ($statusColumn['Type'] ?? ''));
+    if (!str_contains($statusType, "'inactive'")) {
+        $pdo->exec("ALTER TABLE users MODIFY COLUMN status ENUM('active','inactive') NOT NULL DEFAULT 'active'");
+    }
+}
+
+function ensure_password_reset_tokens_schema(PDO $pdo): void
+{
+    $pdo->exec(
+        "CREATE TABLE IF NOT EXISTS password_reset_tokens (
+            id BIGINT AUTO_INCREMENT PRIMARY KEY,
+            user_id INT NOT NULL,
+            token_hash CHAR(64) NOT NULL,
+            expires_at DATETIME NOT NULL,
+            used_at DATETIME NULL,
+            requested_ip VARCHAR(45) NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE KEY uq_password_reset_tokens_token_hash (token_hash),
+            INDEX idx_password_reset_tokens_user_id (user_id),
+            INDEX idx_password_reset_tokens_expires_at (expires_at),
+            CONSTRAINT fk_password_reset_tokens_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        )"
+    );
 }
 
 function ensure_user_profile_schema(PDO $pdo): void
@@ -802,8 +895,120 @@ function login_user(array $user): void
         'id' => (int) $user['id'],
         'full_name' => (string) $user['full_name'],
         'username' => (string) $user['username'],
+        'email' => isset($user['email']) ? (string) $user['email'] : '',
         'role' => (string) $user['role'],
+        'status' => isset($user['status']) ? (string) $user['status'] : 'active',
+        'avatar_path' => isset($user['avatar_path']) ? (string) $user['avatar_path'] : '',
     ];
+}
+
+function create_password_reset_token(PDO $pdo, int $userId): ?string
+{
+    if ($userId <= 0) {
+        return null;
+    }
+
+    try {
+        $token = bin2hex(random_bytes(32));
+    } catch (Throwable) {
+        return null;
+    }
+    $tokenHash = hash('sha256', $token);
+    $expiresAt = (new DateTimeImmutable('now'))->add(new DateInterval('PT1H'))->format('Y-m-d H:i:s');
+    $ip = mb_substr((string) ($_SERVER['REMOTE_ADDR'] ?? ''), 0, 45);
+
+    $pdo->prepare('DELETE FROM password_reset_tokens WHERE user_id = :user_id')->execute(['user_id' => $userId]);
+    $stmt = $pdo->prepare(
+        'INSERT INTO password_reset_tokens (user_id, token_hash, expires_at, requested_ip)
+         VALUES (:user_id, :token_hash, :expires_at, :requested_ip)'
+    );
+    $stmt->execute([
+        'user_id' => $userId,
+        'token_hash' => $tokenHash,
+        'expires_at' => $expiresAt,
+        'requested_ip' => $ip !== '' ? $ip : null,
+    ]);
+
+    return $token;
+}
+
+function password_reset_row_by_token(PDO $pdo, string $rawToken): ?array
+{
+    $rawToken = trim($rawToken);
+    if ($rawToken === '') {
+        return null;
+    }
+
+    $tokenHash = hash('sha256', $rawToken);
+    $stmt = $pdo->prepare(
+        "SELECT prt.id, prt.user_id, prt.expires_at, prt.used_at, u.id AS u_id, u.full_name, u.username, u.email, u.status
+         FROM password_reset_tokens prt
+         JOIN users u ON u.id = prt.user_id
+         WHERE prt.token_hash = :token_hash
+         LIMIT 1"
+    );
+    $stmt->execute(['token_hash' => $tokenHash]);
+    $row = $stmt->fetch();
+
+    if (!$row) {
+        return null;
+    }
+
+    if (!empty($row['used_at'])) {
+        return null;
+    }
+
+    $expires = strtotime((string) $row['expires_at']);
+    if ($expires === false || $expires < time()) {
+        return null;
+    }
+
+    return $row;
+}
+
+function mark_password_reset_token_used(PDO $pdo, int $tokenId, int $userId): void
+{
+    if ($tokenId > 0) {
+        $pdo->prepare('UPDATE password_reset_tokens SET used_at = NOW() WHERE id = :id')->execute(['id' => $tokenId]);
+    }
+    if ($userId > 0) {
+        $pdo->prepare('DELETE FROM password_reset_tokens WHERE user_id = :user_id')->execute(['user_id' => $userId]);
+    }
+}
+
+function send_password_reset_email(PDO $pdo, string $toEmail, string $fullName, string $resetLink): bool
+{
+    $toEmail = trim($toEmail);
+    if ($toEmail === '' || !filter_var($toEmail, FILTER_VALIDATE_EMAIL)) {
+        return false;
+    }
+
+    $businessName = trim(system_setting($pdo, 'business_name', APP_NAME));
+    $subject = $businessName . ' - Password Reset';
+
+    $safeName = trim($fullName) !== '' ? trim($fullName) : 'User';
+    $message = "Hello {$safeName},\n\n";
+    $message .= "We received a request to reset your password.\n";
+    $message .= "Use this secure link to set a new password:\n{$resetLink}\n\n";
+    $message .= "This link will expire in 1 hour.\n";
+    $message .= "If you did not request this, you can ignore this email.\n\n";
+    $message .= "{$businessName}";
+
+    $fromEmail = trim(env_value('MAIL_FROM_EMAIL', ''));
+    if ($fromEmail === '' || !filter_var($fromEmail, FILTER_VALIDATE_EMAIL)) {
+        $host = (string) ($_SERVER['HTTP_HOST'] ?? 'localhost');
+        $host = preg_replace('/:\d+$/', '', $host) ?? 'localhost';
+        $fromEmail = 'no-reply@' . $host;
+    }
+
+    $fromName = trim(env_value('MAIL_FROM_NAME', $businessName));
+    $headers = [];
+    $headers[] = 'MIME-Version: 1.0';
+    $headers[] = 'Content-Type: text/plain; charset=UTF-8';
+    $headers[] = 'From: ' . $fromName . ' <' . $fromEmail . '>';
+    $headers[] = 'Reply-To: ' . $fromEmail;
+
+    return @mail($toEmail, $subject, $message, implode("\r\n", $headers));
 }
 
 function logout_user(): void

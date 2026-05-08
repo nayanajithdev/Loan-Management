@@ -26,6 +26,52 @@ function remove_tree_contents(string $dir): void
     }
 }
 
+function copy_tree_contents(string $fromDir, string $toDir): int
+{
+    if (!is_dir($fromDir)) {
+        return 0;
+    }
+
+    if (!is_dir($toDir) && !mkdir($toDir, 0775, true) && !is_dir($toDir)) {
+        throw new RuntimeException('Failed to prepare restore directory.');
+    }
+
+    $copied = 0;
+    $it = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($fromDir, FilesystemIterator::SKIP_DOTS),
+        RecursiveIteratorIterator::SELF_FIRST
+    );
+
+    foreach ($it as $item) {
+        $sourcePath = $item->getPathname();
+        $relative = substr($sourcePath, strlen($fromDir));
+        if ($relative === false) {
+            continue;
+        }
+        $relative = ltrim(str_replace(['\\', '/'], DIRECTORY_SEPARATOR, $relative), DIRECTORY_SEPARATOR);
+        $targetPath = $toDir . DIRECTORY_SEPARATOR . $relative;
+
+        if ($item->isDir()) {
+            if (!is_dir($targetPath) && !mkdir($targetPath, 0775, true) && !is_dir($targetPath)) {
+                throw new RuntimeException('Failed to create restore subdirectory.');
+            }
+            continue;
+        }
+
+        $targetParent = dirname($targetPath);
+        if (!is_dir($targetParent) && !mkdir($targetParent, 0775, true) && !is_dir($targetParent)) {
+            throw new RuntimeException('Failed to prepare restore file directory.');
+        }
+
+        if (!@copy($sourcePath, $targetPath)) {
+            throw new RuntimeException('Failed to restore backup files.');
+        }
+        $copied++;
+    }
+
+    return $copied;
+}
+
 function run_restore_sql(string $sql): void
 {
     if (!extension_loaded('mysqli')) {
@@ -114,6 +160,8 @@ try {
     $sql = '';
     $restoredUploads = 0;
     $restoreMode = 'sql';
+    $fullBackupTempDir = '';
+    $fullBackupUploadsDir = '';
 
     if ($extension === 'sql') {
         $sqlRaw = file_get_contents($tmpName);
@@ -158,29 +206,12 @@ try {
         }
         $sql = (string) $sqlRaw;
 
-        $projectRoot = dirname(__DIR__);
-        $uploadsRoot = $projectRoot . DIRECTORY_SEPARATOR . 'uploads';
-        $customerDocsDir = $uploadsRoot . DIRECTORY_SEPARATOR . 'customer_docs';
-        $avatarDir = $uploadsRoot . DIRECTORY_SEPARATOR . 'profile_avatars';
-
-        if (!is_dir($uploadsRoot) && !mkdir($uploadsRoot, 0775, true) && !is_dir($uploadsRoot)) {
+        $fullBackupTempDir = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'loan_restore_' . bin2hex(random_bytes(6));
+        $fullBackupUploadsDir = $fullBackupTempDir . DIRECTORY_SEPARATOR . 'uploads';
+        if (!mkdir($fullBackupUploadsDir, 0775, true) && !is_dir($fullBackupUploadsDir)) {
             $zip->close();
-            throw new RuntimeException('Failed to prepare uploads directory.');
+            throw new RuntimeException('Failed to prepare temporary restore directory.');
         }
-
-        if (!is_dir($customerDocsDir) && !mkdir($customerDocsDir, 0775, true) && !is_dir($customerDocsDir)) {
-            $zip->close();
-            throw new RuntimeException('Failed to prepare customer documents directory.');
-        }
-
-        if (!is_dir($avatarDir) && !mkdir($avatarDir, 0775, true) && !is_dir($avatarDir)) {
-            $zip->close();
-            throw new RuntimeException('Failed to prepare profile avatars directory.');
-        }
-
-        remove_tree_contents($customerDocsDir);
-        remove_tree_contents($avatarDir);
-        ensure_customer_docs_guard_file($customerDocsDir);
 
         for ($i = 0; $i < $zip->numFiles; $i++) {
             $entryName = (string) $zip->getNameIndex($i);
@@ -202,7 +233,7 @@ try {
                 continue;
             }
 
-            $targetAbs = $uploadsRoot . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $relative);
+            $targetAbs = $fullBackupUploadsDir . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $relative);
             $targetDir = dirname($targetAbs);
             if (!is_dir($targetDir) && !mkdir($targetDir, 0775, true) && !is_dir($targetDir)) {
                 continue;
@@ -235,6 +266,32 @@ try {
 
     run_restore_sql($sql);
 
+    if ($restoreMode === 'full') {
+        $projectRoot = dirname(__DIR__);
+        $uploadsRoot = $projectRoot . DIRECTORY_SEPARATOR . 'uploads';
+        $uploadsSnapshotDir = $fullBackupTempDir . DIRECTORY_SEPARATOR . 'uploads_snapshot';
+
+        if (!is_dir($uploadsRoot) && !mkdir($uploadsRoot, 0775, true) && !is_dir($uploadsRoot)) {
+            throw new RuntimeException('Failed to prepare uploads directory.');
+        }
+
+        if (is_dir($uploadsRoot)) {
+            copy_tree_contents($uploadsRoot, $uploadsSnapshotDir);
+        }
+
+        try {
+            remove_tree_contents($uploadsRoot);
+            copy_tree_contents($fullBackupUploadsDir, $uploadsRoot);
+            ensure_customer_docs_guard_file($uploadsRoot . DIRECTORY_SEPARATOR . 'customer_docs');
+        } catch (Throwable $fileRestoreError) {
+            remove_tree_contents($uploadsRoot);
+            if (is_dir($uploadsSnapshotDir)) {
+                copy_tree_contents($uploadsSnapshotDir, $uploadsRoot);
+            }
+            throw new RuntimeException('Database restored, but file restore failed. Previous files were restored.');
+        }
+    }
+
     log_activity($pdo, 'backup.restore', 'Backup restored successfully.', [
         'mode' => $restoreMode,
         'file_name' => $fileName,
@@ -254,5 +311,10 @@ try {
         'reason' => $e->getMessage(),
     ]);
     set_flash('error', $message);
+} finally {
+    if (isset($fullBackupTempDir) && $fullBackupTempDir !== '' && is_dir($fullBackupTempDir)) {
+        remove_tree_contents($fullBackupTempDir);
+        @rmdir($fullBackupTempDir);
+    }
 }
 redirect('pages/backup.php');

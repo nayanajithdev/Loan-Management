@@ -49,6 +49,9 @@ $faviconPath = business_icon_path($pdo);
                     <label>Password</label>
                     <input type="password" name="password" required>
                 </div>
+                <div class="field full auth-links-row">
+                    <a class="auth-link" href="<?= e(url('forgot_password.php')) ?>">Forgot password?</a>
+                </div>
                 <div class="field full" style="align-self:end;">
                     <button type="submit" class="btn btn-primary">Login</button>
                 </div>

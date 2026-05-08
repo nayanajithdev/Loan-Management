@@ -47,6 +47,10 @@ $faviconPath = business_icon_path($pdo);
                 <input type="text" name="username" required>
             </div>
             <div class="field full">
+                <label>Email</label>
+                <input type="email" name="email" required>
+            </div>
+            <div class="field full">
                 <label>Password</label>
                 <input type="password" name="password" required minlength="6">
             </div>

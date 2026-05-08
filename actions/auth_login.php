@@ -26,7 +26,7 @@ if ($username === '' || $password === '') {
     redirect('login.php');
 }
 
-$stmt = $pdo->prepare('SELECT id, full_name, username, password_hash, role FROM users WHERE username = :username LIMIT 1');
+$stmt = $pdo->prepare('SELECT id, full_name, username, email, password_hash, role, status, avatar_path FROM users WHERE username = :username LIMIT 1');
 $stmt->execute(['username' => $username]);
 $user = $stmt->fetch();
 
@@ -35,6 +35,15 @@ if (!$user || !password_verify($password, (string) $user['password_hash'])) {
         'username' => $username,
     ]);
     set_flash('error', 'Invalid username or password.');
+    redirect('login.php');
+}
+
+if ((string) ($user['status'] ?? 'active') !== 'active') {
+    log_activity($pdo, 'auth.login_blocked_inactive', 'Login blocked: inactive user.', [
+        'username' => $username,
+        'user_id' => (int) ($user['id'] ?? 0),
+    ]);
+    set_flash('error', 'Your account is inactive. Please contact owner.');
     redirect('login.php');
 }
 

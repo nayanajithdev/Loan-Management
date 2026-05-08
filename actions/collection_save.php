@@ -6,7 +6,7 @@ require_once __DIR__ . '/../includes/bootstrap.php';
 require_roles(['superadmin', 'admin', 'collector_l1', 'collector_l2', 'collector'], 'pages/today_collections.php');
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    redirect('pages/collections.php');
+    redirect('pages/today_collections.php');
 }
 require_csrf('pages/today_collections.php');
 
@@ -24,9 +24,9 @@ try {
 } catch (Throwable) {
     $paymentRef = 'PAY-' . date('YmdHis') . '-' . str_replace('.', '', uniqid('', true));
 }
-$returnToRaw = trim((string) ($_POST['return_to'] ?? 'pages/collections.php'));
+$returnToRaw = trim((string) ($_POST['return_to'] ?? 'pages/today_collections.php'));
 
-$returnTo = 'pages/collections.php';
+$returnTo = 'pages/today_collections.php';
 $parsedReturn = parse_url($returnToRaw);
 if (is_array($parsedReturn) && isset($parsedReturn['path']) && preg_match('/^(index\.php|pages\/[a-z_]+\.php)$/', $parsedReturn['path'])) {
     $returnTo = $parsedReturn['path'];
@@ -159,6 +159,10 @@ try {
         if ($preferred && in_array($preferred['status'], ['pending', 'partial', 'overdue'], true)) {
             $installments[] = $preferred;
         }
+
+        if ($backdatedEntry && $preferred && (string) $preferred['due_date'] > $collectedOn) {
+            throw new RuntimeException('Backdated entry is not allowed when collecting a future installment.');
+        }
     }
 
     $instStmt = $pdo->prepare(
@@ -196,6 +200,10 @@ try {
         $balance = round((float) $inst['due_amount'] - (float) $inst['paid_amount'], 2);
         if ($balance <= 0) {
             continue;
+        }
+
+        if ($backdatedEntry && (string) $inst['due_date'] > $collectedOn) {
+            throw new RuntimeException('Backdated entry is not allowed when collecting future installments.');
         }
 
         $pay = min($remaining, $balance);

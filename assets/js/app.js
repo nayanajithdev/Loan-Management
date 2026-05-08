@@ -1,4 +1,23 @@
 (function () {
+    const chip = document.getElementById('js-connection-chip');
+    const text = document.getElementById('js-connection-text');
+    if (!(chip instanceof HTMLElement) || !(text instanceof HTMLElement)) {
+        return;
+    }
+
+    const applyState = () => {
+        const online = navigator.onLine;
+        chip.classList.toggle('is-online', online);
+        chip.classList.toggle('is-offline', !online);
+        text.textContent = online ? 'Online' : 'Offline';
+    };
+
+    window.addEventListener('online', applyState);
+    window.addEventListener('offline', applyState);
+    applyState();
+})();
+
+(function () {
     const dateInputs = document.querySelectorAll('input[type="date"]');
     dateInputs.forEach((input) => {
         if (!(input instanceof HTMLInputElement)) {

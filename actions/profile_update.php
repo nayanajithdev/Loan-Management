@@ -18,8 +18,9 @@ if (!$current) {
 $userId = (int) $current['id'];
 $fullNameInput = trim((string) ($_POST['full_name'] ?? ''));
 $usernameInput = trim((string) ($_POST['username'] ?? ''));
+$emailInput = mb_strtolower(trim((string) ($_POST['email'] ?? '')));
 
-$userStmt = $pdo->prepare('SELECT id, full_name, username, role, avatar_path FROM users WHERE id = :id LIMIT 1');
+$userStmt = $pdo->prepare('SELECT id, full_name, username, email, role, avatar_path FROM users WHERE id = :id LIMIT 1');
 $userStmt->execute(['id' => $userId]);
 $user = $userStmt->fetch();
 if (!$user) {
@@ -41,6 +42,11 @@ if ($usernameInput === '') {
     redirect('pages/profile.php');
 }
 
+if ($emailInput === '' || !filter_var($emailInput, FILTER_VALIDATE_EMAIL)) {
+    set_flash('error', 'Valid email is required.');
+    redirect('pages/profile.php');
+}
+
 $existsStmt = $pdo->prepare('SELECT id FROM users WHERE username = :username AND id <> :id LIMIT 1');
 $existsStmt->execute([
     'username' => $usernameInput,
@@ -48,6 +54,16 @@ $existsStmt->execute([
 ]);
 if ($existsStmt->fetch()) {
     set_flash('error', 'Username already exists.');
+    redirect('pages/profile.php');
+}
+
+$emailStmt = $pdo->prepare('SELECT id FROM users WHERE email = :email AND id <> :id LIMIT 1');
+$emailStmt->execute([
+    'email' => $emailInput,
+    'id' => $userId,
+]);
+if ($emailStmt->fetch()) {
+    set_flash('error', 'Email already exists.');
     redirect('pages/profile.php');
 }
 
@@ -110,10 +126,11 @@ if (isset($_FILES['avatar']) && is_array($_FILES['avatar']) && (int) ($_FILES['a
     $avatarPathToSave = $targetRel;
 }
 
-$updateStmt = $pdo->prepare('UPDATE users SET full_name = :full_name, username = :username, avatar_path = :avatar_path WHERE id = :id');
+$updateStmt = $pdo->prepare('UPDATE users SET full_name = :full_name, username = :username, email = :email, avatar_path = :avatar_path WHERE id = :id');
 $updateStmt->execute([
     'full_name' => mb_substr($newName, 0, 120),
     'username' => mb_substr($usernameInput, 0, 100),
+    'email' => mb_substr($emailInput, 0, 190),
     'avatar_path' => $avatarPathToSave !== '' ? $avatarPathToSave : null,
     'id' => $userId,
 ]);
@@ -127,12 +144,14 @@ if ($avatarPathToSave !== $oldAvatarPath && $oldAvatarPath !== '') {
 
 $_SESSION['auth_user']['full_name'] = mb_substr($newName, 0, 120);
 $_SESSION['auth_user']['username'] = mb_substr($usernameInput, 0, 100);
+$_SESSION['auth_user']['email'] = mb_substr($emailInput, 0, 190);
 $_SESSION['auth_user']['avatar_path'] = $avatarPathToSave;
 
 log_activity($pdo, 'profile.updated', 'Profile updated.', [
     'user_id' => $userId,
     'name_changed' => ((string) $user['full_name']) !== $newName ? 1 : 0,
     'username_changed' => ((string) $user['username']) !== $usernameInput ? 1 : 0,
+    'email_changed' => ((string) ($user['email'] ?? '')) !== $emailInput ? 1 : 0,
     'avatar_changed' => $avatarPathToSave !== $oldAvatarPath ? 1 : 0,
 ]);
 

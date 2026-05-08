@@ -58,6 +58,22 @@ body {
     grid-column: span 12;
 }
 
+.auth-links-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.auth-link {
+    color: #cfcfcf;
+    font-size: 13px;
+}
+
+.auth-link:hover {
+    color: var(--accent);
+}
+
 a {
     color: inherit;
     text-decoration: none;
@@ -243,6 +259,37 @@ a {
     display: flex;
     align-items: center;
     gap: 10px;
+}
+
+.connection-chip {
+    min-width: auto;
+    height: auto;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: #d8d8d8;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.connection-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 999px;
+    background: #9ca3af;
+    box-shadow: 0 0 0 3px rgba(156, 163, 175, 0.15);
+    transition: background-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.connection-chip.is-online .connection-dot {
+    background: #22c55e;
+    box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.2);
+}
+
+.connection-chip.is-offline .connection-dot {
+    background: #ef4444;
+    box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.2);
 }
 
 .topbar-user-menu {
@@ -1356,6 +1403,10 @@ textarea {
     color: #f1f1f1;
     font-size: 12px;
     font-weight: 700;
+}
+
+.goal-mini-target-success {
+    color: #2bb36c;
 }
 
 .goal-progress {

@@ -13,18 +13,33 @@ require_csrf('pages/users.php');
 
 $fullName = trim((string) ($_POST['full_name'] ?? ''));
 $username = trim((string) ($_POST['username'] ?? ''));
+$email = mb_strtolower(trim((string) ($_POST['email'] ?? '')));
 $role = trim((string) ($_POST['role'] ?? 'collector_l1'));
+$status = trim((string) ($_POST['status'] ?? 'active'));
 $password = (string) ($_POST['password'] ?? '');
 $confirmPassword = (string) ($_POST['confirm_password'] ?? '');
 
-if ($fullName === '' || $username === '' || $password === '') {
+if ($fullName === '' || $username === '' || $email === '' || $password === '') {
     set_flash('error', 'All fields are required.');
+    redirect('pages/users.php');
+}
+
+if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+    set_flash('error', 'Please enter a valid email.');
     redirect('pages/users.php');
 }
 
 if (!in_array($role, ['admin', 'collector_l1', 'collector_l2', 'collector'], true)) {
     set_flash('error', 'Invalid role selected.');
     redirect('pages/users.php');
+}
+
+if (!in_array($status, ['active', 'inactive'], true)) {
+    $status = 'active';
+}
+$current = current_user();
+if (!$current || (string) ($current['role'] ?? '') !== 'superadmin') {
+    $status = 'active';
 }
 
 if ($password !== $confirmPassword) {
@@ -44,24 +59,35 @@ if ($existsStmt->fetch()) {
     redirect('pages/users.php');
 }
 
+$emailStmt = $pdo->prepare('SELECT id FROM users WHERE email = :email LIMIT 1');
+$emailStmt->execute(['email' => $email]);
+if ($emailStmt->fetch()) {
+    set_flash('error', 'Email already exists.');
+    redirect('pages/users.php');
+}
+
 $passwordHash = password_hash($password, PASSWORD_DEFAULT);
 
 $insertStmt = $pdo->prepare(
-    'INSERT INTO users (full_name, username, password_hash, role)
-     VALUES (:full_name, :username, :password_hash, :role)'
+    'INSERT INTO users (full_name, username, email, password_hash, role, status)
+     VALUES (:full_name, :username, :email, :password_hash, :role, :status)'
 );
 $insertStmt->execute([
     'full_name' => $fullName,
     'username' => $username,
+    'email' => $email,
     'password_hash' => $passwordHash,
     'role' => $role,
+    'status' => $status,
 ]);
 $createdUserId = (int) $pdo->lastInsertId();
 
 log_activity($pdo, 'user.created', 'User created: ' . $fullName . '.', [
     'user_id' => $createdUserId,
     'username' => $username,
+    'email' => $email,
     'role' => role_display_name($role),
+    'status' => $status,
 ]);
 
 set_flash('success', 'User created successfully.');

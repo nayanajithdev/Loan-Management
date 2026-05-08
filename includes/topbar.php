@@ -6,7 +6,10 @@
     </div>
 
     <div class="topbar-right">
-        <input class="search" type="text" placeholder="Search..." disabled>
+        <div class="connection-chip" id="js-connection-chip" role="status" aria-live="polite">
+            <span class="connection-dot" id="js-connection-dot" aria-hidden="true"></span>
+            <span id="js-connection-text">Checking...</span>
+        </div>
         <?php if ($authUser): ?>
             <?php
             $fullName = (string) $authUser['full_name'];

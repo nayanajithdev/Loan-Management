@@ -17,11 +17,17 @@ if (has_superadmin($pdo)) {
 
 $fullName = trim((string) ($_POST['full_name'] ?? ''));
 $username = trim((string) ($_POST['username'] ?? ''));
+$email = mb_strtolower(trim((string) ($_POST['email'] ?? '')));
 $password = (string) ($_POST['password'] ?? '');
 $confirmPassword = (string) ($_POST['confirm_password'] ?? '');
 
-if ($fullName === '' || $username === '' || $password === '') {
+if ($fullName === '' || $username === '' || $email === '' || $password === '') {
     set_flash('error', 'All fields are required.');
+    redirect('setup_superadmin.php');
+}
+
+if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+    set_flash('error', 'Please enter a valid email.');
     redirect('setup_superadmin.php');
 }
 
@@ -42,21 +48,29 @@ if ($existingStmt->fetch()) {
     redirect('setup_superadmin.php');
 }
 
+$emailStmt = $pdo->prepare('SELECT id FROM users WHERE email = :email LIMIT 1');
+$emailStmt->execute(['email' => $email]);
+if ($emailStmt->fetch()) {
+    set_flash('error', 'Email already in use.');
+    redirect('setup_superadmin.php');
+}
+
 $passwordHash = password_hash($password, PASSWORD_DEFAULT);
 
 $insertStmt = $pdo->prepare(
-    "INSERT INTO users (full_name, username, password_hash, role)
-     VALUES (:full_name, :username, :password_hash, 'superadmin')"
+    "INSERT INTO users (full_name, username, email, password_hash, role, status)
+     VALUES (:full_name, :username, :email, :password_hash, 'superadmin', 'active')"
 );
 $insertStmt->execute([
     'full_name' => $fullName,
     'username' => $username,
+    'email' => $email,
     'password_hash' => $passwordHash,
 ]);
 
 $userId = (int) $pdo->lastInsertId();
 
-$userStmt = $pdo->prepare('SELECT id, full_name, username, role FROM users WHERE id = :id LIMIT 1');
+$userStmt = $pdo->prepare('SELECT id, full_name, username, email, role, status FROM users WHERE id = :id LIMIT 1');
 $userStmt->execute(['id' => $userId]);
 $newUser = $userStmt->fetch();
 
