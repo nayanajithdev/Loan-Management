@@ -147,6 +147,12 @@ a {
     gap: 6px;
 }
 
+.menu-divider {
+    height: 1px;
+    background: var(--edge);
+    margin: 8px 0;
+}
+
 .menu-item {
     padding: 11px 12px;
     border-radius: 10px;

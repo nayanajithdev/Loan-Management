@@ -35,6 +35,13 @@ if (can_manage_loans()) {
 
 if (can_manage_users()) {
     $menuItems[] = ['key' => 'users', 'label' => 'Users', 'path' => 'pages/users.php'];
+}
+
+if (has_role(['superadmin', 'admin'])) {
+    $menuItems[] = ['key' => 'reports', 'label' => 'Reports', 'path' => 'pages/reports.php'];
+}
+
+if (can_manage_users()) {
     $menuItems[] = ['key' => 'backup', 'label' => 'Backup', 'path' => 'pages/backup.php'];
 }
 
@@ -43,7 +50,6 @@ if (has_role(['superadmin'])) {
 }
 
 if (has_role(['superadmin', 'admin'])) {
-    $menuItems[] = ['key' => 'reports', 'label' => 'Reports', 'path' => 'pages/reports.php'];
     $menuItems[] = ['key' => 'settings', 'label' => 'Business Settings', 'path' => 'pages/settings.php'];
     $menuItems[] = ['key' => 'system_settings', 'label' => 'System Settings', 'path' => 'pages/system_settings.php'];
 }
@@ -68,6 +74,9 @@ if (has_role(['superadmin', 'admin'])) {
         <p class="menu-title">Main Menu</p>
         <nav class="menu-list">
             <?php foreach ($menuItems as $item): ?>
+                <?php if ($item['key'] === 'backup'): ?>
+                    <div class="menu-divider" aria-hidden="true"></div>
+                <?php endif; ?>
                 <?php if ($item['key'] === 'loans' || $item['key'] === 'customers'): ?>
                     <?php
                     $createPath = $item['key'] === 'loans' ? 'pages/loan_create.php' : 'pages/customer_create.php';
