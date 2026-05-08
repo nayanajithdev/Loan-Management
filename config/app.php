@@ -95,6 +95,9 @@ if (!function_exists('db_config_value')) {
 }
 
 $localDbConfig = load_local_db_config(__DIR__ . '/database.local.php');
+if (!defined('LOCAL_APP_CONFIG')) {
+    define('LOCAL_APP_CONFIG', $localDbConfig);
+}
 
 const APP_NAME = 'Loan Management System';
 define('DB_HOST', db_config_value('DB_HOST', 'host', '127.0.0.1', $localDbConfig));

@@ -976,6 +976,205 @@ function mark_password_reset_token_used(PDO $pdo, int $tokenId, int $userId): vo
     }
 }
 
+function app_mail_config_value(string $envKey, string $localKey, string $default = ''): string
+{
+    $env = trim(env_value($envKey, ''));
+    if ($env !== '') {
+        return $env;
+    }
+
+    if (defined('LOCAL_APP_CONFIG')) {
+        $local = constant('LOCAL_APP_CONFIG');
+        if (is_array($local) && array_key_exists($localKey, $local)) {
+            $value = $local[$localKey];
+            if (is_string($value) || is_int($value) || is_float($value)) {
+                $str = trim((string) $value);
+                if ($str !== '') {
+                    return $str;
+                }
+            }
+        }
+    }
+
+    return $default;
+}
+
+function smtp_write_line($socket, string $line): bool
+{
+    return fwrite($socket, $line . "\r\n") !== false;
+}
+
+function smtp_read_response($socket): string
+{
+    $response = '';
+    while (($line = fgets($socket, 515)) !== false) {
+        $response .= $line;
+        // RFC-style multiline replies continue with "123-"
+        if (preg_match('/^\d{3}\s/', $line) === 1) {
+            break;
+        }
+    }
+
+    return $response;
+}
+
+function smtp_expect_code(string $response, array $expected): bool
+{
+    if (preg_match('/^(\d{3})/m', $response, $matches) !== 1) {
+        return false;
+    }
+
+    $code = (int) $matches[1];
+    return in_array($code, $expected, true);
+}
+
+function smtp_send_mail_message(array $config, string $toEmail, string $subject, string $message, string $fromEmail, string $fromName): bool
+{
+    $host = trim((string) ($config['host'] ?? ''));
+    $port = (int) ($config['port'] ?? 0);
+    $encryption = strtolower(trim((string) ($config['encryption'] ?? '')));
+    $username = trim((string) ($config['username'] ?? ''));
+    $password = (string) ($config['password'] ?? '');
+
+    if ($host === '' || $port <= 0 || $username === '' || $password === '') {
+        return false;
+    }
+
+    $transportHost = $host;
+    if ($encryption === 'ssl') {
+        $transportHost = 'ssl://' . $host;
+    }
+
+    $socket = @stream_socket_client(
+        $transportHost . ':' . $port,
+        $errno,
+        $errstr,
+        20,
+        STREAM_CLIENT_CONNECT
+    );
+
+    if (!is_resource($socket)) {
+        error_log('SMTP connect failed: ' . $errstr . ' (' . $errno . ')');
+        return false;
+    }
+
+    stream_set_timeout($socket, 20);
+
+    try {
+        $response = smtp_read_response($socket);
+        if (!smtp_expect_code($response, [220])) {
+            return false;
+        }
+
+        $ehloHost = preg_replace('/:\d+$/', '', (string) ($_SERVER['HTTP_HOST'] ?? 'localhost')) ?: 'localhost';
+        if (!smtp_write_line($socket, 'EHLO ' . $ehloHost)) {
+            return false;
+        }
+        $response = smtp_read_response($socket);
+        if (!smtp_expect_code($response, [250])) {
+            return false;
+        }
+
+        if ($encryption === 'tls') {
+            if (!smtp_write_line($socket, 'STARTTLS')) {
+                return false;
+            }
+            $response = smtp_read_response($socket);
+            if (!smtp_expect_code($response, [220])) {
+                return false;
+            }
+            if (!stream_socket_enable_crypto($socket, true, STREAM_CRYPTO_METHOD_TLS_CLIENT)) {
+                return false;
+            }
+            if (!smtp_write_line($socket, 'EHLO ' . $ehloHost)) {
+                return false;
+            }
+            $response = smtp_read_response($socket);
+            if (!smtp_expect_code($response, [250])) {
+                return false;
+            }
+        }
+
+        if (!smtp_write_line($socket, 'AUTH LOGIN')) {
+            return false;
+        }
+        $response = smtp_read_response($socket);
+        if (!smtp_expect_code($response, [334])) {
+            return false;
+        }
+
+        if (!smtp_write_line($socket, base64_encode($username))) {
+            return false;
+        }
+        $response = smtp_read_response($socket);
+        if (!smtp_expect_code($response, [334])) {
+            return false;
+        }
+
+        if (!smtp_write_line($socket, base64_encode($password))) {
+            return false;
+        }
+        $response = smtp_read_response($socket);
+        if (!smtp_expect_code($response, [235])) {
+            return false;
+        }
+
+        if (!smtp_write_line($socket, 'MAIL FROM:<' . $fromEmail . '>')) {
+            return false;
+        }
+        $response = smtp_read_response($socket);
+        if (!smtp_expect_code($response, [250])) {
+            return false;
+        }
+
+        if (!smtp_write_line($socket, 'RCPT TO:<' . $toEmail . '>')) {
+            return false;
+        }
+        $response = smtp_read_response($socket);
+        if (!smtp_expect_code($response, [250, 251])) {
+            return false;
+        }
+
+        if (!smtp_write_line($socket, 'DATA')) {
+            return false;
+        }
+        $response = smtp_read_response($socket);
+        if (!smtp_expect_code($response, [354])) {
+            return false;
+        }
+
+        $encodedSubject = '=?UTF-8?B?' . base64_encode($subject) . '?=';
+        $headers = [];
+        $headers[] = 'Date: ' . date(DATE_RFC2822);
+        $headers[] = 'From: ' . $fromName . ' <' . $fromEmail . '>';
+        $headers[] = 'To: <' . $toEmail . '>';
+        $headers[] = 'Subject: ' . $encodedSubject;
+        $headers[] = 'MIME-Version: 1.0';
+        $headers[] = 'Content-Type: text/plain; charset=UTF-8';
+        $headers[] = 'Content-Transfer-Encoding: 8bit';
+
+        $normalizedBody = str_replace(["\r\n", "\r"], "\n", $message);
+        $normalizedBody = preg_replace('/^\./m', '..', $normalizedBody) ?? $normalizedBody;
+        $payload = implode("\r\n", $headers) . "\r\n\r\n" . str_replace("\n", "\r\n", $normalizedBody) . "\r\n.";
+
+        if (!smtp_write_line($socket, $payload)) {
+            return false;
+        }
+        $response = smtp_read_response($socket);
+        if (!smtp_expect_code($response, [250])) {
+            return false;
+        }
+
+        smtp_write_line($socket, 'QUIT');
+        return true;
+    } catch (Throwable $e) {
+        error_log('SMTP send exception: ' . $e->getMessage());
+        return false;
+    } finally {
+        fclose($socket);
+    }
+}
+
 function send_password_reset_email(PDO $pdo, string $toEmail, string $fullName, string $resetLink): bool
 {
     $toEmail = trim($toEmail);
@@ -994,14 +1193,32 @@ function send_password_reset_email(PDO $pdo, string $toEmail, string $fullName, 
     $message .= "If you did not request this, you can ignore this email.\n\n";
     $message .= "{$businessName}";
 
-    $fromEmail = trim(env_value('MAIL_FROM_EMAIL', ''));
+    $fromEmail = trim(app_mail_config_value('MAIL_FROM_EMAIL', 'mail_from_email', ''));
     if ($fromEmail === '' || !filter_var($fromEmail, FILTER_VALIDATE_EMAIL)) {
         $host = (string) ($_SERVER['HTTP_HOST'] ?? 'localhost');
         $host = preg_replace('/:\d+$/', '', $host) ?? 'localhost';
         $fromEmail = 'no-reply@' . $host;
     }
 
-    $fromName = trim(env_value('MAIL_FROM_NAME', $businessName));
+    $fromName = trim(app_mail_config_value('MAIL_FROM_NAME', 'mail_from_name', $businessName));
+    $mailDriver = strtolower(app_mail_config_value('MAIL_DRIVER', 'mail_driver', 'mail'));
+
+    if ($mailDriver === 'smtp') {
+        $smtpConfig = [
+            'host' => app_mail_config_value('MAIL_HOST', 'mail_host', ''),
+            'port' => (int) app_mail_config_value('MAIL_PORT', 'mail_port', '465'),
+            'encryption' => app_mail_config_value('MAIL_ENCRYPTION', 'mail_encryption', 'ssl'),
+            'username' => app_mail_config_value('MAIL_USERNAME', 'mail_username', ''),
+            'password' => app_mail_config_value('MAIL_PASSWORD', 'mail_password', ''),
+        ];
+
+        $smtpSent = smtp_send_mail_message($smtpConfig, $toEmail, $subject, $message, $fromEmail, $fromName);
+        if ($smtpSent) {
+            return true;
+        }
+        error_log('SMTP send failed for password reset email; falling back to mail().');
+    }
+
     $headers = [];
     $headers[] = 'MIME-Version: 1.0';
     $headers[] = 'Content-Type: text/plain; charset=UTF-8';
