@@ -227,6 +227,53 @@ a {
     font-size: 12px;
 }
 
+.sidebar-update {
+    border: 1px solid rgba(255, 170, 36, 0.35);
+    background: rgba(255, 170, 36, 0.08);
+    border-radius: 8px;
+    padding: 8px 10px;
+    margin-bottom: 10px;
+}
+
+.sidebar-update p {
+    margin: 0 0 3px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #ffd08a;
+}
+
+.sidebar-update small {
+    display: block;
+    line-height: 1.35;
+    color: #f6dcb3;
+}
+
+.sidebar-update-info {
+    border-color: rgba(69, 172, 255, 0.35);
+    background: rgba(69, 172, 255, 0.08);
+}
+
+.sidebar-update-info p {
+    color: #8cd2ff;
+}
+
+.sidebar-update-info small {
+    color: #c4e9ff;
+}
+
+.sidebar-update-critical {
+    border-color: rgba(255, 82, 82, 0.35);
+    background: rgba(255, 82, 82, 0.1);
+}
+
+.sidebar-update-critical p {
+    color: #ff8a8a;
+}
+
+.sidebar-update-critical small {
+    color: #ffc1c1;
+}
+
 .sidebar-footer p {
     margin: 0 0 4px;
     color: #dddddd;

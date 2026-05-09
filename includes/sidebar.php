@@ -2,6 +2,7 @@
 $currentScript = basename((string) ($_SERVER['SCRIPT_NAME'] ?? ''));
 $businessName = system_setting($pdo, 'business_name', 'Loan Manager');
 $businessIconPath = business_icon_path($pdo);
+$updateNotice = current_update_notice();
 $businessInitial = strtoupper(substr(preg_replace('/\s+/', '', $businessName), 0, 1));
 if ($businessInitial === '') {
     $businessInitial = 'L';
@@ -106,6 +107,12 @@ if (has_role(['superadmin', 'admin'])) {
     </div>
 
     <div class="sidebar-footer">
+        <?php if ($updateNotice !== null): ?>
+            <div class="sidebar-update sidebar-update-<?= e((string) ($updateNotice['severity'] ?? 'warning')) ?>">
+                <p><?= e((string) ($updateNotice['title'] ?? 'Update Available')) ?><?= ($updateNotice['version'] ?? '') !== '' ? (' v' . e((string) $updateNotice['version'])) : '' ?></p>
+                <small><?= e((string) ($updateNotice['message'] ?? '')) ?></small>
+            </div>
+        <?php endif; ?>
         <p>LoanDesk v1.1</p>
         <small>Multi-User Loan Management System</small>
     </div>

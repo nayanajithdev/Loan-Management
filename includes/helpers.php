@@ -999,6 +999,117 @@ function app_mail_config_value(string $envKey, string $localKey, string $default
     return $default;
 }
 
+function normalize_update_notice_payload(array $payload): array
+{
+    $showRaw = $payload['show'] ?? ($payload['is_active'] ?? false);
+    $show = filter_var($showRaw, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+    if ($show === null) {
+        $show = (bool) $showRaw;
+    }
+
+    $title = trim((string) ($payload['title'] ?? 'Update Available'));
+    if ($title === '') {
+        $title = 'Update Available';
+    }
+
+    $message = trim((string) ($payload['message'] ?? ($payload['msg'] ?? '')));
+    $version = trim((string) ($payload['version'] ?? ''));
+    $changes = trim((string) ($payload['changes'] ?? ''));
+    $severity = strtolower(trim((string) ($payload['severity'] ?? 'warning')));
+    if (!in_array($severity, ['info', 'warning', 'critical'], true)) {
+        $severity = 'warning';
+    }
+
+    return [
+        'show' => $show,
+        'title' => $title,
+        'message' => $message,
+        'version' => $version,
+        'changes' => $changes,
+        'severity' => $severity,
+    ];
+}
+
+function fetch_update_notice(): ?array
+{
+    $url = trim(app_mail_config_value('UPDATE_PANEL_URL', 'update_panel_url', ''));
+    if ($url === '') {
+        return null;
+    }
+
+    if (!preg_match('#^https?://#i', $url)) {
+        return null;
+    }
+
+    $ttl = (int) app_mail_config_value('UPDATE_PANEL_CACHE_SECONDS', 'update_panel_cache_seconds', '600');
+    $ttl = max(60, min(86400, $ttl));
+    $cacheKey = '_update_notice_cache';
+
+    if (
+        isset($_SESSION[$cacheKey])
+        && is_array($_SESSION[$cacheKey])
+        && isset($_SESSION[$cacheKey]['fetched_at'], $_SESSION[$cacheKey]['data'])
+        && is_int($_SESSION[$cacheKey]['fetched_at'])
+        && (time() - $_SESSION[$cacheKey]['fetched_at']) < $ttl
+        && is_array($_SESSION[$cacheKey]['data'])
+    ) {
+        return normalize_update_notice_payload($_SESSION[$cacheKey]['data']);
+    }
+
+    $context = stream_context_create([
+        'http' => [
+            'method' => 'GET',
+            'timeout' => 3,
+            'ignore_errors' => true,
+            'header' => "Accept: application/json\r\nUser-Agent: LoanDesk-UpdateChecker/1.0\r\n",
+        ],
+    ]);
+
+    $raw = @file_get_contents($url, false, $context);
+    if ($raw === false) {
+        if (
+            isset($_SESSION[$cacheKey]['data'])
+            && is_array($_SESSION[$cacheKey]['data'])
+        ) {
+            return normalize_update_notice_payload($_SESSION[$cacheKey]['data']);
+        }
+        return null;
+    }
+
+    $decoded = json_decode($raw, true);
+    if (!is_array($decoded)) {
+        if (
+            isset($_SESSION[$cacheKey]['data'])
+            && is_array($_SESSION[$cacheKey]['data'])
+        ) {
+            return normalize_update_notice_payload($_SESSION[$cacheKey]['data']);
+        }
+        return null;
+    }
+
+    $_SESSION[$cacheKey] = [
+        'fetched_at' => time(),
+        'data' => $decoded,
+    ];
+
+    return normalize_update_notice_payload($decoded);
+}
+
+function current_update_notice(): ?array
+{
+    $notice = fetch_update_notice();
+    if ($notice === null || empty($notice['show'])) {
+        return null;
+    }
+
+    $message = trim((string) ($notice['message'] ?? ''));
+    if ($message === '') {
+        return null;
+    }
+
+    return $notice;
+}
+
 function smtp_write_line($socket, string $line): bool
 {
     return fwrite($socket, $line . "\r\n") !== false;

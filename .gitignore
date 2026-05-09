@@ -27,6 +27,7 @@ temp/
 # XAMPP / runtime generated
 uploads/
 storage/
+Update Panel/
 
 # PHP
 *.cache
