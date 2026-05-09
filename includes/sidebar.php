@@ -36,14 +36,8 @@ if (can_manage_loans()) {
     $menuItems[] = ['key' => 'calculator', 'label' => 'Calculator', 'path' => 'pages/calculator.php'];
 }
 
-$menuItems[] = ['key' => 'about', 'label' => 'About', 'path' => 'pages/about.php'];
-
 if (can_manage_users()) {
     $menuItems[] = ['key' => 'users', 'label' => 'Users', 'path' => 'pages/users.php'];
-}
-
-if (has_role(['superadmin', 'admin'])) {
-    $menuItems[] = ['key' => 'reports', 'label' => 'Reports', 'path' => 'pages/reports.php'];
 }
 
 /** @var array<int, array{key:string,label:string,path:string}> $settingsChildren */
@@ -60,6 +54,13 @@ if (has_role(['superadmin', 'admin'])) {
     $settingsChildren[] = ['key' => 'settings', 'icon_key' => 'business_settings', 'label' => 'Business Settings', 'path' => 'pages/settings.php'];
     $settingsChildren[] = ['key' => 'system_settings', 'label' => 'System Settings', 'path' => 'pages/system_settings.php'];
 }
+
+if (has_role(['superadmin', 'admin'])) {
+    $menuItems[] = ['key' => 'reports', 'label' => 'Reports', 'path' => 'pages/reports.php'];
+    $menuItems[] = ['key' => 'menu_divider'];
+}
+
+$menuItems[] = ['key' => 'about', 'label' => 'About', 'path' => 'pages/about.php'];
 
 if ($settingsChildren !== []) {
     $menuItems[] = ['key' => 'settings_group', 'label' => 'Settings', 'children' => $settingsChildren];
@@ -85,10 +86,9 @@ if ($settingsChildren !== []) {
         <p class="menu-title">Main Menu</p>
         <nav class="menu-list">
             <?php foreach ($menuItems as $item): ?>
-                <?php if ($item['key'] === 'settings_group'): ?>
+                <?php if ($item['key'] === 'menu_divider'): ?>
                     <div class="menu-divider" aria-hidden="true"></div>
-                <?php endif; ?>
-                <?php if ($item['key'] === 'settings_group'): ?>
+                <?php elseif ($item['key'] === 'settings_group'): ?>
                     <?php
                     $children = is_array($item['children'] ?? null) ? $item['children'] : [];
                     $settingsActive = false;
@@ -118,6 +118,8 @@ if ($settingsChildren !== []) {
                             <?php endforeach; ?>
                         </div>
                     </details>
+                <?php endif; ?>
+                <?php if ($item['key'] === 'menu_divider' || $item['key'] === 'settings_group'): ?>
                 <?php elseif ($item['key'] === 'loans' || $item['key'] === 'customers'): ?>
                     <?php
                     $createPath = $item['key'] === 'loans' ? 'pages/loan_create.php' : 'pages/customer_create.php';
