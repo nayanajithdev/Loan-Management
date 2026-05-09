@@ -356,6 +356,14 @@ a {
     height: 14px;
 }
 
+.sidebar-version-link {
+    text-decoration: none;
+}
+
+.sidebar-version-link:hover {
+    opacity: 0.9;
+}
+
 .sidebar-version-info {
     color: #2bb36c;
 }

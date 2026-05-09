@@ -155,7 +155,7 @@ if ($settingsChildren !== []) {
         <?php endif; ?>
         <?php if ($updateNotice !== null): ?>
             <?php $updateSeverity = (string) ($updateNotice['severity'] ?? 'warning'); ?>
-            <p class="sidebar-version sidebar-version-update sidebar-version-<?= e($updateSeverity) ?>">
+            <a class="sidebar-version sidebar-version-update sidebar-version-<?= e($updateSeverity) ?> sidebar-version-link" href="<?= e(url('pages/update_notice.php')) ?>">
                 <span class="sidebar-version-icon" aria-hidden="true">
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
@@ -165,7 +165,7 @@ if ($settingsChildren !== []) {
                     </svg>
                 </span>
                 Update Availble
-            </p>
+            </a>
         <?php else: ?>
             <p class="sidebar-version">LoanDesk v<?= e(app_version()) ?></p>
         <?php endif; ?>
