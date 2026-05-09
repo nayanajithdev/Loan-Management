@@ -999,6 +999,42 @@ function app_mail_config_value(string $envKey, string $localKey, string $default
     return $default;
 }
 
+function app_version(): string
+{
+    if (defined('APP_VERSION')) {
+        $value = trim((string) constant('APP_VERSION'));
+        if ($value !== '') {
+            return $value;
+        }
+    }
+
+    return '1.1';
+}
+
+function normalize_version_string(string $value): string
+{
+    $value = trim($value);
+    if ($value === '') {
+        return '';
+    }
+
+    // Support tags like "v1.2.0" while keeping valid semver suffixes.
+    $value = preg_replace('/^v/i', '', $value) ?? $value;
+    return trim($value);
+}
+
+function is_remote_version_newer(string $remoteVersion, string $localVersion): bool
+{
+    $remote = normalize_version_string($remoteVersion);
+    $local = normalize_version_string($localVersion);
+
+    if ($remote === '' || $local === '') {
+        return false;
+    }
+
+    return version_compare($remote, $local, '>');
+}
+
 function normalize_update_notice_payload(array $payload): array
 {
     $showRaw = $payload['show'] ?? ($payload['is_active'] ?? false);
@@ -1104,6 +1140,14 @@ function current_update_notice(): ?array
 
     $message = trim((string) ($notice['message'] ?? ''));
     if ($message === '') {
+        return null;
+    }
+
+    $remoteVersion = trim((string) ($notice['version'] ?? ''));
+    if ($remoteVersion === '') {
+        return null;
+    }
+    if (!is_remote_version_newer($remoteVersion, app_version())) {
         return null;
     }
 

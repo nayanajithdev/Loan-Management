@@ -100,6 +100,7 @@ if (!defined('LOCAL_APP_CONFIG')) {
 }
 
 const APP_NAME = 'Loan Management System';
+const APP_VERSION = '1.1';
 define('DB_HOST', db_config_value('DB_HOST', 'host', '127.0.0.1', $localDbConfig));
 define('DB_PORT', db_config_value('DB_PORT', 'port', '3306', $localDbConfig));
 define('DB_NAME', db_config_value('DB_NAME', 'name', 'loan_management', $localDbConfig));
