@@ -93,6 +93,8 @@ body.sidebar-open {
 
 .sidebar {
     background: rgba(21, 21, 21, 0.96);
+    backdrop-filter: blur(5px);
+    -webkit-backdrop-filter: blur(5px);
     border-right: 1px solid var(--edge);
     padding: 22px 16px;
     display: flex;
@@ -463,7 +465,7 @@ body.sidebar-open {
 
 .page-title {
     margin: 2px 0 0;
-    font-size: 27px;
+    font-size: 26px;
     font-weight: 700;
 }
 
@@ -1929,11 +1931,18 @@ textarea {
         left: 0;
         width: min(82vw, 300px);
         height: 100vh;
+        padding: 0 16px 22px;
         z-index: 1200;
         transform: translateX(-105%);
         transition: transform 0.2s ease;
         overflow-y: auto;
         overscroll-behavior: contain;
+    }
+
+    .sidebar .brand-card {
+        margin: 0 -16px 0;
+        border-radius: 0;
+        padding: 14px 16px;
     }
 
     .app-shell.sidebar-open .sidebar {
@@ -2046,10 +2055,17 @@ textarea {
 
 @media (max-width: 700px) {
     .main-content {
-        padding: 12px;
+        padding: 0 12px 12px;
     }
 
     .topbar {
+        margin: 0 -12px 12px;
+        border-radius: 0;
+        position: sticky;
+        top: 0;
+        z-index: 1000;
+        backdrop-filter: blur(5px);
+        -webkit-backdrop-filter: blur(5px);
         align-items: flex-start;
         justify-content: space-between;
         gap: 10px;
@@ -2077,6 +2093,10 @@ textarea {
     .topbar-right .date-chip,
     .topbar-right .connection-chip {
         display: none;
+    }
+
+    .page-title {
+        font-size: 22px;
     }
 
     .topbar-right .sidebar-toggle-btn {

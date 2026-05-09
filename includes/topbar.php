@@ -65,9 +65,9 @@ $topbarBusinessName = system_setting($pdo, 'business_name', 'Loan Manager');
             aria-controls="main-sidebar"
         >
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M3 12h18"/>
-                <path d="M3 6h18"/>
-                <path d="M3 18h18"/>
+                <path d="M4 5h16"/>
+                <path d="M4 12h16"/>
+                <path d="M4 19h16"/>
             </svg>
         </button>
     </div>
