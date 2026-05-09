@@ -6,12 +6,61 @@ require_once __DIR__ . '/../includes/bootstrap.php';
 
 require_roles(['superadmin', 'admin'], 'index.php');
 
+function user_update_safe_return_target(string $raw, string $fallback): string
+{
+    $raw = trim($raw);
+    if ($raw === '') {
+        return $fallback;
+    }
+
+    $parts = parse_url($raw);
+    if (!is_array($parts)) {
+        return $fallback;
+    }
+
+    $path = (string) ($parts['path'] ?? '');
+    if ($path === '') {
+        return $fallback;
+    }
+
+    $normalizedPath = ltrim(str_replace('\\', '/', $path), '/');
+    $basePath = trim(str_replace('\\', '/', (string) BASE_PATH), '/');
+    if ($basePath !== '' && str_starts_with($normalizedPath, $basePath . '/')) {
+        $normalizedPath = substr($normalizedPath, strlen($basePath) + 1);
+    }
+
+    if (!in_array($normalizedPath, ['pages/users.php', 'pages/user_edit.php'], true)) {
+        return $fallback;
+    }
+
+    $allowedQuery = [];
+    if (!empty($parts['query'])) {
+        parse_str((string) $parts['query'], $queryValues);
+        if (isset($queryValues['user_id']) && is_numeric((string) $queryValues['user_id'])) {
+            $allowedQuery['user_id'] = (int) $queryValues['user_id'];
+        }
+        if (isset($queryValues['edit_user']) && is_numeric((string) $queryValues['edit_user'])) {
+            $allowedQuery['edit_user'] = (int) $queryValues['edit_user'];
+        }
+    }
+
+    if ($allowedQuery !== []) {
+        return $normalizedPath . '?' . http_build_query($allowedQuery);
+    }
+
+    return $normalizedPath;
+}
+
+$userId = (int) ($_POST['user_id'] ?? 0);
+$postedReturnTo = (string) ($_POST['return_to'] ?? '');
+$defaultEditReturnTo = 'pages/user_edit.php?user_id=' . $userId;
+$resolvedEditReturnTo = user_update_safe_return_target($postedReturnTo, $defaultEditReturnTo);
+
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     redirect('pages/users.php');
 }
-require_csrf('pages/user_edit.php');
+require_csrf($resolvedEditReturnTo);
 
-$userId = (int) ($_POST['user_id'] ?? 0);
 $fullName = trim((string) ($_POST['full_name'] ?? ''));
 $username = trim((string) ($_POST['username'] ?? ''));
 $email = mb_strtolower(trim((string) ($_POST['email'] ?? '')));
@@ -22,12 +71,12 @@ $confirmPassword = (string) ($_POST['confirm_password'] ?? '');
 
 if ($userId <= 0 || $fullName === '' || $username === '' || $email === '') {
     set_flash('error', 'Required fields are missing.');
-    redirect('pages/user_edit.php?user_id=' . $userId);
+    redirect($resolvedEditReturnTo);
 }
 
 if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
     set_flash('error', 'Please enter a valid email.');
-    redirect('pages/user_edit.php?user_id=' . $userId);
+    redirect($resolvedEditReturnTo);
 }
 
 $current = current_user();
@@ -52,7 +101,7 @@ if ($targetRole === 'superadmin') {
 } else {
     if (!in_array($role, ['admin', 'collector_l1', 'collector_l2', 'collector'], true)) {
         set_flash('error', 'Invalid role selected.');
-        redirect('pages/user_edit.php?user_id=' . $userId);
+        redirect($resolvedEditReturnTo);
     }
 }
 
@@ -78,7 +127,7 @@ $existsStmt->execute([
 ]);
 if ($existsStmt->fetch()) {
     set_flash('error', 'Username already exists.');
-    redirect('pages/user_edit.php?user_id=' . $userId);
+    redirect($resolvedEditReturnTo);
 }
 
 $emailStmt = $pdo->prepare('SELECT id FROM users WHERE email = :email AND id <> :id LIMIT 1');
@@ -88,18 +137,18 @@ $emailStmt->execute([
 ]);
 if ($emailStmt->fetch()) {
     set_flash('error', 'Email already exists.');
-    redirect('pages/user_edit.php?user_id=' . $userId);
+    redirect($resolvedEditReturnTo);
 }
 
 if ($password !== '' || $confirmPassword !== '') {
     if ($password !== $confirmPassword) {
         set_flash('error', 'Passwords do not match.');
-        redirect('pages/user_edit.php?user_id=' . $userId);
+        redirect($resolvedEditReturnTo);
     }
 
     if (strlen($password) < 6) {
         set_flash('error', 'Password must be at least 6 characters.');
-        redirect('pages/user_edit.php?user_id=' . $userId);
+        redirect($resolvedEditReturnTo);
     }
 
     $updateStmt = $pdo->prepare(
@@ -150,4 +199,7 @@ log_activity($pdo, 'user.updated', 'User updated: ' . $fullName . '.', [
 ]);
 
 set_flash('success', 'User updated successfully.');
-redirect('pages/user_edit.php?user_id=' . $userId);
+if (str_starts_with($resolvedEditReturnTo, 'pages/users.php')) {
+    redirect('pages/users.php?edit_user=' . $userId);
+}
+redirect($resolvedEditReturnTo);

@@ -40,6 +40,7 @@ $selectedDate = match ($selectedDateMode) {
 };
 $isFutureDate = $selectedDate > $todayDate;
 $selectedInstallmentId = (int) ($_GET['selected_installment'] ?? 0);
+$mobileRecordMode = (int) ($_GET['mobile_record'] ?? 0) === 1;
 $current = current_user();
 $currentRole = (string) ($current['role'] ?? '');
 $currentUserId = (int) ($current['id'] ?? 0);
@@ -92,6 +93,8 @@ foreach ($dueInstallments as $item) {
 
 $hasSelectedInstallment = $selectedInstallment !== null;
 $isFutureInstallmentSelected = $hasSelectedInstallment && (string) $selectedInstallment['due_date'] > $todayDate;
+$isTodayInstallmentSelected = $hasSelectedInstallment && (string) $selectedInstallment['due_date'] === $todayDate;
+$canUseBackdatedEntryForSelection = $hasSelectedInstallment && !$isFutureInstallmentSelected && !$isTodayInstallmentSelected;
 $effectiveCollectedOn = $isFutureDate ? $todayDate : $selectedDate;
 
 if (is_collector_role($currentRole)) {
@@ -112,22 +115,23 @@ if (is_collector_role($currentRole)) {
 }
 $selectedCollectionTotal = (float) $selectedCollectionTotalStmt->fetchColumn();
 
-$returnParams = [
+$baseQueryParams = [
     'date_mode' => $selectedDateMode,
     'date' => $selectedDate,
 ];
 if ($search !== '') {
-    $returnParams['q'] = $search;
+    $baseQueryParams['q'] = $search;
 }
-$returnTo = 'pages/today_collections.php?' . http_build_query($returnParams);
+$listViewUrl = url('pages/today_collections.php?' . http_build_query($baseQueryParams));
+$returnTo = 'pages/today_collections.php?' . http_build_query($baseQueryParams);
 
 require __DIR__ . '/../includes/layout_start.php';
 ?>
 
 <p class="live-indicator" id="js-last-updated">Last update: waiting...</p>
 
-<div class="split-layout">
-    <section class="panel">
+<div class="split-layout today-collections-layout <?= $mobileRecordMode ? 'mobile-record-mode' : '' ?>">
+    <section class="panel today-collections-list-panel">
         <div class="panel-head">
             <h2 class="panel-title">Due Installments</h2>
         </div>
@@ -208,9 +212,19 @@ require __DIR__ . '/../includes/layout_start.php';
         </div>
     </section>
 
-    <section class="panel">
+    <section class="panel today-collections-record-panel">
         <div class="panel-head">
             <h2 class="panel-title">Record Collection</h2>
+            <?php if ($mobileRecordMode): ?>
+                <div class="panel-head-actions">
+                    <a class="btn" href="<?= e($listViewUrl) ?>">
+                        <span class="btn-icon-inline" aria-hidden="true">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-arrow-left-icon lucide-arrow-left"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>
+                        </span>
+                        Back to List
+                    </a>
+                </div>
+            <?php endif; ?>
         </div>
 
         <?php
@@ -270,7 +284,7 @@ require __DIR__ . '/../includes/layout_start.php';
             <?php if ($canBackdatePaid): ?>
                 <div class="field full">
                     <label class="choice-check">
-                        <input type="checkbox" name="backdated_entry" id="backdated-entry-toggle" value="1" <?= $hasSelectedInstallment && !$isFutureInstallmentSelected ? '' : 'disabled' ?>>
+                        <input type="checkbox" name="backdated_entry" id="backdated-entry-toggle" value="1" <?= $canUseBackdatedEntryForSelection ? '' : 'disabled' ?>>
                         <span class="choice-check-box" aria-hidden="true">
                             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-check-icon lucide-check"><path d="M20 6 9 17l-5-5"/></svg>
                         </span>
@@ -279,7 +293,7 @@ require __DIR__ . '/../includes/layout_start.php';
                 </div>
                 <div class="field" id="paid-date-field" style="display:none;">
                     <label>Paid Date (Actual)</label>
-                    <input type="date" name="paid_on_date" id="paid-on-date-input" value="<?= e($hasSelectedInstallment ? (string) $selectedInstallment['due_date'] : $effectiveCollectedOn) ?>" max="<?= e($effectiveCollectedOn) ?>" <?= $hasSelectedInstallment && !$isFutureInstallmentSelected ? '' : 'disabled' ?>>
+                    <input type="date" name="paid_on_date" id="paid-on-date-input" value="<?= e($hasSelectedInstallment ? (string) $selectedInstallment['due_date'] : $effectiveCollectedOn) ?>" max="<?= e($effectiveCollectedOn) ?>" <?= $canUseBackdatedEntryForSelection ? '' : 'disabled' ?>>
                 </div>
             <?php endif; ?>
             <div class="field full">

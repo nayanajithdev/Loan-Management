@@ -392,7 +392,35 @@
 
         const safeUrl = normalizeSafeLocalUrl(selectTarget.getAttribute('data-select-url'));
         if (safeUrl) {
-            window.location.assign(safeUrl);
+            let finalUrl = safeUrl;
+
+            const isMobileViewport = window.matchMedia('(max-width: 1024px)').matches;
+            if (isMobileViewport) {
+                const mobileSafeUrl = normalizeSafeLocalUrl(selectTarget.getAttribute('data-mobile-select-url'));
+                if (mobileSafeUrl) {
+                    finalUrl = mobileSafeUrl;
+                }
+            }
+
+            // Mobile 2-step flow for today collections:
+            // selecting an installment opens the dedicated record step.
+            if (isMobileViewport) {
+                try {
+                    const currentPath = window.location.pathname.toLowerCase();
+                    const isTodayCollectionsPage = currentPath.endsWith('/pages/today_collections.php');
+                    if (isTodayCollectionsPage) {
+                        const parsed = new URL(safeUrl, window.location.origin);
+                        if (parsed.pathname.toLowerCase().endsWith('/pages/today_collections.php')) {
+                            parsed.searchParams.set('mobile_record', '1');
+                            finalUrl = `${parsed.pathname}${parsed.search}${parsed.hash}`;
+                        }
+                    }
+                } catch (_error) {
+                    // Fallback to safeUrl when URL parsing fails.
+                }
+            }
+
+            window.location.assign(finalUrl);
         }
     });
 })();

@@ -69,7 +69,7 @@ if ($settingsChildren !== []) {
 ?>
 
 <aside class="sidebar" id="main-sidebar">
-    <div class="brand-card">
+    <a class="brand-card brand-card-link" href="<?= e(url('pages/settings.php')) ?>">
         <div class="brand-avatar">
             <?php if ($businessIconPath !== ''): ?>
                 <img src="<?= e(url($businessIconPath)) ?>" alt="Business icon">
@@ -81,7 +81,7 @@ if ($settingsChildren !== []) {
             <div class="brand-sub">Business Profile</div>
             <div class="brand-name"><?= e($businessName) ?></div>
         </div>
-    </div>
+    </a>
 
     <?php if ($authUser): ?>
         <?php

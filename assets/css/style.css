@@ -120,6 +120,15 @@ body.sidebar-open {
     gap: 12px;
 }
 
+.brand-card-link {
+    cursor: pointer;
+    transition: 0.2s ease;
+}
+
+.brand-card-link:hover {
+    filter: brightness(1.05);
+}
+
 .brand-avatar {
     width: 42px;
     height: 42px;
@@ -679,6 +688,7 @@ body.sidebar-open {
 .profile-avatar-upload {
     flex: 1 1 auto;
     min-width: 0;
+    overflow: hidden;
 }
 
 .profile-avatar-upload label {
@@ -1230,6 +1240,16 @@ textarea {
 .settings-icon-input {
     min-width: 0;
     flex: 1 1 auto;
+    overflow: hidden;
+}
+
+.settings-icon-input input[type="file"],
+.profile-avatar-upload input[type="file"] {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    overflow: hidden;
 }
 
 .backup-shell {
@@ -1524,8 +1544,25 @@ textarea {
     align-items: start;
 }
 
+.today-collections-list-panel,
+.today-collections-record-panel {
+    min-width: 0;
+}
+
 .reports-split-layout {
     grid-template-columns: minmax(420px, 0.9fr) minmax(560px, 1.1fr);
+}
+
+.users-split-layout {
+    grid-template-columns: minmax(560px, 1.6fr) minmax(360px, 1fr);
+}
+
+.users-desktop-editor .form-grid .field {
+    grid-column: span 6;
+}
+
+.users-desktop-editor .form-grid .field.full {
+    grid-column: span 12;
 }
 
 .reports-table-compact {
@@ -1969,6 +2006,22 @@ textarea {
         grid-template-columns: 1fr;
     }
 
+    .users-desktop-editor {
+        display: none;
+    }
+
+    .today-collections-layout .today-collections-record-panel {
+        display: none;
+    }
+
+    .today-collections-layout.mobile-record-mode .today-collections-list-panel {
+        display: none;
+    }
+
+    .today-collections-layout.mobile-record-mode .today-collections-record-panel {
+        display: block;
+    }
+
     .dashboard-stat-grid {
         grid-template-columns: repeat(2, minmax(220px, 1fr));
     }
@@ -2046,6 +2099,17 @@ textarea {
     .profile-avatar-row {
         flex-direction: column;
         align-items: flex-start;
+    }
+
+    .settings-icon-upload-wrap {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+    }
+
+    .settings-icon-input,
+    .profile-avatar-upload {
+        width: 100%;
     }
 
     .field,
