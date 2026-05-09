@@ -159,7 +159,7 @@ if ($settingsChildren !== []) {
                         <path d="M16 16h5v5"/>
                     </svg>
                 </span>
-                Update Availble<?= $updateVersion !== '' ? (' - v' . e($updateVersion)) : '' ?>
+                Update Available<?= $updateVersion !== '' ? (' - v' . e($updateVersion)) : '' ?>
             </a>
         <?php else: ?>
             <p class="sidebar-version">LoanDesk v<?= e(app_version()) ?></p>

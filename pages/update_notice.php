@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../includes/bootstrap.php';
 
-$pageTitle = 'Update Availble';
+$pageTitle = 'Update Available';
 $activePage = 'updates';
 $updateNotice = current_update_notice();
 
@@ -19,13 +19,13 @@ require __DIR__ . '/../includes/layout_start.php';
     <?php if ($updateNotice === null): ?>
         <p>No active update notice for this system version.</p>
     <?php else: ?>
-        <h4><?= e((string) ($updateNotice['title'] ?? 'Update Availble')) ?></h4>
+        <h4><?= e((string) ($updateNotice['title'] ?? 'Update Available')) ?></h4>
         <?php $noticeVersion = trim((string) ($updateNotice['version'] ?? '')); ?>
         <?php if ($noticeVersion !== ''): ?>
             <p>Version <?= e($noticeVersion) ?></p>
         <?php endif; ?>
 
-        <h4>Whats New</h4>
+        <h4>What's New</h4>
         <?php $changes = trim((string) ($updateNotice['changes'] ?? '')); ?>
         <?php if ($changes === ''): ?>
             <p>No changes listed.</p>
