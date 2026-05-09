@@ -9,7 +9,7 @@ require_roles(['superadmin', 'admin'], 'index.php');
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     redirect('pages/users.php');
 }
-require_csrf('pages/users.php');
+require_csrf('pages/user_edit.php');
 
 $userId = (int) ($_POST['user_id'] ?? 0);
 $fullName = trim((string) ($_POST['full_name'] ?? ''));
@@ -22,12 +22,12 @@ $confirmPassword = (string) ($_POST['confirm_password'] ?? '');
 
 if ($userId <= 0 || $fullName === '' || $username === '' || $email === '') {
     set_flash('error', 'Required fields are missing.');
-    redirect('pages/users.php');
+    redirect('pages/user_edit.php?user_id=' . $userId);
 }
 
 if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
     set_flash('error', 'Please enter a valid email.');
-    redirect('pages/users.php?edit_user=' . $userId);
+    redirect('pages/user_edit.php?user_id=' . $userId);
 }
 
 $current = current_user();
@@ -52,7 +52,7 @@ if ($targetRole === 'superadmin') {
 } else {
     if (!in_array($role, ['admin', 'collector_l1', 'collector_l2', 'collector'], true)) {
         set_flash('error', 'Invalid role selected.');
-        redirect('pages/users.php?edit_user=' . $userId);
+        redirect('pages/user_edit.php?user_id=' . $userId);
     }
 }
 
@@ -78,7 +78,7 @@ $existsStmt->execute([
 ]);
 if ($existsStmt->fetch()) {
     set_flash('error', 'Username already exists.');
-    redirect('pages/users.php?edit_user=' . $userId);
+    redirect('pages/user_edit.php?user_id=' . $userId);
 }
 
 $emailStmt = $pdo->prepare('SELECT id FROM users WHERE email = :email AND id <> :id LIMIT 1');
@@ -88,18 +88,18 @@ $emailStmt->execute([
 ]);
 if ($emailStmt->fetch()) {
     set_flash('error', 'Email already exists.');
-    redirect('pages/users.php?edit_user=' . $userId);
+    redirect('pages/user_edit.php?user_id=' . $userId);
 }
 
 if ($password !== '' || $confirmPassword !== '') {
     if ($password !== $confirmPassword) {
         set_flash('error', 'Passwords do not match.');
-        redirect('pages/users.php?edit_user=' . $userId);
+        redirect('pages/user_edit.php?user_id=' . $userId);
     }
 
     if (strlen($password) < 6) {
         set_flash('error', 'Password must be at least 6 characters.');
-        redirect('pages/users.php?edit_user=' . $userId);
+        redirect('pages/user_edit.php?user_id=' . $userId);
     }
 
     $updateStmt = $pdo->prepare(
@@ -150,4 +150,4 @@ log_activity($pdo, 'user.updated', 'User updated: ' . $fullName . '.', [
 ]);
 
 set_flash('success', 'User updated successfully.');
-redirect('pages/users.php?edit_user=' . $userId);
+redirect('pages/user_edit.php?user_id=' . $userId);

@@ -9,7 +9,7 @@ require_roles(['superadmin', 'admin'], 'index.php');
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     redirect('pages/users.php');
 }
-require_csrf('pages/users.php');
+require_csrf('pages/user_edit.php');
 
 $userId = (int) ($_POST['user_id'] ?? 0);
 if ($userId <= 0) {
@@ -24,7 +24,7 @@ if (!$current) {
 
 if ((int) $current['id'] === $userId) {
     set_flash('error', 'You cannot delete your own account while logged in.');
-    redirect('pages/users.php');
+    redirect('pages/user_edit.php?user_id=' . $userId);
 }
 
 $targetStmt = $pdo->prepare('SELECT id, full_name, username, role FROM users WHERE id = :id LIMIT 1');
@@ -41,12 +41,12 @@ $targetRole = (string) $targetUser['role'];
 
 if ($currentRole === 'admin' && $targetRole === 'superadmin') {
     set_flash('error', 'Manager cannot delete owner.');
-    redirect('pages/users.php');
+    redirect('pages/user_edit.php?user_id=' . $userId);
 }
 
 if ($targetRole === 'superadmin') {
     set_flash('error', 'Owner cannot be deleted (only one owner allowed).');
-    redirect('pages/users.php');
+    redirect('pages/user_edit.php?user_id=' . $userId);
 }
 
 $deleteStmt = $pdo->prepare('DELETE FROM users WHERE id = :id');

@@ -20,6 +20,7 @@ $faviconPath = business_icon_path($pdo);
 <body>
 <div class="app-shell">
     <?php require __DIR__ . '/sidebar.php'; ?>
+    <div class="sidebar-overlay" data-sidebar-overlay aria-hidden="true"></div>
 
     <main class="main-content">
         <?php require __DIR__ . '/topbar.php'; ?>
