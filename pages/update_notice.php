@@ -30,7 +30,7 @@ require __DIR__ . '/../includes/layout_start.php';
         <?php if ($changes === ''): ?>
             <p>No changes listed.</p>
         <?php else: ?>
-            <div class="about-note"><?= nl2br(e($changes)) ?></div>
+            <p><?= nl2br(e($changes)) ?></p>
         <?php endif; ?>
 
         <p><?= nl2br(e((string) ($updateNotice['message'] ?? ''))) ?></p>
