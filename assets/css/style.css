@@ -81,8 +81,10 @@ a {
 
 .app-shell {
     min-height: 100vh;
+    height: 100vh;
     display: grid;
     grid-template-columns: 280px 1fr;
+    overflow: hidden;
 }
 
 .sidebar {
@@ -92,6 +94,12 @@ a {
     display: flex;
     flex-direction: column;
     gap: 18px;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
 }
 
 .brand-card {
@@ -219,6 +227,50 @@ a {
     color: var(--accent);
 }
 
+.menu-dropdown {
+    display: grid;
+    gap: 6px;
+}
+
+.menu-dropdown-toggle {
+    list-style: none;
+    cursor: pointer;
+}
+
+.menu-dropdown-toggle::-webkit-details-marker {
+    display: none;
+}
+
+.menu-dropdown-chevron {
+    margin-left: auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--muted);
+    transition: transform 0.2s ease, color 0.2s ease;
+}
+
+.menu-dropdown-chevron svg {
+    width: 18px;
+    height: 18px;
+}
+
+.menu-dropdown[open] .menu-dropdown-chevron {
+    transform: rotate(180deg);
+    color: var(--accent);
+}
+
+.menu-sublist {
+    display: grid;
+    gap: 6px;
+    padding-left: 0;
+}
+
+.menu-sub-item {
+    font-size: 14px;
+    width: 100%;
+}
+
 .sidebar-footer {
     margin-top: auto;
     border-top: 1px solid var(--edge);
@@ -281,6 +333,9 @@ a {
 
 .main-content {
     padding: 20px;
+    height: 100vh;
+    overflow-y: auto;
+    overscroll-behavior: contain;
 }
 
 .topbar {
@@ -1689,10 +1744,19 @@ textarea {
 @media (max-width: 1024px) {
     .app-shell {
         grid-template-columns: 1fr;
+        height: auto;
+        overflow: visible;
     }
 
     .sidebar {
         position: static;
+        height: auto;
+        overflow: visible;
+    }
+
+    .main-content {
+        height: auto;
+        overflow: visible;
     }
 
     .field {

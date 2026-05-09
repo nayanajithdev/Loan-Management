@@ -18,6 +18,7 @@ $iconSvgs = [
     'backup' => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5V19A9 3 0 0 0 21 19V5"/><path d="M3 12A9 3 0 0 0 21 12"/></svg>',
     'activity_logs' => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5h1"/><path d="M3 12h1"/><path d="M3 19h1"/><path d="M8 5h1"/><path d="M8 12h1"/><path d="M8 19h1"/><path d="M13 5h8"/><path d="M13 12h8"/><path d="M13 19h8"/></svg>',
     'settings' => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/></svg>',
+    'business_settings' => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 12h.01"/><path d="M16 6V4a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/><path d="M22 13a18.15 18.15 0 0 1-20 0"/><rect width="20" height="14" x="2" y="6" rx="2"/></svg>',
     'system_settings' => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.106-3.105c.32-.322.863-.22.983.218a6 6 0 0 1-8.259 7.057l-7.91 7.91a1 1 0 0 1-2.999-3l7.91-7.91a6 6 0 0 1 7.057-8.259c.438.12.54.662.219.984z"/></svg>',
     'users' => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m14.305 19.53.923-.382"/><path d="m15.228 16.852-.923-.383"/><path d="m16.852 15.228-.383-.923"/><path d="m16.852 20.772-.383.924"/><path d="m19.148 15.228.383-.923"/><path d="m19.53 21.696-.382-.924"/><path d="M2 21a8 8 0 0 1 10.434-7.62"/><path d="m20.772 16.852.924-.383"/><path d="m20.772 19.148.924.383"/><circle cx="10" cy="8" r="5"/><circle cx="18" cy="18" r="3"/></svg>',
 ];
@@ -42,17 +43,23 @@ if (has_role(['superadmin', 'admin'])) {
     $menuItems[] = ['key' => 'reports', 'label' => 'Reports', 'path' => 'pages/reports.php'];
 }
 
+/** @var array<int, array{key:string,label:string,path:string}> $settingsChildren */
+$settingsChildren = [];
 if (can_manage_users()) {
-    $menuItems[] = ['key' => 'backup', 'label' => 'Backup', 'path' => 'pages/backup.php'];
+    $settingsChildren[] = ['key' => 'backup', 'label' => 'Backup', 'path' => 'pages/backup.php'];
 }
 
 if (has_role(['superadmin'])) {
-    $menuItems[] = ['key' => 'activity_logs', 'label' => 'Activity Logs', 'path' => 'pages/activity_logs.php'];
+    $settingsChildren[] = ['key' => 'activity_logs', 'label' => 'Activity Logs', 'path' => 'pages/activity_logs.php'];
 }
 
 if (has_role(['superadmin', 'admin'])) {
-    $menuItems[] = ['key' => 'settings', 'label' => 'Business Settings', 'path' => 'pages/settings.php'];
-    $menuItems[] = ['key' => 'system_settings', 'label' => 'System Settings', 'path' => 'pages/system_settings.php'];
+    $settingsChildren[] = ['key' => 'settings', 'icon_key' => 'business_settings', 'label' => 'Business Settings', 'path' => 'pages/settings.php'];
+    $settingsChildren[] = ['key' => 'system_settings', 'label' => 'System Settings', 'path' => 'pages/system_settings.php'];
+}
+
+if ($settingsChildren !== []) {
+    $menuItems[] = ['key' => 'settings_group', 'label' => 'Settings', 'children' => $settingsChildren];
 }
 ?>
 
@@ -75,10 +82,40 @@ if (has_role(['superadmin', 'admin'])) {
         <p class="menu-title">Main Menu</p>
         <nav class="menu-list">
             <?php foreach ($menuItems as $item): ?>
-                <?php if ($item['key'] === 'backup'): ?>
+                <?php if ($item['key'] === 'settings_group'): ?>
                     <div class="menu-divider" aria-hidden="true"></div>
                 <?php endif; ?>
-                <?php if ($item['key'] === 'loans' || $item['key'] === 'customers'): ?>
+                <?php if ($item['key'] === 'settings_group'): ?>
+                    <?php
+                    $children = is_array($item['children'] ?? null) ? $item['children'] : [];
+                    $settingsActive = false;
+                    foreach ($children as $child) {
+                        if (($child['key'] ?? '') === $activePage) {
+                            $settingsActive = true;
+                            break;
+                        }
+                    }
+                    ?>
+                    <details class="menu-dropdown" <?= $settingsActive ? 'open' : '' ?>>
+                        <summary class="menu-item menu-dropdown-toggle <?= $settingsActive ? 'active' : '' ?>">
+                            <span class="menu-icon"><?= $iconSvgs['settings'] ?? '' ?></span>
+                            <span><?= e($item['label']) ?></span>
+                            <span class="menu-dropdown-chevron" aria-hidden="true">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="m6 9 6 6 6-6"/>
+                                </svg>
+                            </span>
+                        </summary>
+                        <div class="menu-sublist">
+                            <?php foreach ($children as $child): ?>
+                                <a class="menu-item menu-sub-item <?= $activePage === ($child['key'] ?? '') ? 'active' : '' ?>" href="<?= e(url((string) ($child['path'] ?? ''))) ?>">
+                                    <span class="menu-icon"><?= $iconSvgs[(string) ($child['icon_key'] ?? $child['key'] ?? '')] ?? '' ?></span>
+                                    <span><?= e((string) ($child['label'] ?? '')) ?></span>
+                                </a>
+                            <?php endforeach; ?>
+                        </div>
+                    </details>
+                <?php elseif ($item['key'] === 'loans' || $item['key'] === 'customers'): ?>
                     <?php
                     $createPath = $item['key'] === 'loans' ? 'pages/loan_create.php' : 'pages/customer_create.php';
                     $createScript = $item['key'] === 'loans' ? 'loan_create.php' : 'customer_create.php';
