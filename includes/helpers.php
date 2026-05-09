@@ -215,6 +215,140 @@ function get_flash(): ?array
     return $flash;
 }
 
+function client_ip_address(): string
+{
+    $candidates = [
+        (string) ($_SERVER['HTTP_CF_CONNECTING_IP'] ?? ''),
+        (string) ($_SERVER['HTTP_X_FORWARDED_FOR'] ?? ''),
+        (string) ($_SERVER['REMOTE_ADDR'] ?? ''),
+    ];
+
+    foreach ($candidates as $candidate) {
+        if ($candidate === '') {
+            continue;
+        }
+
+        $parts = explode(',', $candidate);
+        foreach ($parts as $part) {
+            $ip = trim($part);
+            if ($ip !== '' && filter_var($ip, FILTER_VALIDATE_IP)) {
+                return $ip;
+            }
+        }
+    }
+
+    return '';
+}
+
+function rate_limit_storage_dir_abs(): string
+{
+    return __DIR__ . '/../storage/rate_limits';
+}
+
+function rate_limit_bucket_file_abs(string $bucket): string
+{
+    $bucket = strtolower(trim($bucket));
+    $bucket = preg_replace('/[^a-z0-9_-]/', '_', $bucket) ?? 'default';
+    if ($bucket === '') {
+        $bucket = 'default';
+    }
+
+    return rate_limit_storage_dir_abs() . '/' . $bucket . '.json';
+}
+
+function rate_limit_read_bucket(string $bucket): array
+{
+    $dir = rate_limit_storage_dir_abs();
+    if (!is_dir($dir)) {
+        mkdir($dir, 0775, true);
+    }
+
+    $file = rate_limit_bucket_file_abs($bucket);
+    if (!is_file($file)) {
+        return [];
+    }
+
+    $raw = @file_get_contents($file);
+    if (!is_string($raw) || trim($raw) === '') {
+        return [];
+    }
+
+    $decoded = json_decode($raw, true);
+    return is_array($decoded) ? $decoded : [];
+}
+
+function rate_limit_write_bucket(string $bucket, array $data): void
+{
+    $dir = rate_limit_storage_dir_abs();
+    if (!is_dir($dir)) {
+        mkdir($dir, 0775, true);
+    }
+
+    $file = rate_limit_bucket_file_abs($bucket);
+    $json = json_encode($data, JSON_UNESCAPED_SLASHES);
+    if (!is_string($json)) {
+        return;
+    }
+
+    @file_put_contents($file, $json, LOCK_EX);
+}
+
+function rate_limit_consume(string $bucket, string $key, int $maxHits, int $windowSeconds): array
+{
+    $maxHits = max(1, $maxHits);
+    $windowSeconds = max(30, $windowSeconds);
+    $now = time();
+    $windowStart = $now - $windowSeconds;
+
+    $state = rate_limit_read_bucket($bucket);
+    $cleaned = [];
+    foreach ($state as $hash => $entry) {
+        if (!is_array($entry) || !isset($entry['hits']) || !is_array($entry['hits'])) {
+            continue;
+        }
+
+        $hits = [];
+        foreach ($entry['hits'] as $hit) {
+            $hitTs = (int) $hit;
+            if ($hitTs > $windowStart && $hitTs <= $now + 1) {
+                $hits[] = $hitTs;
+            }
+        }
+
+        if ($hits !== []) {
+            $cleaned[$hash] = ['hits' => $hits];
+        }
+    }
+
+    $keyHash = hash('sha256', strtolower(trim($key)));
+    if ($keyHash === '') {
+        $keyHash = hash('sha256', 'anonymous');
+    }
+
+    $hits = $cleaned[$keyHash]['hits'] ?? [];
+    $hitCount = count($hits);
+    if ($hitCount >= $maxHits) {
+        $oldest = (int) min($hits);
+        $retryAfter = max(1, $windowSeconds - max(0, $now - $oldest));
+        rate_limit_write_bucket($bucket, $cleaned);
+        return [
+            'allowed' => false,
+            'retry_after' => $retryAfter,
+            'remaining' => 0,
+        ];
+    }
+
+    $hits[] = $now;
+    $cleaned[$keyHash] = ['hits' => $hits];
+    rate_limit_write_bucket($bucket, $cleaned);
+
+    return [
+        'allowed' => true,
+        'retry_after' => 0,
+        'remaining' => max(0, $maxHits - count($hits)),
+    ];
+}
+
 function frequency_interval(string $frequency): DateInterval
 {
     return match ($frequency) {
@@ -1079,6 +1213,7 @@ function fetch_update_notice(): ?array
 
     $ttl = (int) app_mail_config_value('UPDATE_PANEL_CACHE_SECONDS', 'update_panel_cache_seconds', '600');
     $ttl = max(60, min(86400, $ttl));
+    $maxStaleSeconds = max($ttl, min(86400, $ttl * 6));
     $cacheKey = '_update_notice_cache';
 
     if (
@@ -1104,22 +1239,32 @@ function fetch_update_notice(): ?array
     $raw = @file_get_contents($url, false, $context);
     if ($raw === false) {
         if (
-            isset($_SESSION[$cacheKey]['data'])
+            isset($_SESSION[$cacheKey]['fetched_at'], $_SESSION[$cacheKey]['data'])
+            && is_int($_SESSION[$cacheKey]['fetched_at'])
             && is_array($_SESSION[$cacheKey]['data'])
         ) {
-            return normalize_update_notice_payload($_SESSION[$cacheKey]['data']);
+            $age = time() - $_SESSION[$cacheKey]['fetched_at'];
+            if ($age <= $maxStaleSeconds) {
+                return normalize_update_notice_payload($_SESSION[$cacheKey]['data']);
+            }
         }
+        unset($_SESSION[$cacheKey]);
         return null;
     }
 
     $decoded = json_decode($raw, true);
     if (!is_array($decoded)) {
         if (
-            isset($_SESSION[$cacheKey]['data'])
+            isset($_SESSION[$cacheKey]['fetched_at'], $_SESSION[$cacheKey]['data'])
+            && is_int($_SESSION[$cacheKey]['fetched_at'])
             && is_array($_SESSION[$cacheKey]['data'])
         ) {
-            return normalize_update_notice_payload($_SESSION[$cacheKey]['data']);
+            $age = time() - $_SESSION[$cacheKey]['fetched_at'];
+            if ($age <= $maxStaleSeconds) {
+                return normalize_update_notice_payload($_SESSION[$cacheKey]['data']);
+            }
         }
+        unset($_SESSION[$cacheKey]);
         return null;
     }
 

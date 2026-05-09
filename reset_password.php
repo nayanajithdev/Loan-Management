@@ -47,11 +47,12 @@ $faviconPath = business_icon_path($pdo);
                 <input type="hidden" name="token" value="<?= e($token) ?>">
                 <div class="field full">
                     <label>New Password</label>
-                    <input type="password" name="new_password" minlength="6" required autofocus>
+                    <input type="password" name="new_password" minlength="8" required autofocus>
                 </div>
                 <div class="field full">
                     <label>Confirm New Password</label>
-                    <input type="password" name="confirm_password" minlength="6" required>
+                    <input type="password" name="confirm_password" minlength="8" required>
+                    <small class="helper-text">Use at least 8 characters with at least one letter and one number.</small>
                 </div>
                 <div class="field full" style="align-self:end;">
                     <button type="submit" class="btn btn-primary">Update Password</button>
@@ -67,4 +68,3 @@ $faviconPath = business_icon_path($pdo);
 </div>
 </body>
 </html>
-

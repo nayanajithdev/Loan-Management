@@ -28,8 +28,12 @@ if ($newPassword !== $confirmPassword) {
     redirect('reset_password.php?token=' . urlencode($token));
 }
 
-if (strlen($newPassword) < 6) {
-    set_flash('error', 'Password must be at least 6 characters.');
+if (
+    strlen($newPassword) < 8
+    || preg_match('/[A-Za-z]/', $newPassword) !== 1
+    || preg_match('/\d/', $newPassword) !== 1
+) {
+    set_flash('error', 'Password must be at least 8 characters and include at least one letter and one number.');
     redirect('reset_password.php?token=' . urlencode($token));
 }
 
@@ -60,4 +64,3 @@ log_activity($pdo, 'auth.password_reset_completed', 'Password reset completed.',
 
 set_flash('success', 'Password updated. You can now login.');
 redirect('login.php');
-
