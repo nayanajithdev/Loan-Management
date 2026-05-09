@@ -148,13 +148,8 @@ if ($settingsChildren !== []) {
 
     <div class="sidebar-footer">
         <?php if ($updateNotice !== null): ?>
-            <div class="sidebar-update sidebar-update-<?= e((string) ($updateNotice['severity'] ?? 'warning')) ?>">
-                <p><?= e((string) ($updateNotice['title'] ?? 'Update Available')) ?><?= ($updateNotice['version'] ?? '') !== '' ? (' v' . e((string) $updateNotice['version'])) : '' ?></p>
-                <small><?= e((string) ($updateNotice['message'] ?? '')) ?></small>
-            </div>
-        <?php endif; ?>
-        <?php if ($updateNotice !== null): ?>
             <?php $updateSeverity = (string) ($updateNotice['severity'] ?? 'warning'); ?>
+            <?php $updateVersion = trim((string) ($updateNotice['version'] ?? '')); ?>
             <a class="sidebar-version sidebar-version-update sidebar-version-<?= e($updateSeverity) ?> sidebar-version-link" href="<?= e(url('pages/update_notice.php')) ?>">
                 <span class="sidebar-version-icon" aria-hidden="true">
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -164,7 +159,7 @@ if ($settingsChildren !== []) {
                         <path d="M16 16h5v5"/>
                     </svg>
                 </span>
-                Update Availble
+                Update Availble<?= $updateVersion !== '' ? (' - v' . e($updateVersion)) : '' ?>
             </a>
         <?php else: ?>
             <p class="sidebar-version">LoanDesk v<?= e(app_version()) ?></p>

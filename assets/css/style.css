@@ -343,6 +343,11 @@ a {
 
 .sidebar-version-update {
     margin-top: 2px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    background: rgba(255, 255, 255, 0.03);
+    width: 100%;
 }
 
 .sidebar-version-icon {
@@ -361,19 +366,25 @@ a {
 }
 
 .sidebar-version-link:hover {
-    opacity: 0.9;
+    filter: brightness(1.05);
 }
 
 .sidebar-version-info {
-    color: #2bb36c;
+    color: #7ce7a9;
+    border-color: rgba(43, 179, 108, 0.45);
+    background: rgba(43, 179, 108, 0.1);
 }
 
 .sidebar-version-warning {
-    color: var(--accent);
+    color: #ffb46e;
+    border-color: rgba(255, 122, 26, 0.45);
+    background: rgba(255, 122, 26, 0.1);
 }
 
 .sidebar-version-critical {
-    color: #ef4444;
+    color: #ff8a8a;
+    border-color: rgba(239, 68, 68, 0.5);
+    background: rgba(239, 68, 68, 0.12);
 }
 
 .main-content {
@@ -1777,6 +1788,10 @@ textarea {
 .about-page {
     display: grid;
     gap: 14px;
+}
+
+.about-page-narrow {
+    max-width: 500px;
 }
 
 .about-page h4 {

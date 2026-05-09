@@ -11,7 +11,7 @@ $updateNotice = current_update_notice();
 require __DIR__ . '/../includes/layout_start.php';
 ?>
 
-<section class="panel about-page">
+<section class="panel about-page about-page-narrow">
     <div class="panel-head">
         <h3 class="panel-title">System Update</h3>
     </div>
@@ -19,16 +19,13 @@ require __DIR__ . '/../includes/layout_start.php';
     <?php if ($updateNotice === null): ?>
         <p>No active update notice for this system version.</p>
     <?php else: ?>
-        <h4>Update Title</h4>
-        <p>
-            <?= e((string) ($updateNotice['title'] ?? 'Update Availble')) ?>
-            <?php $noticeVersion = trim((string) ($updateNotice['version'] ?? '')); ?>
-            <?php if ($noticeVersion !== ''): ?>
-                v<?= e($noticeVersion) ?>
-            <?php endif; ?>
-        </p>
+        <h4><?= e((string) ($updateNotice['title'] ?? 'Update Availble')) ?></h4>
+        <?php $noticeVersion = trim((string) ($updateNotice['version'] ?? '')); ?>
+        <?php if ($noticeVersion !== ''): ?>
+            <p>Version <?= e($noticeVersion) ?></p>
+        <?php endif; ?>
 
-        <h4>What Are The Changes</h4>
+        <h4>Whats New</h4>
         <?php $changes = trim((string) ($updateNotice['changes'] ?? '')); ?>
         <?php if ($changes === ''): ?>
             <p>No changes listed.</p>
@@ -36,7 +33,6 @@ require __DIR__ . '/../includes/layout_start.php';
             <div class="about-note"><?= nl2br(e($changes)) ?></div>
         <?php endif; ?>
 
-        <h4>Message</h4>
         <p><?= nl2br(e((string) ($updateNotice['message'] ?? ''))) ?></p>
     <?php endif; ?>
 </section>
