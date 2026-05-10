@@ -98,13 +98,32 @@ if ($targetRole === 'superadmin') {
     redirect($resolvedDeleteReturnTo);
 }
 
-$deleteStmt = $pdo->prepare('DELETE FROM users WHERE id = :id');
-$deleteStmt->execute(['id' => $userId]);
+try {
+    $pdo->beginTransaction();
+
+    // Unassign loans linked to this user to satisfy FK constraints.
+    $unassignStmt = $pdo->prepare('UPDATE loans SET assigned_user_id = NULL WHERE assigned_user_id = :id');
+    $unassignStmt->execute(['id' => $userId]);
+    $unassignedLoanCount = (int) $unassignStmt->rowCount();
+
+    $deleteStmt = $pdo->prepare('DELETE FROM users WHERE id = :id');
+    $deleteStmt->execute(['id' => $userId]);
+
+    $pdo->commit();
+} catch (Throwable $e) {
+    if ($pdo->inTransaction()) {
+        $pdo->rollBack();
+    }
+
+    set_flash('error', 'Cannot delete this user because linked records still exist. Reassign related data and try again.');
+    redirect($resolvedDeleteReturnTo);
+}
 
 log_activity($pdo, 'user.deleted', 'User deleted: ' . (string) $targetUser['full_name'] . '.', [
     'user_id' => $userId,
     'username' => (string) $targetUser['username'],
     'role' => role_display_name((string) $targetUser['role']),
+    'unassigned_loans' => $unassignedLoanCount ?? 0,
 ]);
 
 set_flash('success', 'User deleted successfully.');
