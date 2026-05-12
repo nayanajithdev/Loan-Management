@@ -45,6 +45,7 @@ $current = current_user();
 $currentRole = (string) ($current['role'] ?? '');
 $currentUserId = (int) ($current['id'] ?? 0);
 $canBackdatePaid = has_role(['superadmin', 'admin']);
+$dueDateOperator = $selectedDate > $todayDate ? '=' : '<=';
 
 $sql = "SELECT
             li.id,
@@ -61,7 +62,7 @@ $sql = "SELECT
         FROM loan_installments li
         JOIN loans l ON l.id = li.loan_id
         JOIN customers c ON c.id = l.customer_id
-        WHERE li.due_date <= :selected_date
+        WHERE li.due_date {$dueDateOperator} :selected_date
           AND li.status IN ('pending', 'partial', 'overdue')";
 
 $params = ['selected_date' => $selectedDate];
