@@ -509,10 +509,6 @@ function schedule_next_installment_date(PDO $pdo, int $loanId, string $scheduled
     }
 
     $deltaDays = (int) $currentDueObj->diff($scheduledDateObj)->format('%r%a');
-    if ($deltaDays < 0) {
-        throw new RuntimeException('Next payment date cannot be earlier than current due date.');
-    }
-
     $updateStmt = $pdo->prepare(
         'UPDATE loan_installments
          SET due_date = :due_date, status = :status

@@ -95,6 +95,7 @@ foreach ($dueInstallments as $item) {
 $hasSelectedInstallment = $selectedInstallment !== null;
 $isFutureInstallmentSelected = $hasSelectedInstallment && (string) $selectedInstallment['due_date'] > $todayDate;
 $isTodayInstallmentSelected = $hasSelectedInstallment && (string) $selectedInstallment['due_date'] === $todayDate;
+$canCollectSelectedInstallment = $hasSelectedInstallment && !$isFutureInstallmentSelected;
 $canUseBackdatedEntryForSelection = $hasSelectedInstallment && !$isFutureInstallmentSelected && !$isTodayInstallmentSelected;
 $effectiveCollectedOn = $isFutureDate ? $todayDate : $selectedDate;
 
@@ -248,7 +249,7 @@ require __DIR__ . '/../includes/layout_start.php';
         <p>
             <?php
             if ($hasSelectedInstallment && $isFutureInstallmentSelected) {
-                echo 'Future installment selected. Collection will be recorded for today.';
+                echo 'Future installment selected. Collection is disabled for future dues.';
             } else {
                 echo $hasSelectedInstallment ? 'Selected installment is ready for collection.' : 'Select an installment to continue.';
             }
@@ -283,11 +284,11 @@ require __DIR__ . '/../includes/layout_start.php';
             </div>
             <div class="field">
                 <label>Amount Received</label>
-                <input type="number" name="amount" step="0.01" min="0.01" value="<?= e($hasSelectedInstallment ? (string) $selectedBalance : '') ?>" <?= $hasSelectedInstallment ? 'required' : 'disabled' ?>>
+                <input type="number" name="amount" step="0.01" min="0.01" value="<?= e($hasSelectedInstallment ? (string) $selectedBalance : '') ?>" <?= $canCollectSelectedInstallment ? 'required' : 'disabled' ?>>
             </div>
             <div class="field">
                 <label>Method</label>
-                <select name="method" <?= $hasSelectedInstallment ? '' : 'disabled' ?>>
+                <select name="method" <?= $canCollectSelectedInstallment ? '' : 'disabled' ?>>
                     <option value="cash">Cash</option>
                     <option value="bank">Bank Transfer</option>
                     <option value="online">Online</option>
@@ -296,7 +297,7 @@ require __DIR__ . '/../includes/layout_start.php';
             <?php if ($canBackdatePaid): ?>
                 <div class="field full">
                     <label class="choice-check">
-                        <input type="checkbox" name="backdated_entry" id="backdated-entry-toggle" value="1" <?= $canUseBackdatedEntryForSelection ? '' : 'disabled' ?>>
+                        <input type="checkbox" name="backdated_entry" id="backdated-entry-toggle" value="1" <?= ($canCollectSelectedInstallment && $canUseBackdatedEntryForSelection) ? '' : 'disabled' ?>>
                         <span class="choice-check-box" aria-hidden="true">
                             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-check-icon lucide-check"><path d="M20 6 9 17l-5-5"/></svg>
                         </span>
@@ -305,12 +306,12 @@ require __DIR__ . '/../includes/layout_start.php';
                 </div>
                 <div class="field" id="paid-date-field" style="display:none;">
                     <label>Paid Date (Actual)</label>
-                    <input type="date" name="paid_on_date" id="paid-on-date-input" value="<?= e($hasSelectedInstallment ? (string) $selectedInstallment['due_date'] : $effectiveCollectedOn) ?>" max="<?= e($effectiveCollectedOn) ?>" <?= $canUseBackdatedEntryForSelection ? '' : 'disabled' ?>>
+                    <input type="date" name="paid_on_date" id="paid-on-date-input" value="<?= e($hasSelectedInstallment ? (string) $selectedInstallment['due_date'] : $effectiveCollectedOn) ?>" max="<?= e($effectiveCollectedOn) ?>" <?= ($canCollectSelectedInstallment && $canUseBackdatedEntryForSelection) ? '' : 'disabled' ?>>
                 </div>
             <?php endif; ?>
             <div class="field full">
                 <label class="choice-check">
-                    <input type="checkbox" name="schedule_next_payment" id="schedule-next-payment-toggle" value="1" <?= $hasSelectedInstallment ? '' : 'disabled' ?>>
+                    <input type="checkbox" name="schedule_next_payment" id="schedule-next-payment-toggle" value="1" <?= $canCollectSelectedInstallment ? '' : 'disabled' ?>>
                     <span class="choice-check-box" aria-hidden="true">
                         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-check-icon lucide-check"><path d="M20 6 9 17l-5-5"/></svg>
                     </span>
@@ -325,15 +326,15 @@ require __DIR__ . '/../includes/layout_start.php';
                     id="next-payment-date-input"
                     value="<?= e($nextPaymentDefault) ?>"
                     min="<?= e($tomorrowDate) ?>"
-                    <?= $hasSelectedInstallment ? '' : 'disabled' ?>
+                    <?= $canCollectSelectedInstallment ? '' : 'disabled' ?>
                 >
             </div>
             <div class="field full">
                 <label>Note</label>
-                <textarea name="note" placeholder="Optional" <?= $hasSelectedInstallment ? '' : 'disabled' ?>></textarea>
+                <textarea name="note" placeholder="Optional" <?= $canCollectSelectedInstallment ? '' : 'disabled' ?>></textarea>
             </div>
             <div class="field" style="align-self:end;">
-                <button type="submit" class="btn btn-primary" <?= $hasSelectedInstallment ? '' : 'disabled' ?>>Save Collection</button>
+                <button type="submit" class="btn btn-primary" <?= $canCollectSelectedInstallment ? '' : 'disabled' ?>>Save Collection</button>
             </div>
         </form>
     </section>

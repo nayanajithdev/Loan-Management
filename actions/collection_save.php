@@ -176,6 +176,10 @@ try {
             $installments[] = $preferred;
         }
 
+        if ($preferred && (string) $preferred['due_date'] > today()) {
+            throw new RuntimeException('Cannot collect a future installment from this panel.');
+        }
+
         if ($backdatedEntry && $preferred && (string) $preferred['due_date'] > $collectedOn) {
             throw new RuntimeException('Backdated entry is not allowed when collecting a future installment.');
         }
@@ -188,10 +192,14 @@ try {
     $instStmt = $pdo->prepare(
         "SELECT * FROM loan_installments
          WHERE loan_id = :loan_id AND status IN ('pending', 'partial', 'overdue')
+           AND due_date <= :today_date
          ORDER BY due_date DESC, installment_no DESC
          FOR UPDATE"
     );
-    $instStmt->execute(['loan_id' => $loanId]);
+    $instStmt->execute([
+        'loan_id' => $loanId,
+        'today_date' => today(),
+    ]);
     $remainingInstallments = $instStmt->fetchAll();
 
     foreach ($remainingInstallments as $item) {
@@ -199,6 +207,10 @@ try {
             continue;
         }
         $installments[] = $item;
+    }
+
+    if (count($installments) === 0) {
+        throw new RuntimeException('No due installments available for collection today.');
     }
 
     $updateInstallment = $pdo->prepare(
