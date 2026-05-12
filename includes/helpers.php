@@ -146,6 +146,24 @@ function display_datetime(string $dateTimeValue, ?string $fallback = null): stri
 
 function today(): string
 {
+    $fakeToday = null;
+    if (defined('LOCAL_APP_CONFIG')) {
+        $localConfig = LOCAL_APP_CONFIG;
+        if (is_array($localConfig)) {
+            $rawFakeToday = trim((string) ($localConfig['fake_today'] ?? ''));
+            if ($rawFakeToday !== '') {
+                $parsed = DateTimeImmutable::createFromFormat('Y-m-d', $rawFakeToday);
+                if ($parsed && $parsed->format('Y-m-d') === $rawFakeToday) {
+                    $fakeToday = $rawFakeToday;
+                }
+            }
+        }
+    }
+
+    if ($fakeToday !== null) {
+        return $fakeToday;
+    }
+
     return date('Y-m-d');
 }
 
@@ -436,6 +454,77 @@ function refresh_overdue_installments(PDO $pdo): void
 {
     $stmt = $pdo->prepare("UPDATE loan_installments SET status = 'overdue' WHERE status IN ('pending', 'partial') AND due_date < CURDATE() AND paid_amount < due_amount");
     $stmt->execute();
+}
+
+function schedule_next_installment_date(PDO $pdo, int $loanId, string $scheduledDate): array
+{
+    if ($loanId <= 0) {
+        throw new RuntimeException('Invalid loan for scheduling.');
+    }
+
+    $scheduledDate = trim($scheduledDate);
+    $scheduledDateObj = DateTimeImmutable::createFromFormat('Y-m-d', $scheduledDate);
+    if (!$scheduledDateObj || $scheduledDateObj->format('Y-m-d') !== $scheduledDate) {
+        throw new RuntimeException('Invalid next payment date.');
+    }
+
+    if ($scheduledDate <= today()) {
+        throw new RuntimeException('Next payment date must be after today.');
+    }
+
+    $nextStmt = $pdo->prepare(
+        "SELECT id, installment_no, due_date, due_amount, paid_amount, status
+         FROM loan_installments
+         WHERE loan_id = :loan_id
+           AND status IN ('pending', 'partial', 'overdue')
+         ORDER BY due_date ASC, installment_no ASC
+         LIMIT 1
+         FOR UPDATE"
+    );
+    $nextStmt->execute(['loan_id' => $loanId]);
+    $nextInstallment = $nextStmt->fetch();
+
+    if (!$nextInstallment) {
+        throw new RuntimeException('No pending installment available to schedule.');
+    }
+
+    $nextInstallmentId = (int) $nextInstallment['id'];
+    $currentDueDate = (string) $nextInstallment['due_date'];
+    $paidAmount = round((float) $nextInstallment['paid_amount'], 2);
+    $dueAmount = round((float) $nextInstallment['due_amount'], 2);
+
+    if ($currentDueDate === $scheduledDate) {
+        return [
+            'installment_id' => $nextInstallmentId,
+            'installment_no' => (int) $nextInstallment['installment_no'],
+            'from_due_date' => $currentDueDate,
+            'to_due_date' => $scheduledDate,
+            'changed' => false,
+        ];
+    }
+
+    $updatedStatus = $paidAmount >= $dueAmount
+        ? 'paid'
+        : ($paidAmount > 0 ? 'partial' : 'pending');
+
+    $updateStmt = $pdo->prepare(
+        'UPDATE loan_installments
+         SET due_date = :due_date, status = :status
+         WHERE id = :id'
+    );
+    $updateStmt->execute([
+        'due_date' => $scheduledDate,
+        'status' => $updatedStatus,
+        'id' => $nextInstallmentId,
+    ]);
+
+    return [
+        'installment_id' => $nextInstallmentId,
+        'installment_no' => (int) $nextInstallment['installment_no'],
+        'from_due_date' => $currentDueDate,
+        'to_due_date' => $scheduledDate,
+        'changed' => true,
+    ];
 }
 
 function dashboard_stats(PDO $pdo, ?array $viewer = null): array

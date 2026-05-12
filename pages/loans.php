@@ -10,7 +10,8 @@ $activePage = 'loans';
 
 $loans = $pdo->query(
     "SELECT l.*, c.full_name, l.assigned_user_id, u.full_name AS assigned_user_name, u.username AS assigned_username, u.role AS assigned_role,
-        COALESCE((SELECT SUM(li.due_amount - li.paid_amount) FROM loan_installments li WHERE li.loan_id = l.id AND li.status IN ('pending', 'partial', 'overdue')), 0) AS outstanding_amount
+        COALESCE((SELECT SUM(li.due_amount - li.paid_amount) FROM loan_installments li WHERE li.loan_id = l.id AND li.status IN ('pending', 'partial', 'overdue')), 0) AS outstanding_amount,
+        COALESCE((SELECT COUNT(*) FROM loan_installments li WHERE li.loan_id = l.id AND li.status IN ('pending', 'partial', 'overdue')), 0) AS remaining_installment_count
      FROM loans l
      JOIN customers c ON c.id = l.customer_id
      LEFT JOIN users u ON u.id = l.assigned_user_id
@@ -44,7 +45,7 @@ require __DIR__ . '/../includes/layout_start.php';
                 <th>Collected</th>
                 <th>Balance</th>
                 <th>Assigned To</th>
-                <th>Frequency</th>
+                <th>Remaining Installments</th>
                 <th>Status</th>
             </tr>
             </thead>
@@ -55,6 +56,7 @@ require __DIR__ . '/../includes/layout_start.php';
                 <?php foreach ($loans as $loan): ?>
                     <?php $balance = max(0, (float) $loan['outstanding_amount']); ?>
                     <?php $collectedAmount = max(0, round((float) $loan['total_amount'] - $balance, 2)); ?>
+                    <?php $remainingInstallments = (int) ($loan['remaining_installment_count'] ?? 0); ?>
                     <?php $selectUrl = url('pages/loan_edit.php?loan_id=' . (int) $loan['id']); ?>
                     <tr class="table-row-clickable" data-select-url="<?= e($selectUrl) ?>">
                         <td><?= e($loan['loan_number']) ?></td>
@@ -62,7 +64,7 @@ require __DIR__ . '/../includes/layout_start.php';
                         <td><?= e(money_label($pdo, (float) $loan['principal_amount'])) ?></td>
                         <td><?= e(money_label($pdo, (float) $loan['total_amount'])) ?></td>
                         <td><?= e(money_label($pdo, $collectedAmount)) ?></td>
-                        <td><?= e(money_label($pdo, $balance)) ?></td>
+                        <td><?= $balance <= 0 ? '---' : e(money_label($pdo, $balance)) ?></td>
                         <td>
                             <?php if (!empty($loan['assigned_user_name'])): ?>
                                 <?= e($loan['assigned_user_name']) ?>
@@ -70,7 +72,13 @@ require __DIR__ . '/../includes/layout_start.php';
                                 <span class="badge badge-neutral">Unassigned</span>
                             <?php endif; ?>
                         </td>
-                        <td><?= e($loan['installment_frequency']) ?> (<?= e((string) $loan['installment_count']) ?>)</td>
+                        <td>
+                            <?php if ($remainingInstallments <= 0): ?>
+                                <span class="badge badge-success">Completed</span>
+                            <?php else: ?>
+                                <?= e((string) $remainingInstallments) ?> left (<?= e((string) $loan['installment_frequency']) ?>)
+                            <?php endif; ?>
+                        </td>
                         <td><span class="badge badge-<?= e(status_badge_class($loan['status'])) ?>"><?= e($loan['status']) ?></span></td>
                     </tr>
                 <?php endforeach; ?>

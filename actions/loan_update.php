@@ -22,6 +22,8 @@ $timeframeValue = (int) ($_POST['timeframe_value'] ?? 0);
 $timeframeUnit = trim((string) ($_POST['timeframe_unit'] ?? 'days'));
 $status = trim((string) ($_POST['status'] ?? 'active'));
 $notes = trim((string) ($_POST['notes'] ?? ''));
+$scheduleNextPayment = (int) ($_POST['schedule_next_payment'] ?? 0) === 1;
+$nextPaymentDateInput = trim((string) ($_POST['next_payment_date'] ?? ''));
 $assignedUserIdRaw = trim((string) ($_POST['assigned_user_id'] ?? ''));
 $assignedUserId = $assignedUserIdRaw === '' ? null : (int) $assignedUserIdRaw;
 $canEditAssignment = has_role(['superadmin', 'admin']);
@@ -49,6 +51,19 @@ if (!in_array($timeframeUnit, ['days', 'months'], true)) {
 if (!in_array($status, ['active', 'closed', 'defaulted'], true)) {
     set_flash('error', 'Invalid loan status.');
     redirect('pages/loan_edit.php?loan_id=' . $loanId);
+}
+
+if ($scheduleNextPayment) {
+    $nextDateObj = DateTimeImmutable::createFromFormat('Y-m-d', $nextPaymentDateInput);
+    if (!$nextDateObj || $nextDateObj->format('Y-m-d') !== $nextPaymentDateInput) {
+        set_flash('error', 'Invalid next payment date.');
+        redirect('pages/loan_edit.php?loan_id=' . $loanId);
+    }
+
+    if ($nextPaymentDateInput <= today()) {
+        set_flash('error', 'Next payment date must be after today.');
+        redirect('pages/loan_edit.php?loan_id=' . $loanId);
+    }
 }
 
 $customerStmt = $pdo->prepare('SELECT id FROM customers WHERE id = :id');
@@ -178,6 +193,25 @@ try {
         $assignStmt->execute();
     }
 
+    $scheduledInstallment = null;
+    $scheduleSkippedNoPending = false;
+    if ($scheduleNextPayment) {
+        $pendingScheduleStmt = $pdo->prepare(
+            "SELECT COUNT(*)
+             FROM loan_installments
+             WHERE loan_id = :loan_id
+               AND status IN ('pending', 'partial', 'overdue')"
+        );
+        $pendingScheduleStmt->execute(['loan_id' => $loanId]);
+        $pendingScheduleCount = (int) $pendingScheduleStmt->fetchColumn();
+
+        if ($pendingScheduleCount > 0) {
+            $scheduledInstallment = schedule_next_installment_date($pdo, $loanId, $nextPaymentDateInput);
+        } else {
+            $scheduleSkippedNoPending = true;
+        }
+    }
+
     $pdo->commit();
     $loanNumber = (string) ($loan['loan_number'] ?? ('#' . $loanId));
     log_activity($pdo, 'loan.updated', 'Loan updated: ' . $loanNumber . '.', [
@@ -189,8 +223,16 @@ try {
         'status' => $status,
         'repayment_locked' => $repaymentLocked ? 1 : 0,
         'legacy_pre_collected' => $hasLegacyPreCollected ? 1 : 0,
+        'schedule_next_payment' => $scheduleNextPayment ? 1 : 0,
+        'scheduled_installment_id' => (int) ($scheduledInstallment['installment_id'] ?? 0),
+        'scheduled_to_date' => (string) ($scheduledInstallment['to_due_date'] ?? ''),
+        'schedule_skipped_no_pending' => $scheduleSkippedNoPending ? 1 : 0,
     ]);
-    if ($repaymentLocked) {
+    if ($scheduleNextPayment && $scheduledInstallment !== null && (bool) ($scheduledInstallment['changed'] ?? false)) {
+        set_flash('success', 'Loan updated. Next payment scheduled for ' . display_date((string) $scheduledInstallment['to_due_date']) . '.');
+    } elseif ($scheduleNextPayment && $scheduleSkippedNoPending) {
+        set_flash('success', 'Loan updated. No pending installments available to schedule.');
+    } elseif ($repaymentLocked) {
         $lockedReason = $hasLegacyPreCollected
             ? 'Loan updated (repayment structure locked because this old loan has pre-collected value).'
             : 'Loan updated (repayment structure locked because collections exist).';

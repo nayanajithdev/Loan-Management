@@ -114,6 +114,17 @@ if (is_collector_role($currentRole)) {
     $selectedCollectionTotalStmt->execute(['selected_date' => $selectedDate]);
 }
 $selectedCollectionTotal = (float) $selectedCollectionTotalStmt->fetchColumn();
+$nextPaymentDefault = $tomorrowDate;
+if ($hasSelectedInstallment) {
+    try {
+        $candidateDate = (new DateTimeImmutable((string) $selectedInstallment['due_date']))->add(new DateInterval('P1D'))->format('Y-m-d');
+        if ($candidateDate > $nextPaymentDefault) {
+            $nextPaymentDefault = $candidateDate;
+        }
+    } catch (Throwable) {
+        // keep tomorrow default
+    }
+}
 
 $baseQueryParams = [
     'date_mode' => $selectedDateMode,
@@ -297,6 +308,26 @@ require __DIR__ . '/../includes/layout_start.php';
                 </div>
             <?php endif; ?>
             <div class="field full">
+                <label class="choice-check">
+                    <input type="checkbox" name="schedule_next_payment" id="schedule-next-payment-toggle" value="1" <?= $hasSelectedInstallment ? '' : 'disabled' ?>>
+                    <span class="choice-check-box" aria-hidden="true">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-check-icon lucide-check"><path d="M20 6 9 17l-5-5"/></svg>
+                    </span>
+                    <span class="choice-check-label">Schedule Next Payment</span>
+                </label>
+            </div>
+            <div class="field" id="next-payment-date-field" style="display:none;">
+                <label>Next Payment Date</label>
+                <input
+                    type="date"
+                    name="next_payment_date"
+                    id="next-payment-date-input"
+                    value="<?= e($nextPaymentDefault) ?>"
+                    min="<?= e($tomorrowDate) ?>"
+                    <?= $hasSelectedInstallment ? '' : 'disabled' ?>
+                >
+            </div>
+            <div class="field full">
                 <label>Note</label>
                 <textarea name="note" placeholder="Optional" <?= $hasSelectedInstallment ? '' : 'disabled' ?>></textarea>
             </div>
@@ -327,6 +358,25 @@ require __DIR__ . '/../includes/layout_start.php';
 })();
 </script>
 <?php endif; ?>
+<script>
+(() => {
+    const scheduleToggle = document.getElementById('schedule-next-payment-toggle');
+    const scheduleField = document.getElementById('next-payment-date-field');
+    const scheduleInput = document.getElementById('next-payment-date-input');
+    if (!scheduleToggle || !scheduleField || !scheduleInput) {
+        return;
+    }
+
+    const syncSchedule = () => {
+        const enabled = scheduleToggle.checked && !scheduleToggle.disabled;
+        scheduleField.style.display = enabled ? '' : 'none';
+        scheduleInput.required = enabled;
+    };
+
+    scheduleToggle.addEventListener('change', syncSchedule);
+    syncSchedule();
+})();
+</script>
 
 <div id="poll-config"
      data-poll-endpoint="<?= e(url('api/collection_poll.php')) ?>"

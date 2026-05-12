@@ -20,5 +20,24 @@ function db(): PDO
         PDO::ATTR_EMULATE_PREPARES => false,
     ]);
 
+    // Local-only fake date support for development:
+    // if config/database.local.php contains ['fake_today' => 'YYYY-MM-DD'],
+    // force this DB session to use that date for CURDATE()/NOW().
+    $fakeTodayRaw = '';
+    if (defined('LOCAL_APP_CONFIG') && is_array(LOCAL_APP_CONFIG)) {
+        $fakeTodayRaw = trim((string) (LOCAL_APP_CONFIG['fake_today'] ?? ''));
+    }
+    if ($fakeTodayRaw !== '') {
+        $parsedFakeToday = DateTimeImmutable::createFromFormat('Y-m-d', $fakeTodayRaw);
+        if ($parsedFakeToday && $parsedFakeToday->format('Y-m-d') === $fakeTodayRaw) {
+            $fakeDateTime = $fakeTodayRaw . ' 12:00:00';
+            try {
+                $pdo->exec('SET timestamp = UNIX_TIMESTAMP(' . $pdo->quote($fakeDateTime) . ')');
+            } catch (Throwable) {
+                // Ignore if host/database blocks session timestamp changes.
+            }
+        }
+    }
+
     return $pdo;
 }

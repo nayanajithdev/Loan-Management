@@ -53,6 +53,7 @@ $defaultTimeframeValue = match ((string) $loan['installment_frequency']) {
 $defaultTimeframeUnit = (string) $loan['installment_frequency'] === 'monthly' ? 'months' : 'days';
 $defaultInterestRateType = normalize_interest_rate_type((string) ($loan['interest_rate_type'] ?? 'amount_based'));
 $defaultInterestRateMonths = normalize_interest_rate_months((int) ($loan['interest_rate_months'] ?? 1));
+$tomorrowDate = (new DateTimeImmutable(today()))->add(new DateInterval('P1D'))->format('Y-m-d');
 
 require __DIR__ . '/../includes/layout_start.php';
 ?>
@@ -191,6 +192,16 @@ require __DIR__ . '/../includes/layout_start.php';
             <?php endif; ?>
         </div>
 
+        <div class="field loan-schedule-field">
+            <label>Schedule Next Payment</label>
+            <div class="loan-schedule-row">
+                <div class="loan-schedule-checkbox-field">
+                    <input type="checkbox" name="schedule_next_payment" id="schedule-next-payment-toggle" value="1" class="loan-schedule-checkbox-input">
+                </div>
+                <input type="date" name="next_payment_date" id="next-payment-date-input" value="<?= e($tomorrowDate) ?>" min="<?= e($tomorrowDate) ?>" disabled>
+            </div>
+        </div>
+
         <div class="field full">
             <label>Notes</label>
             <textarea name="notes" placeholder="Optional"><?= e((string) ($loan['notes'] ?? '')) ?></textarea>
@@ -219,5 +230,24 @@ require __DIR__ . '/../includes/layout_start.php';
         </div>
     </form>
 </section>
+
+<script>
+(() => {
+    const scheduleToggle = document.getElementById('schedule-next-payment-toggle');
+    const scheduleInput = document.getElementById('next-payment-date-input');
+    if (!scheduleToggle || !scheduleInput) {
+        return;
+    }
+
+    const syncSchedule = () => {
+        const enabled = scheduleToggle.checked;
+        scheduleInput.disabled = !enabled;
+        scheduleInput.required = enabled;
+    };
+
+    scheduleToggle.addEventListener('change', syncSchedule);
+    syncSchedule();
+})();
+</script>
 
 <?php require __DIR__ . '/../includes/layout_end.php';

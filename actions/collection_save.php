@@ -18,6 +18,8 @@ $method = trim((string) ($_POST['method'] ?? 'cash'));
 $note = trim((string) ($_POST['note'] ?? ''));
 $backdatedEntry = (int) ($_POST['backdated_entry'] ?? 0) === 1;
 $paidOnDateInput = trim((string) ($_POST['paid_on_date'] ?? ''));
+$scheduleNextPayment = (int) ($_POST['schedule_next_payment'] ?? 0) === 1;
+$nextPaymentDateInput = trim((string) ($_POST['next_payment_date'] ?? ''));
 $collectedByUserId = (int) (current_user()['id'] ?? 0);
 try {
     $paymentRef = 'PAY-' . date('YmdHis') . '-' . bin2hex(random_bytes(4));
@@ -95,6 +97,20 @@ if ($backdatedEntry) {
 if (!in_array($method, ['cash', 'bank', 'online'], true)) {
     $method = 'cash';
 }
+
+if ($scheduleNextPayment) {
+    $nextDateObj = DateTimeImmutable::createFromFormat('Y-m-d', $nextPaymentDateInput);
+    if (!$nextDateObj || $nextDateObj->format('Y-m-d') !== $nextPaymentDateInput) {
+        set_flash('error', 'Invalid next payment date.');
+        redirect($returnTo);
+    }
+
+    if ($nextPaymentDateInput <= today()) {
+        set_flash('error', 'Next payment date must be after today.');
+        redirect($returnTo);
+    }
+}
+
 $allowOverpayment = system_setting($pdo, 'allow_overpayment', '1') !== '0';
 
 try {
@@ -165,10 +181,14 @@ try {
         }
     }
 
+    // Reduce-tenure allocation:
+    // 1) apply to selected installment first
+    // 2) apply any extra to the latest pending installments (from the tail),
+    //    so upcoming dues (e.g. tomorrow) remain unchanged.
     $instStmt = $pdo->prepare(
         "SELECT * FROM loan_installments
          WHERE loan_id = :loan_id AND status IN ('pending', 'partial', 'overdue')
-         ORDER BY due_date ASC, installment_no ASC
+         ORDER BY due_date DESC, installment_no DESC
          FOR UPDATE"
     );
     $instStmt->execute(['loan_id' => $loanId]);
@@ -262,6 +282,16 @@ try {
     $check->execute(['loan_id' => $loanId]);
     $pendingCount = (int) $check->fetchColumn();
 
+    $scheduledInstallment = null;
+    $scheduleSkippedNoPending = false;
+    if ($scheduleNextPayment) {
+        if ($pendingCount > 0) {
+            $scheduledInstallment = schedule_next_installment_date($pdo, $loanId, $nextPaymentDateInput);
+        } else {
+            $scheduleSkippedNoPending = true;
+        }
+    }
+
     if ($pendingCount === 0) {
         $closeLoan = $pdo->prepare("UPDATE loans SET status = 'closed' WHERE id = :id");
         $closeLoan->execute(['id' => $loanId]);
@@ -291,10 +321,20 @@ try {
             'payment_ref' => $paymentRef,
             'backdated_entry' => $backdatedEntry ? 1 : 0,
             'paid_on_date' => $paidOnDate,
+            'schedule_next_payment' => $scheduleNextPayment ? 1 : 0,
+            'scheduled_installment_id' => (int) ($scheduledInstallment['installment_id'] ?? 0),
+            'scheduled_to_date' => (string) ($scheduledInstallment['to_due_date'] ?? ''),
+            'schedule_skipped_no_pending' => $scheduleSkippedNoPending ? 1 : 0,
             'assigned_user' => $assignedUser !== null ? (string) ($assignedUser['full_name'] ?? '') : 'Unassigned',
         ]);
 
-    set_flash('success', 'Collection recorded successfully.');
+    if ($scheduleNextPayment && $scheduledInstallment !== null && (bool) ($scheduledInstallment['changed'] ?? false)) {
+        set_flash('success', 'Collection recorded. Next payment scheduled for ' . display_date((string) $scheduledInstallment['to_due_date']) . '.');
+    } elseif ($scheduleNextPayment && $scheduleSkippedNoPending) {
+        set_flash('success', 'Collection recorded. Loan has no pending installments to schedule.');
+    } else {
+        set_flash('success', 'Collection recorded successfully.');
+    }
 } catch (Throwable $e) {
     if ($pdo->inTransaction()) {
         $pdo->rollBack();
