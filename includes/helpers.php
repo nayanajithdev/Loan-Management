@@ -472,22 +472,22 @@ function schedule_next_installment_date(PDO $pdo, int $loanId, string $scheduled
         throw new RuntimeException('Next payment date must be after today.');
     }
 
-    $nextStmt = $pdo->prepare(
+    $pendingStmt = $pdo->prepare(
         "SELECT id, installment_no, due_date, due_amount, paid_amount, status
          FROM loan_installments
          WHERE loan_id = :loan_id
            AND status IN ('pending', 'partial', 'overdue')
          ORDER BY due_date ASC, installment_no ASC
-         LIMIT 1
          FOR UPDATE"
     );
-    $nextStmt->execute(['loan_id' => $loanId]);
-    $nextInstallment = $nextStmt->fetch();
+    $pendingStmt->execute(['loan_id' => $loanId]);
+    $pendingInstallments = $pendingStmt->fetchAll();
 
-    if (!$nextInstallment) {
+    if (!$pendingInstallments) {
         throw new RuntimeException('No pending installment available to schedule.');
     }
 
+    $nextInstallment = $pendingInstallments[0];
     $nextInstallmentId = (int) $nextInstallment['id'];
     $currentDueDate = (string) $nextInstallment['due_date'];
     $paidAmount = round((float) $nextInstallment['paid_amount'], 2);
@@ -503,20 +503,45 @@ function schedule_next_installment_date(PDO $pdo, int $loanId, string $scheduled
         ];
     }
 
-    $updatedStatus = $paidAmount >= $dueAmount
-        ? 'paid'
-        : ($paidAmount > 0 ? 'partial' : 'pending');
+    $currentDueObj = DateTimeImmutable::createFromFormat('Y-m-d', $currentDueDate);
+    if (!$currentDueObj || $currentDueObj->format('Y-m-d') !== $currentDueDate) {
+        throw new RuntimeException('Invalid installment due date.');
+    }
+
+    $deltaDays = (int) $currentDueObj->diff($scheduledDateObj)->format('%r%a');
+    if ($deltaDays < 0) {
+        throw new RuntimeException('Next payment date cannot be earlier than current due date.');
+    }
 
     $updateStmt = $pdo->prepare(
         'UPDATE loan_installments
          SET due_date = :due_date, status = :status
          WHERE id = :id'
     );
-    $updateStmt->execute([
-        'due_date' => $scheduledDate,
-        'status' => $updatedStatus,
-        'id' => $nextInstallmentId,
-    ]);
+
+    foreach ($pendingInstallments as $index => $installment) {
+        $installmentDue = (string) $installment['due_date'];
+        $installmentDueObj = DateTimeImmutable::createFromFormat('Y-m-d', $installmentDue);
+        if (!$installmentDueObj || $installmentDueObj->format('Y-m-d') !== $installmentDue) {
+            continue;
+        }
+
+        $newDueDate = $index === 0
+            ? $scheduledDate
+            : $installmentDueObj->modify(sprintf('%+d days', $deltaDays))->format('Y-m-d');
+
+        $installmentPaid = round((float) $installment['paid_amount'], 2);
+        $installmentDueAmount = round((float) $installment['due_amount'], 2);
+        $updatedStatus = $installmentPaid >= $installmentDueAmount
+            ? 'paid'
+            : ($installmentPaid > 0 ? 'partial' : 'pending');
+
+        $updateStmt->execute([
+            'due_date' => $newDueDate,
+            'status' => $updatedStatus,
+            'id' => (int) $installment['id'],
+        ]);
+    }
 
     return [
         'installment_id' => $nextInstallmentId,
@@ -524,6 +549,7 @@ function schedule_next_installment_date(PDO $pdo, int $loanId, string $scheduled
         'from_due_date' => $currentDueDate,
         'to_due_date' => $scheduledDate,
         'changed' => true,
+        'shifted_count' => count($pendingInstallments),
     ];
 }
 
