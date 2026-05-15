@@ -549,6 +549,8 @@
     const timeframeValueInput = form.querySelector('[name="timeframe_value"]');
     const timeframeUnitInput = form.querySelector('[name="timeframe_unit"]');
     const collectedInput = form.querySelector('[name="collected_amount"]');
+    const collectedIncludingTodayInput = form.querySelector('[name="collected_including_today"]');
+    const nextCollectionHint = document.getElementById('legacy-next-collection-hint');
     const totalEl = document.getElementById('legacy-preview-total');
     const collectedEl = document.getElementById('legacy-preview-collected');
     const remainingEl = document.getElementById('legacy-preview-remaining');
@@ -599,6 +601,16 @@
         }
     };
 
+    const updateNextCollectionHint = () => {
+        if (!nextCollectionHint || !collectedIncludingTodayInput) {
+            return;
+        }
+
+        nextCollectionHint.textContent = collectedIncludingTodayInput.checked
+            ? 'Next collection schedule starts from tomorrow.'
+            : 'Next collection schedule starts from today.';
+    };
+
     const updatePreview = () => {
         const principal = Math.max(toNumber(principalInput.value), 0);
         const interestRate = Math.max(toNumber(interestInput.value), 0);
@@ -645,7 +657,11 @@
         interestTypeInput.addEventListener('change', toggleInterestMonthsField);
         interestTypeInput.addEventListener('input', toggleInterestMonthsField);
     }
+    if (collectedIncludingTodayInput) {
+        collectedIncludingTodayInput.addEventListener('change', updateNextCollectionHint);
+    }
 
     toggleInterestMonthsField();
+    updateNextCollectionHint();
     updatePreview();
 })();

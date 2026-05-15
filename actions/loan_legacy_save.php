@@ -20,6 +20,7 @@ $timeframeValue = (int) ($_POST['timeframe_value'] ?? 0);
 $timeframeUnit = trim((string) ($_POST['timeframe_unit'] ?? 'days'));
 $issuedDate = trim((string) ($_POST['issued_date'] ?? ''));
 $collectedAmount = round((float) ($_POST['collected_amount'] ?? 0), 2);
+$collectedIncludingToday = (int) ($_POST['collected_including_today'] ?? 0) === 1;
 $notes = trim((string) ($_POST['notes'] ?? ''));
 
 if ($customerId <= 0 || $principal <= 0 || $timeframeValue <= 0 || $issuedDate === '') {
@@ -82,7 +83,9 @@ if ($remainingAmount > 0) {
 
 $loanNumber = next_loan_number($pdo);
 $startDate = $issuedDate;
-$firstDueDate = (new DateTimeImmutable(today()))->add(new DateInterval('P1D'))->format('Y-m-d');
+$firstDueDate = $collectedIncludingToday
+    ? (new DateTimeImmutable(today()))->add(new DateInterval('P1D'))->format('Y-m-d')
+    : today();
 
 try {
     $pdo->beginTransaction();
@@ -183,12 +186,15 @@ try {
         'collected_amount' => $collectedAmount,
         'remaining_amount' => $remainingAmount,
         'issued_date' => $issuedDate,
+        'collected_including_today' => $collectedIncludingToday ? 1 : 0,
+        'first_due_date' => $firstDueDate,
     ]);
 
     if ($remainingAmount <= 0) {
         set_flash('success', 'Old loan added as fully collected (closed).');
     } else {
-        set_flash('success', 'Old loan added. Remaining schedule starts from tomorrow.');
+        $nextStartText = $collectedIncludingToday ? 'tomorrow' : 'today';
+        set_flash('success', 'Old loan added. Remaining schedule starts from ' . $nextStartText . '.');
     }
 } catch (Throwable $e) {
     if ($pdo->inTransaction()) {

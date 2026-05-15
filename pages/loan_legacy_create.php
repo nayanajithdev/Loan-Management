@@ -108,9 +108,18 @@ require __DIR__ . '/../includes/layout_start.php';
             </div>
 
             <div class="field">
-                <label>How Much Collected (Including Today)</label>
-                <input type="number" step="0.01" min="0" name="collected_amount" value="0.00" required>
-                <small>Next collection schedule starts from tomorrow.</small>
+                <label>How Much Collected</label>
+                <div class="legacy-collected-row">
+                    <input type="number" step="0.01" min="0" name="collected_amount" value="0.00" required>
+                    <label class="choice-check legacy-collected-toggle">
+                        <input type="checkbox" name="collected_including_today" value="1" checked>
+                        <span class="choice-check-box" aria-hidden="true">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-check-icon lucide-check"><path d="M20 6 9 17l-5-5"/></svg>
+                        </span>
+                        <span class="choice-check-label">Including Today</span>
+                    </label>
+                </div>
+                <small id="legacy-next-collection-hint">Next collection schedule starts from tomorrow.</small>
             </div>
 
             <div class="field full">
