@@ -15,6 +15,9 @@ $currentUserId = (int) ($current['id'] ?? 0);
 $selectedCustomerId = (int) ($_GET['customer_id'] ?? 0);
 $search = trim((string) ($_GET['q'] ?? ''));
 $search = mb_substr($search, 0, 120);
+$offset = max(0, (int) ($_GET['offset'] ?? 0));
+$perPage = 50;
+$queryLimit = $perPage + 1;
 
 $scopeSql = '';
 $params = [];
@@ -59,10 +62,16 @@ $collectionsStmt = $pdo->prepare(
      {$scopeSql}{$legacyCustomerFilterSql}{$searchFilterSql}
      GROUP BY COALESCE(col.payment_ref, CONCAT('legacy-', col.id)), l.loan_number, c.full_name
      ORDER BY latest_id DESC
-     LIMIT 50"
+     LIMIT {$queryLimit} OFFSET {$offset}"
 );
 $collectionsStmt->execute($params);
-$collections = $collectionsStmt->fetchAll();
+$collectionsRaw = $collectionsStmt->fetchAll();
+$hasMore = count($collectionsRaw) > $perPage;
+$collections = $hasMore ? array_slice($collectionsRaw, 0, $perPage) : $collectionsRaw;
+
+$queryForMore = $_GET;
+$queryForMore['offset'] = $offset + $perPage;
+$loadMoreUrl = url('pages/collections.php') . '?' . http_build_query($queryForMore);
 
 require __DIR__ . '/../includes/layout_start.php';
 ?>
@@ -124,6 +133,11 @@ require __DIR__ . '/../includes/layout_start.php';
             </tbody>
         </table>
     </div>
+    <?php if ($hasMore): ?>
+        <div class="reports-filter-actions" style="justify-content: flex-end; margin-top: 12px;">
+            <a class="btn btn-primary" href="<?= e($loadMoreUrl) ?>">Load More</a>
+        </div>
+    <?php endif; ?>
 </section>
 
 <div id="poll-config"
