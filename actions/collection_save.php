@@ -156,61 +156,55 @@ try {
         throw new RuntimeException('Overpayment is disabled. Maximum allowed amount is ' . money_label($pdo, $outstanding) . '.');
     }
 
-    $remaining = $amount;
-
-    $installments = [];
-
-    if ($preferredInstallmentId > 0) {
-        $prefStmt = $pdo->prepare(
-            "SELECT * FROM loan_installments
-             WHERE id = :id AND loan_id = :loan_id
-             FOR UPDATE"
-        );
-        $prefStmt->execute([
-            'id' => $preferredInstallmentId,
-            'loan_id' => $loanId,
-        ]);
-        $preferred = $prefStmt->fetch();
-
-        if ($preferred && in_array($preferred['status'], ['pending', 'partial', 'overdue'], true)) {
-            $installments[] = $preferred;
-        }
-
-        if ($preferred && (string) $preferred['due_date'] > today()) {
-            throw new RuntimeException('Cannot collect a future installment from this panel.');
-        }
-
-        if ($backdatedEntry && $preferred && (string) $preferred['due_date'] > $collectedOn) {
-            throw new RuntimeException('Backdated entry is not allowed when collecting a future installment.');
-        }
-    }
-
-    // Reduce-tenure allocation:
-    // 1) apply to selected installment first
-    // 2) apply any extra to the latest pending installments (from the tail),
-    //    so upcoming dues (e.g. tomorrow) remain unchanged.
-    $instStmt = $pdo->prepare(
-        "SELECT * FROM loan_installments
-         WHERE loan_id = :loan_id AND status IN ('pending', 'partial', 'overdue')
+    $oldestCollectibleStmt = $pdo->prepare(
+        "SELECT *
+         FROM loan_installments
+         WHERE loan_id = :loan_id
+           AND status IN ('pending', 'partial', 'overdue')
            AND due_date <= :today_date
-         ORDER BY due_date DESC, installment_no DESC
+         ORDER BY due_date ASC, installment_no ASC
+         LIMIT 1
          FOR UPDATE"
     );
-    $instStmt->execute([
+    $oldestCollectibleStmt->execute([
         'loan_id' => $loanId,
         'today_date' => today(),
     ]);
-    $remainingInstallments = $instStmt->fetchAll();
+    $oldestCollectible = $oldestCollectibleStmt->fetch();
 
-    foreach ($remainingInstallments as $item) {
-        if ($preferredInstallmentId > 0 && (int) $item['id'] === $preferredInstallmentId) {
-            continue;
-        }
-        $installments[] = $item;
+    if (!$oldestCollectible) {
+        throw new RuntimeException('No due installments available for collection today.');
     }
 
-    if (count($installments) === 0) {
-        throw new RuntimeException('No due installments available for collection today.');
+    $oldestCollectibleId = (int) $oldestCollectible['id'];
+    if ($preferredInstallmentId > 0 && $preferredInstallmentId !== $oldestCollectibleId) {
+        throw new RuntimeException('Only the oldest due installment can be collected.');
+    }
+
+    if ((string) $oldestCollectible['due_date'] > today()) {
+        throw new RuntimeException('Cannot collect a future installment from this panel.');
+    }
+
+    if ($backdatedEntry && (string) $oldestCollectible['due_date'] > $collectedOn) {
+        throw new RuntimeException('Backdated entry is not allowed when collecting a future installment.');
+    }
+
+    $pendingStmt = $pdo->prepare(
+        "SELECT *
+         FROM loan_installments
+         WHERE loan_id = :loan_id
+           AND status IN ('pending', 'partial', 'overdue')
+           AND due_date <= :today_date
+         ORDER BY due_date ASC, installment_no ASC
+         FOR UPDATE"
+    );
+    $pendingStmt->execute([
+        'loan_id' => $loanId,
+        'today_date' => today(),
+    ]);
+    $pendingInstallments = $pendingStmt->fetchAll();
+    if ($pendingInstallments === []) {
+        throw new RuntimeException('No pending installments found.');
     }
 
     $updateInstallment = $pdo->prepare(
@@ -224,34 +218,34 @@ try {
          VALUES (:loan_id, :installment_id, :amount, :collected_on, :method, :note, :collected_by_user_id, :payment_ref)'
     );
 
-    foreach ($installments as $inst) {
-        if ($remaining <= 0) {
+    $remaining = $amount;
+    foreach ($pendingInstallments as $inst) {
+        if ($remaining <= 0.009) {
             break;
         }
 
         $balance = round((float) $inst['due_amount'] - (float) $inst['paid_amount'], 2);
-        if ($balance <= 0) {
+        if ($balance <= 0.009) {
             continue;
-        }
-
-        if ($backdatedEntry && (string) $inst['due_date'] > $collectedOn) {
-            throw new RuntimeException('Backdated entry is not allowed when collecting future installments.');
         }
 
         $pay = min($remaining, $balance);
         $newPaid = round((float) $inst['paid_amount'] + $pay, 2);
 
-        if ($newPaid >= (float) $inst['due_amount']) {
+        if ($newPaid + 0.009 >= (float) $inst['due_amount']) {
             $status = 'paid';
-        } elseif ($newPaid > 0) {
+            $paidOnValue = $paidOnDate;
+        } elseif ($newPaid > 0.009) {
             $status = 'partial';
+            $paidOnValue = null;
         } else {
-            $status = 'pending';
+            $status = (string) $inst['status'];
+            $paidOnValue = (string) ($inst['paid_on'] ?? '') !== '' ? (string) $inst['paid_on'] : null;
         }
 
         $updateInstallment->execute([
             'paid_amount' => $newPaid,
-            'paid_on' => $status === 'paid' ? $paidOnDate : null,
+            'paid_on' => $paidOnValue,
             'status' => $status,
             'id' => $inst['id'],
         ]);

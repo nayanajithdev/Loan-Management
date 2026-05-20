@@ -11,6 +11,7 @@ $viewerId = (int) ($viewer['id'] ?? 0);
 $isCollectorScope = is_collector_role($viewerRole) && $viewerId > 0;
 $stats = dashboard_stats($pdo, $viewer);
 $todayGoal = today_collection_goal($pdo, $viewer);
+$todayCollectedTotal = today_collected_total($pdo, $viewer);
 $collectionsTrend = collections_30day_trend($pdo, $viewer);
 $userGoals = dashboard_user_goals($pdo, $viewer);
 $chartWidth = 920;
@@ -22,7 +23,8 @@ $openProjectedProfitValue = (float) $stats['expected_open_profit'];
 $profitTotal = $closedProfitValue + $openProjectedProfitValue;
 $closedProfitPct = $profitTotal > 0 ? ($closedProfitValue / $profitTotal) * 100 : 0;
 $openProjectedPct = $profitTotal > 0 ? ($openProjectedProfitValue / $profitTotal) * 100 : 0;
-$isTodayTargetCompleted = (float) $todayGoal['target'] > 0 && (float) $todayGoal['collected'] >= (float) $todayGoal['target'];
+$isTodayTargetCompleted = (float) $todayGoal['target'] > 0 && $todayCollectedTotal >= (float) $todayGoal['target'];
+$todayGoalMetaText = 'Target: ' . money_label($pdo, (float) $todayGoal['target']);
 
 if ($isCollectorScope) {
     $recentStmt = $pdo->prepare(
@@ -51,9 +53,9 @@ ob_start();
 ?>
 <article class="stat-card goal-mini-card card-clickable" id="dashboard-goal-card" data-select-url="<?= e(url('pages/today_collections.php')) ?>">
     <p class="stat-label">Today's Collections</p>
-    <p class="goal-mini-collected"><?= e(money_label($pdo, $todayGoal['collected'])) ?></p>
+    <p class="goal-mini-collected"><?= e(money_label($pdo, $todayCollectedTotal)) ?></p>
     <p class="goal-mini-target <?= $isTodayTargetCompleted ? 'goal-mini-target-success' : '' ?>">
-        <?= $isTodayTargetCompleted ? 'Target completed' : ('Target: ' . money_label($pdo, $todayGoal['target'])) ?>
+        <?= e($todayGoalMetaText) ?>
     </p>
     <div class="goal-progress">
         <span style="width: <?= e((string) $todayGoal['percentage']) ?>%"></span>

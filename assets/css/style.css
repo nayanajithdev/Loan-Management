@@ -868,7 +868,7 @@ button {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-bottom: 12px;
+    margin-bottom: 30px;
 }
 
 .panel-head-actions {
@@ -1573,6 +1573,140 @@ textarea {
     cursor: not-allowed;
 }
 
+.loan-installments-panel {
+    margin-top: 0;
+}
+
+.loan-installments-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
+    gap: 12px;
+}
+
+.loan-inst-card {
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.01);
+    padding: 12px;
+    display: grid;
+    gap: 10px;
+    min-height: 168px;
+}
+
+.loan-inst-current {
+    border-color: rgba(255, 122, 26, 0.55);
+    box-shadow: 0 0 0 1px rgba(255, 122, 26, 0.15);
+}
+
+.loan-inst-status-success {
+    border-color: rgba(43, 179, 108, 0.38);
+    background: linear-gradient(145deg, rgba(43, 179, 108, 0.2), rgba(43, 179, 108, 0.08) 38%, rgba(255, 255, 255, 0.02) 100%);
+}
+
+.loan-inst-top {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.loan-inst-no {
+    font-size: 24px;
+    font-weight: 800;
+    letter-spacing: 0.3px;
+}
+
+.loan-inst-badges {
+    display: inline-flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 6px;
+    align-items: center;
+}
+
+.loan-inst-undo-form {
+    margin: 0;
+}
+
+.loan-inst-undo-btn {
+    width: 34px;
+    height: 34px;
+    border-radius: 8px;
+    border: 1px solid var(--edge);
+    background: var(--surface-2);
+    color: #d8d8d8;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    cursor: pointer;
+}
+
+.loan-inst-undo-btn svg {
+    width: 16px;
+    height: 16px;
+}
+
+.loan-inst-undo-btn:hover {
+    border-color: rgba(255, 122, 26, 0.5);
+    color: #ffb27b;
+}
+
+.loan-inst-money-row {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.loan-inst-money-row.single {
+    grid-template-columns: 1fr;
+}
+
+.loan-inst-money-row p {
+    margin: 0;
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.loan-inst-money-row strong {
+    display: block;
+    margin-top: 3px;
+    font-size: 18px;
+    line-height: 1.25;
+}
+
+.loan-inst-amount-empty::before {
+    content: '\00a0';
+}
+
+.loan-inst-collect-form {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 8px;
+}
+
+.loan-inst-collect-form input[type="number"] {
+    width: 100%;
+}
+
+.loan-inst-meta {
+    margin-top: auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    color: #cfcfcf;
+    font-size: 12px;
+}
+
+.loan-inst-meta span:last-child {
+    text-align: right;
+}
+
+.loan-inst-undo-hint {
+    margin-top: 10px;
+}
+
 .calc-preview-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1662,6 +1796,11 @@ textarea {
 
 .table-row-clickable {
     cursor: pointer;
+}
+
+.row-disabled {
+    opacity: 0.72;
+    cursor: not-allowed;
 }
 
 .card-clickable {

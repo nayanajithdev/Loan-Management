@@ -11,6 +11,9 @@ $currentUserId = (int) ($current['id'] ?? 0);
 $selectedCustomerId = (int) ($_GET['customer_id'] ?? 0);
 $search = trim((string) ($_GET['q'] ?? ''));
 $search = mb_substr($search, 0, 120);
+$offset = max(0, (int) ($_GET['offset'] ?? 0));
+$perPage = 50;
+$queryLimit = $perPage + 1;
 
 $scopeSql = '';
 $params = [];
@@ -55,10 +58,12 @@ $collectionsStmt = $pdo->prepare(
      {$scopeSql}{$legacyCustomerFilterSql}{$searchFilterSql}
      GROUP BY COALESCE(col.payment_ref, CONCAT('legacy-', col.id)), l.loan_number, c.full_name
      ORDER BY latest_id DESC
-     LIMIT 50"
+     LIMIT {$queryLimit} OFFSET {$offset}"
 );
 $collectionsStmt->execute($params);
-$collections = $collectionsStmt->fetchAll();
+$collectionsRaw = $collectionsStmt->fetchAll();
+$hasMore = count($collectionsRaw) > $perPage;
+$collections = $hasMore ? array_slice($collectionsRaw, 0, $perPage) : $collectionsRaw;
 
 ob_start();
 if (!$collections):
@@ -67,7 +72,8 @@ if (!$collections):
 <?php
 else:
     foreach ($collections as $item):
-        $note = (string) ($item['note'] ?? '');
+        $noteParts = collection_note_split((string) ($item['note'] ?? ''));
+        $note = (string) ($noteParts['public'] ?? '');
         if ((int) $item['has_advance'] === 1 && stripos($note, 'advance') === false) {
             $note = trim($note === '' ? 'Advance payment' : $note . ' | Advance payment');
         }
@@ -86,10 +92,25 @@ else:
 endif;
 $historyHtml = ob_get_clean();
 
+$queryForMore = $_GET;
+$queryForMore['offset'] = $offset + $perPage;
+$loadMoreUrl = url('pages/collections.php') . '?' . http_build_query($queryForMore);
+
+ob_start();
+if ($hasMore):
+?>
+<div class="reports-filter-actions" style="justify-content: flex-end; margin-top: 12px;">
+    <a class="btn btn-primary" href="<?= e($loadMoreUrl) ?>">Load More</a>
+</div>
+<?php
+endif;
+$loadMoreHtml = ob_get_clean();
+
 header('Content-Type: application/json; charset=utf-8');
 echo json_encode([
     'updated_at' => date('H:i:s'),
     'targets' => [
         '#collection-history-table-body' => $historyHtml,
+        '#collection-history-load-more-wrap' => $loadMoreHtml,
     ],
 ], JSON_UNESCAPED_UNICODE);

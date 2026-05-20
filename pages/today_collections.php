@@ -84,9 +84,22 @@ $stmt = $pdo->prepare($sql);
 $stmt->execute($params);
 $dueInstallments = $stmt->fetchAll();
 
+$oldestCollectibleByLoan = [];
+if ($selectedDate <= $todayDate) {
+    foreach ($dueInstallments as $item) {
+        $loanKey = (int) $item['loan_id'];
+        if (!isset($oldestCollectibleByLoan[$loanKey])) {
+            $oldestCollectibleByLoan[$loanKey] = (int) $item['id'];
+        }
+    }
+}
+
 $selectedInstallment = null;
 foreach ($dueInstallments as $item) {
-    if ((int) $item['id'] === $selectedInstallmentId) {
+    $itemId = (int) $item['id'];
+    $loanKey = (int) $item['loan_id'];
+    $isOldestCollectible = !isset($oldestCollectibleByLoan[$loanKey]) || $oldestCollectibleByLoan[$loanKey] === $itemId;
+    if ($itemId === $selectedInstallmentId && $isOldestCollectible) {
         $selectedInstallment = $item;
         break;
     }
@@ -208,14 +221,22 @@ require __DIR__ . '/../includes/layout_start.php';
                             $displayStatus = 'overdue';
                         }
                         ?>
-                        <?php $selectUrl = url('pages/today_collections.php?' . http_build_query(['date_mode' => $selectedDateMode, 'date' => $selectedDate, 'q' => $search, 'selected_installment' => (int) $item['id']])); ?>
-                        <tr class="table-row-clickable <?= (int) $item['id'] === $selectedInstallmentId ? 'row-selected' : '' ?>" data-select-url="<?= e($selectUrl) ?>">
+                        <?php
+                        $loanKey = (int) $item['loan_id'];
+                        $itemId = (int) $item['id'];
+                        $isOldestCollectible = !isset($oldestCollectibleByLoan[$loanKey]) || $oldestCollectibleByLoan[$loanKey] === $itemId;
+                        $canSelectThisRow = $isOldestCollectible;
+                        $rowSelectUrl = $canSelectThisRow
+                            ? url('pages/today_collections.php?' . http_build_query(['date_mode' => $selectedDateMode, 'date' => $selectedDate, 'q' => $search, 'selected_installment' => $itemId]))
+                            : '';
+                        ?>
+                        <tr class="<?= $canSelectThisRow ? 'table-row-clickable' : 'row-disabled' ?> <?= $itemId === $selectedInstallmentId ? 'row-selected' : '' ?>" <?= $canSelectThisRow ? ('data-select-url="' . e($rowSelectUrl) . '"') : '' ?>>
                             <td><?= e($item['loan_number']) ?></td>
                             <td><?= e($item['full_name']) ?></td>
                             <td><?= e($item['phone']) ?></td>
                             <td>#<?= e((string) $item['installment_no']) ?></td>
                             <td><?= e(display_date((string) $item['due_date'])) ?></td>
-                            <td><?= e(money_label($pdo, (float) $item['due_amount'])) ?></td>
+                            <td><?= e(money_label($pdo, $balance)) ?></td>
                             <td><span class="badge badge-<?= e(status_badge_class($displayStatus)) ?>"><?= e($displayStatus) ?></span></td>
                         </tr>
                     <?php endforeach; ?>
@@ -280,7 +301,7 @@ require __DIR__ . '/../includes/layout_start.php';
             </div>
             <div class="field">
                 <label>Due Amount</label>
-                <div class="readonly-value"><?= e($hasSelectedInstallment ? money_label($pdo, (float) $selectedInstallment['due_amount']) : money_label($pdo, 0.0)) ?></div>
+                <div class="readonly-value"><?= e($hasSelectedInstallment ? money_label($pdo, $selectedBalance) : money_label($pdo, 0.0)) ?></div>
             </div>
             <div class="field">
                 <label>Amount Received</label>

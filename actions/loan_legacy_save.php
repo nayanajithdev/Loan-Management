@@ -81,6 +81,10 @@ if ($remainingAmount > 0) {
     $status = 'active';
 }
 
+// For imported old loans, keep installment numbering aligned to the original
+// schedule position instead of restarting from #1.
+$startingInstallmentNo = max(1, $originalInstallmentCount - $remainingInstallmentCount + 1);
+
 $loanNumber = next_loan_number($pdo);
 $startDate = $issuedDate;
 $firstDueDate = $collectedIncludingToday
@@ -153,6 +157,7 @@ try {
 
         $allocated = 0.0;
         for ($i = 1; $i <= $remainingInstallmentCount; $i++) {
+            $installmentNo = $startingInstallmentNo + ($i - 1);
             $amount = $installmentAmount;
             if ($i === $remainingInstallmentCount) {
                 $amount = round($remainingAmount - $allocated, 2);
@@ -162,7 +167,7 @@ try {
 
             $insertInstallment->execute([
                 'loan_id' => $loanId,
-                'installment_no' => $i,
+                'installment_no' => $installmentNo,
                 'due_date' => $dueDate->format('Y-m-d'),
                 'due_amount' => $amount,
             ]);

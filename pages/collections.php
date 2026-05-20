@@ -114,7 +114,8 @@ require __DIR__ . '/../includes/layout_start.php';
             <?php else: ?>
                 <?php foreach ($collections as $item): ?>
                     <?php
-                    $note = (string) ($item['note'] ?? '');
+                    $noteParts = collection_note_split((string) ($item['note'] ?? ''));
+                    $note = (string) ($noteParts['public'] ?? '');
                     if ((int) $item['has_advance'] === 1 && stripos($note, 'advance') === false) {
                         $note = trim($note === '' ? 'Advance payment' : $note . ' | Advance payment');
                     }
@@ -133,11 +134,13 @@ require __DIR__ . '/../includes/layout_start.php';
             </tbody>
         </table>
     </div>
-    <?php if ($hasMore): ?>
-        <div class="reports-filter-actions" style="justify-content: flex-end; margin-top: 12px;">
-            <a class="btn btn-primary" href="<?= e($loadMoreUrl) ?>">Load More</a>
-        </div>
-    <?php endif; ?>
+    <div id="collection-history-load-more-wrap">
+        <?php if ($hasMore): ?>
+            <div class="reports-filter-actions" style="justify-content: flex-end; margin-top: 12px;">
+                <a class="btn btn-primary" href="<?= e($loadMoreUrl) ?>">Load More</a>
+            </div>
+        <?php endif; ?>
+    </div>
 </section>
 
 <div id="poll-config"

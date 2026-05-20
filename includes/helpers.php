@@ -45,6 +45,40 @@ function role_display_name(string $role): string
     };
 }
 
+function short_name_words(string $fullName, int $maxWords = 2): string
+{
+    $maxWords = max(1, $maxWords);
+    $parts = preg_split('/\s+/', trim($fullName)) ?: [];
+    $parts = array_values(array_filter($parts, static fn ($part) => $part !== ''));
+    if (count($parts) === 0) {
+        return '';
+    }
+
+    return implode(' ', array_slice($parts, 0, $maxWords));
+}
+
+function collection_note_split(?string $rawNote): array
+{
+    $note = trim((string) $rawNote);
+    if ($note === '') {
+        return ['public' => '', 'meta' => null];
+    }
+
+    $meta = null;
+    if (preg_match('/\[SYSMETA:([A-Za-z0-9+\/=]+)\]\s*$/', $note, $m) === 1) {
+        $decoded = base64_decode($m[1], true);
+        if ($decoded !== false) {
+            $parsed = json_decode($decoded, true);
+            if (is_array($parsed)) {
+                $meta = $parsed;
+            }
+        }
+        $note = trim((string) preg_replace('/\s*\[SYSMETA:[A-Za-z0-9+\/=]+\]\s*$/', '', $note));
+    }
+
+    return ['public' => $note, 'meta' => $meta];
+}
+
 function money(float $amount): string
 {
     return number_format($amount, 2);
@@ -1842,6 +1876,28 @@ function today_collection_goal(PDO $pdo, ?array $viewer = null): array
         'remaining' => $remaining,
         'percentage' => $percentage,
     ];
+}
+
+function today_collected_total(PDO $pdo, ?array $viewer = null): float
+{
+    $viewerRole = (string) ($viewer['role'] ?? '');
+    $viewerId = (int) ($viewer['id'] ?? 0);
+    $isCollectorScope = is_collector_role($viewerRole) && $viewerId > 0;
+
+    if (!$isCollectorScope) {
+        $stmt = $pdo->query('SELECT COALESCE(SUM(amount), 0) FROM collections WHERE collected_on = CURDATE()');
+        return (float) $stmt->fetchColumn();
+    }
+
+    $stmt = $pdo->prepare(
+        "SELECT COALESCE(SUM(c.amount), 0)
+         FROM collections c
+         JOIN loans l ON l.id = c.loan_id
+         WHERE c.collected_on = CURDATE()
+           AND (l.assigned_user_id = :viewer_user_id OR l.assigned_user_id IS NULL)"
+    );
+    $stmt->execute(['viewer_user_id' => $viewerId]);
+    return (float) $stmt->fetchColumn();
 }
 
 function collections_30day_trend(PDO $pdo, ?array $viewer = null): array

@@ -80,6 +80,16 @@ $stmt = $pdo->prepare($sql);
 $stmt->execute($params);
 $dueInstallments = $stmt->fetchAll();
 
+$oldestCollectibleByLoan = [];
+if ($selectedDate <= $todayDate) {
+    foreach ($dueInstallments as $item) {
+        $loanKey = (int) $item['loan_id'];
+        if (!isset($oldestCollectibleByLoan[$loanKey])) {
+            $oldestCollectibleByLoan[$loanKey] = (int) $item['id'];
+        }
+    }
+}
+
 if (is_collector_role($currentRole)) {
     $selectedCollectionTotalStmt = $pdo->prepare(
         "SELECT COALESCE(SUM(col.amount), 0)
@@ -118,25 +128,32 @@ if (!$dueInstallments):
 <?php
 else:
     foreach ($dueInstallments as $item):
+        $balance = round((float) $item['due_amount'] - (float) $item['paid_amount'], 2);
         $displayStatus = $item['status'];
         if ($item['status'] !== 'paid' && $item['due_date'] < $todayForStatus) {
             $displayStatus = 'overdue';
         }
 
-        $selectUrl = url('pages/today_collections.php?' . http_build_query([
-            'date_mode' => $selectedDateMode,
-            'date' => $selectedDate,
-            'q' => $search,
-            'selected_installment' => (int) $item['id'],
-        ]));
+        $loanKey = (int) $item['loan_id'];
+        $itemId = (int) $item['id'];
+        $isOldestCollectible = !isset($oldestCollectibleByLoan[$loanKey]) || $oldestCollectibleByLoan[$loanKey] === $itemId;
+        $canSelectThisRow = $isOldestCollectible;
+        $rowSelectUrl = $canSelectThisRow
+            ? url('pages/today_collections.php?' . http_build_query([
+                'date_mode' => $selectedDateMode,
+                'date' => $selectedDate,
+                'q' => $search,
+                'selected_installment' => $itemId,
+            ]))
+            : '';
 ?>
-<tr class="table-row-clickable <?= (int) $item['id'] === $selectedInstallmentId ? 'row-selected' : '' ?>" data-select-url="<?= e($selectUrl) ?>">
+<tr class="<?= $canSelectThisRow ? 'table-row-clickable' : 'row-disabled' ?> <?= $itemId === $selectedInstallmentId ? 'row-selected' : '' ?>" <?= $canSelectThisRow ? ('data-select-url="' . e($rowSelectUrl) . '"') : '' ?>>
     <td><?= e($item['loan_number']) ?></td>
     <td><?= e($item['full_name']) ?></td>
     <td><?= e($item['phone']) ?></td>
     <td>#<?= e((string) $item['installment_no']) ?></td>
     <td><?= e(display_date((string) $item['due_date'])) ?></td>
-    <td><?= e(money_label($pdo, (float) $item['due_amount'])) ?></td>
+    <td><?= e(money_label($pdo, $balance)) ?></td>
     <td><span class="badge badge-<?= e(status_badge_class($displayStatus)) ?>"><?= e($displayStatus) ?></span></td>
 </tr>
 <?php
