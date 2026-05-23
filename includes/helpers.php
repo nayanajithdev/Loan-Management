@@ -292,6 +292,21 @@ function client_ip_address(): string
     return '';
 }
 
+function ensure_private_guard_file(string $directoryAbs): void
+{
+    if (!is_dir($directoryAbs)) {
+        return;
+    }
+
+    $guardPath = rtrim($directoryAbs, '/\\') . DIRECTORY_SEPARATOR . '.htaccess';
+    if (is_file($guardPath)) {
+        return;
+    }
+
+    $guardContents = "<IfModule mod_authz_core.c>\n    Require all denied\n</IfModule>\n<IfModule !mod_authz_core.c>\n    Deny from all\n</IfModule>\n";
+    @file_put_contents($guardPath, $guardContents);
+}
+
 function rate_limit_storage_dir_abs(): string
 {
     return __DIR__ . '/../storage/rate_limits';
@@ -314,6 +329,9 @@ function rate_limit_read_bucket(string $bucket): array
     if (!is_dir($dir)) {
         mkdir($dir, 0775, true);
     }
+    $rootDir = dirname($dir);
+    ensure_private_guard_file($rootDir);
+    ensure_private_guard_file($dir);
 
     $file = rate_limit_bucket_file_abs($bucket);
     if (!is_file($file)) {
@@ -335,6 +353,9 @@ function rate_limit_write_bucket(string $bucket, array $data): void
     if (!is_dir($dir)) {
         mkdir($dir, 0775, true);
     }
+    $rootDir = dirname($dir);
+    ensure_private_guard_file($rootDir);
+    ensure_private_guard_file($dir);
 
     $file = rate_limit_bucket_file_abs($bucket);
     $json = json_encode($data, JSON_UNESCAPED_SLASHES);
@@ -399,6 +420,192 @@ function rate_limit_consume(string $bucket, string $key, int $maxHits, int $wind
         'retry_after' => 0,
         'remaining' => max(0, $maxHits - count($hits)),
     ];
+}
+
+function auth_login_limit_config(): array
+{
+    $local = defined('LOCAL_APP_CONFIG') && is_array(LOCAL_APP_CONFIG) ? LOCAL_APP_CONFIG : [];
+
+    $maxAttempts = (int) ($local['auth_login_max_attempts'] ?? 5);
+    $windowSeconds = (int) ($local['auth_login_window_seconds'] ?? 900);
+    $lockSeconds = (int) ($local['auth_login_lock_seconds'] ?? 900);
+
+    return [
+        'max_attempts' => max(3, min(20, $maxAttempts)),
+        'window_seconds' => max(60, min(86400, $windowSeconds)),
+        'lock_seconds' => max(60, min(86400, $lockSeconds)),
+    ];
+}
+
+function auth_login_limit_key(string $username, bool $ipOnly = false): string
+{
+    $ip = client_ip_address();
+    if ($ip === '') {
+        $ip = 'unknown';
+    }
+
+    if ($ipOnly) {
+        return hash('sha256', 'ip|' . strtolower($ip));
+    }
+
+    $user = strtolower(trim($username));
+    if ($user === '') {
+        $user = '(blank)';
+    }
+
+    return hash('sha256', 'user|' . $user . '|' . strtolower($ip));
+}
+
+function auth_login_limit_prune_state(array $state, int $windowSeconds, int $lockSeconds): array
+{
+    $now = time();
+    $keepAfter = $now - (max($windowSeconds, $lockSeconds) * 2);
+    $cleaned = [];
+
+    foreach ($state as $key => $entry) {
+        if (!is_array($entry)) {
+            continue;
+        }
+
+        $failCount = (int) ($entry['fail_count'] ?? 0);
+        $firstFailed = (int) ($entry['first_failed'] ?? 0);
+        $lastFailed = (int) ($entry['last_failed'] ?? 0);
+        $lockUntil = (int) ($entry['lock_until'] ?? 0);
+
+        if ($lockUntil > $now || $lastFailed >= $keepAfter || ($failCount > 0 && $firstFailed >= $keepAfter)) {
+            $cleaned[$key] = [
+                'fail_count' => max(0, $failCount),
+                'first_failed' => max(0, $firstFailed),
+                'last_failed' => max(0, $lastFailed),
+                'lock_until' => max(0, $lockUntil),
+            ];
+        }
+    }
+
+    return $cleaned;
+}
+
+function auth_login_limit_remaining(array $entry, array $config): int
+{
+    $now = time();
+    $failCount = (int) ($entry['fail_count'] ?? 0);
+    $firstFailed = (int) ($entry['first_failed'] ?? 0);
+
+    if ($firstFailed <= 0 || ($now - $firstFailed) > (int) $config['window_seconds']) {
+        $failCount = 0;
+    }
+
+    return max(0, (int) $config['max_attempts'] - $failCount);
+}
+
+function auth_login_lock_status(string $username): array
+{
+    $config = auth_login_limit_config();
+    $state = rate_limit_read_bucket('auth_login_lock');
+    $pruned = auth_login_limit_prune_state($state, (int) $config['window_seconds'], (int) $config['lock_seconds']);
+    if ($pruned !== $state) {
+        rate_limit_write_bucket('auth_login_lock', $pruned);
+    }
+
+    $now = time();
+    $userKey = auth_login_limit_key($username, false);
+    $ipKey = auth_login_limit_key($username, true);
+
+    $userEntry = is_array($pruned[$userKey] ?? null) ? $pruned[$userKey] : [];
+    $ipEntry = is_array($pruned[$ipKey] ?? null) ? $pruned[$ipKey] : [];
+
+    $userLockUntil = (int) ($userEntry['lock_until'] ?? 0);
+    $ipLockUntil = (int) ($ipEntry['lock_until'] ?? 0);
+    $lockUntil = max($userLockUntil, $ipLockUntil);
+
+    $userRemaining = auth_login_limit_remaining($userEntry, $config);
+    $ipRemaining = auth_login_limit_remaining($ipEntry, $config);
+
+    if ($lockUntil > $now) {
+        return [
+            'locked' => true,
+            'retry_after' => $lockUntil - $now,
+            'remaining_attempts' => 0,
+        ];
+    }
+
+    return [
+        'locked' => false,
+        'retry_after' => 0,
+        'remaining_attempts' => min($userRemaining, $ipRemaining),
+    ];
+}
+
+function auth_login_register_failure(string $username): array
+{
+    $config = auth_login_limit_config();
+    $state = rate_limit_read_bucket('auth_login_lock');
+    $state = auth_login_limit_prune_state($state, (int) $config['window_seconds'], (int) $config['lock_seconds']);
+
+    $now = time();
+    $keys = [
+        auth_login_limit_key($username, false),
+        auth_login_limit_key($username, true),
+    ];
+
+    $locked = false;
+    $retryAfter = 0;
+    $remainingAttempts = (int) $config['max_attempts'];
+
+    foreach ($keys as $key) {
+        $entry = is_array($state[$key] ?? null) ? $state[$key] : [
+            'fail_count' => 0,
+            'first_failed' => 0,
+            'last_failed' => 0,
+            'lock_until' => 0,
+        ];
+
+        $firstFailed = (int) ($entry['first_failed'] ?? 0);
+        if ($firstFailed <= 0 || ($now - $firstFailed) > (int) $config['window_seconds']) {
+            $entry['fail_count'] = 0;
+            $entry['first_failed'] = $now;
+        }
+
+        $entry['fail_count'] = ((int) ($entry['fail_count'] ?? 0)) + 1;
+        $entry['last_failed'] = $now;
+        $entry['lock_until'] = 0;
+
+        if ((int) $entry['fail_count'] >= (int) $config['max_attempts']) {
+            $entry['lock_until'] = $now + (int) $config['lock_seconds'];
+            $entry['fail_count'] = 0;
+            $entry['first_failed'] = 0;
+            $locked = true;
+            $retryAfter = max($retryAfter, (int) $config['lock_seconds']);
+        } else {
+            $remainingAttempts = min(
+                $remainingAttempts,
+                max(0, (int) $config['max_attempts'] - (int) $entry['fail_count'])
+            );
+        }
+
+        $state[$key] = $entry;
+    }
+
+    rate_limit_write_bucket('auth_login_lock', $state);
+
+    return [
+        'locked' => $locked,
+        'retry_after' => $retryAfter,
+        'remaining_attempts' => $locked ? 0 : $remainingAttempts,
+    ];
+}
+
+function auth_login_clear_failures(string $username): void
+{
+    $state = rate_limit_read_bucket('auth_login_lock');
+    if (!is_array($state) || $state === []) {
+        return;
+    }
+
+    $userKey = auth_login_limit_key($username, false);
+    $ipKey = auth_login_limit_key($username, true);
+    unset($state[$userKey], $state[$ipKey]);
+    rate_limit_write_bucket('auth_login_lock', $state);
 }
 
 function frequency_interval(string $frequency): DateInterval

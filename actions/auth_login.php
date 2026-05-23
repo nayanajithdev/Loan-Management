@@ -18,7 +18,21 @@ if (!has_superadmin($pdo)) {
 $username = trim((string) ($_POST['username'] ?? ''));
 $password = (string) ($_POST['password'] ?? '');
 
+// Check lockout before running password verification.
+$lockStatus = auth_login_lock_status($username);
+if (!empty($lockStatus['locked'])) {
+    $retryAfterSeconds = max(1, (int) ($lockStatus['retry_after'] ?? 60));
+    $retryAfterMinutes = (int) ceil($retryAfterSeconds / 60);
+    log_activity($pdo, 'auth.login_throttled', 'Login blocked by rate-limit lockout.', [
+        'username' => $username,
+        'retry_after_seconds' => $retryAfterSeconds,
+    ]);
+    set_flash('error', 'Too many failed attempts. Try again in ' . $retryAfterMinutes . ' minute(s).');
+    redirect('login.php');
+}
+
 if ($username === '' || $password === '') {
+    auth_login_register_failure($username);
     log_activity($pdo, 'auth.login_failed', 'Login failed: missing username or password.', [
         'username' => $username,
     ]);
@@ -31,10 +45,18 @@ $stmt->execute(['username' => $username]);
 $user = $stmt->fetch();
 
 if (!$user || !password_verify($password, (string) $user['password_hash'])) {
+    $result = auth_login_register_failure($username);
     log_activity($pdo, 'auth.login_failed', 'Login failed: invalid username or password.', [
         'username' => $username,
+        'locked' => !empty($result['locked']) ? 1 : 0,
     ]);
-    set_flash('error', 'Invalid username or password.');
+    if (!empty($result['locked'])) {
+        $retryAfterSeconds = max(1, (int) ($result['retry_after'] ?? 60));
+        $retryAfterMinutes = (int) ceil($retryAfterSeconds / 60);
+        set_flash('error', 'Too many failed attempts. Try again in ' . $retryAfterMinutes . ' minute(s).');
+    } else {
+        set_flash('error', 'Invalid username or password.');
+    }
     redirect('login.php');
 }
 
@@ -47,6 +69,7 @@ if ((string) ($user['status'] ?? 'active') !== 'active') {
     redirect('login.php');
 }
 
+auth_login_clear_failures($username);
 login_user($user);
 log_activity($pdo, 'auth.login', 'User logged in.', [
     'user_id' => (int) $user['id'],
