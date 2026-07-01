@@ -3,10 +3,11 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../includes/bootstrap.php';
-require_roles(['superadmin', 'admin', 'collector_l2', 'collector']);
+require_permission('loans.create');
 
 $pageTitle = 'Create Loan';
 $activePage = 'loans';
+$canCreateCustomer = can('customers.create');
 
 $customers = $pdo->query("SELECT id, customer_code, full_name FROM customers WHERE status = 'active' ORDER BY full_name ASC")->fetchAll();
 $defaultInterestRate = system_setting($pdo, 'default_interest_rate', '0.00');
@@ -37,12 +38,14 @@ require __DIR__ . '/../includes/layout_start.php';
                 </span>
                 Add Old Loan
             </a>
-            <a class="btn" href="<?= e(url('pages/customer_create.php')) ?>">
-                <span class="btn-icon-inline" aria-hidden="true">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-plus-icon lucide-plus"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
-                </span>
-                Add New Customer
-            </a>
+            <?php if ($canCreateCustomer): ?>
+                <a class="btn" href="<?= e(url('pages/customer_create.php')) ?>">
+                    <span class="btn-icon-inline" aria-hidden="true">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-plus-icon lucide-plus"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
+                    </span>
+                    Add New Customer
+                </a>
+            <?php endif; ?>
             <a class="btn" href="<?= e(url('pages/loans.php')) ?>">
                 <span class="btn-icon-inline" aria-hidden="true">
                     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-arrow-left-icon lucide-arrow-left"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>

@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../includes/bootstrap.php';
-require_roles(['superadmin', 'admin', 'collector_l2', 'collector']);
+require_permission('loans.view');
 
 $pageTitle = 'Loans';
 $activePage = 'loans';
@@ -35,6 +35,7 @@ $sql .= ' ORDER BY l.id DESC';
 $stmt = $pdo->prepare($sql);
 $stmt->execute($params);
 $loans = $stmt->fetchAll();
+$canCreateLoan = can('loans.create');
 
 $renderLoansBody = static function (array $loans, PDO $pdo): string {
     ob_start();
@@ -111,15 +112,17 @@ require __DIR__ . '/../includes/layout_start.php';
                 <a class="btn" href="<?= e(url('pages/loans.php')) ?>">Reset</a>
             </form>
         </div>
-        <div style="display:flex; gap:8px; align-items:flex-end; flex-wrap:wrap;">
-            <a class="btn" href="<?= e(url('pages/loan_legacy_create.php')) ?>">
-                <span class="btn-icon-inline" aria-hidden="true">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-plus-icon lucide-plus"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
-                </span>
-                Add Old Loan
-            </a>
-            <a class="btn btn-primary" href="<?= e(url('pages/loan_create.php')) ?>">New Loan</a>
-        </div>
+        <?php if ($canCreateLoan): ?>
+            <div style="display:flex; gap:8px; align-items:flex-end; flex-wrap:wrap;">
+                <a class="btn" href="<?= e(url('pages/loan_legacy_create.php')) ?>">
+                    <span class="btn-icon-inline" aria-hidden="true">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-plus-icon lucide-plus"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
+                    </span>
+                    Add Old Loan
+                </a>
+                <a class="btn btn-primary" href="<?= e(url('pages/loan_create.php')) ?>">New Loan</a>
+            </div>
+        <?php endif; ?>
     </div>
     <div class="table-wrap">
         <table class="zebra-table loans-table">

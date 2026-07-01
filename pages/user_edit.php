@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../includes/bootstrap.php';
 
-require_roles(['superadmin', 'admin']);
+require_permission('users.manage');
 
 $pageTitle = 'Edit User';
 $activePage = 'users';
@@ -30,12 +30,13 @@ if (!$editUser) {
 }
 
 $current = current_user();
-$currentRole = (string) ($current['role'] ?? '');
 $isSelf = $current && (int) $current['id'] === (int) $editUser['id'];
 $isTargetSuperadmin = (string) $editUser['role'] === 'superadmin';
-$canDelete = !$isSelf && !($isTargetSuperadmin || ($currentRole === 'admin' && $isTargetSuperadmin));
-$canChangeRole = !($currentRole === 'admin' && $isTargetSuperadmin);
-$canChangeStatus = $currentRole === 'superadmin' && !$isTargetSuperadmin && !$isSelf;
+$currentIsOwner = is_owner($current);
+$canDelete = !$isSelf && !$isTargetSuperadmin;
+$canChangeRole = !$isTargetSuperadmin;
+$canChangeStatus = $currentIsOwner && !$isTargetSuperadmin && !$isSelf;
+$editPermissions = $isTargetSuperadmin ? permission_keys() : user_permission_keys($pdo, (int) $editUser['id']);
 
 require __DIR__ . '/../includes/layout_start.php';
 ?>
@@ -82,8 +83,7 @@ require __DIR__ . '/../includes/layout_start.php';
                     <option value="superadmin" selected>Owner</option>
                 <?php endif; ?>
                 <option value="admin" <?= (string) $editUser['role'] === 'admin' ? 'selected' : '' ?>>Manager</option>
-                <option value="collector_l2" <?= (string) $editUser['role'] === 'collector_l2' || (string) $editUser['role'] === 'collector' ? 'selected' : '' ?>>Collector L2</option>
-                <option value="collector_l1" <?= (string) $editUser['role'] === 'collector_l1' ? 'selected' : '' ?>>Collector L1</option>
+                <option value="collector" <?= (string) $editUser['role'] === 'collector' ? 'selected' : '' ?>>Collector</option>
             </select>
             <?php if (!$canChangeRole): ?>
                 <input type="hidden" name="role" value="<?= e((string) $editUser['role']) ?>">
@@ -98,7 +98,7 @@ require __DIR__ . '/../includes/layout_start.php';
             <?php if (!$canChangeStatus): ?>
                 <input type="hidden" name="status" value="<?= e((string) $editUser['status']) ?>">
             <?php endif; ?>
-            <?php if ($currentRole !== 'superadmin'): ?>
+            <?php if (!$currentIsOwner): ?>
                 <small>Only owner can change user active/inactive.</small>
             <?php endif; ?>
         </div>
@@ -110,6 +110,7 @@ require __DIR__ . '/../includes/layout_start.php';
             <label>Confirm New Password</label>
             <input type="password" name="confirm_password" minlength="6">
         </div>
+        <?php render_permission_fields($editPermissions, $isTargetSuperadmin); ?>
         <div class="field full form-actions">
             <button type="submit" class="btn btn-primary">Update User</button>
         </div>

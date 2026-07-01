@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/includes/bootstrap.php';
 
+require_permission('dashboard.view', 'pages/about.php');
+
 $pageTitle = 'Dashboard';
 $activePage = 'dashboard';
 $viewer = current_user();

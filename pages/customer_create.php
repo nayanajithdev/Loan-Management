@@ -3,10 +3,11 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../includes/bootstrap.php';
-require_roles(['superadmin', 'admin', 'collector_l1', 'collector_l2', 'collector']);
+require_permission('customers.create');
 
 $pageTitle = 'Create Customer';
 $activePage = 'customers';
+$canUploadDocuments = can('customers.documents');
 
 require __DIR__ . '/../includes/layout_start.php';
 ?>
@@ -51,11 +52,13 @@ require __DIR__ . '/../includes/layout_start.php';
             <label>Note</label>
             <textarea name="note" placeholder="Optional"></textarea>
         </div>
-        <div class="field full">
-            <label>Documents (Images or PDF)</label>
-            <input type="file" name="documents[]" accept=".jpg,.jpeg,.png,.webp,.gif,.pdf,application/pdf,image/*" multiple>
-            <small>You can select multiple files. Max 10MB each.</small>
-        </div>
+        <?php if ($canUploadDocuments): ?>
+            <div class="field full">
+                <label>Documents (Images or PDF)</label>
+                <input type="file" name="documents[]" accept=".jpg,.jpeg,.png,.webp,.gif,.pdf,application/pdf,image/*" multiple>
+                <small>You can select multiple files. Max 10MB each.</small>
+            </div>
+        <?php endif; ?>
         <div class="field full form-actions">
             <button type="submit" class="btn btn-primary customer-submit-btn">Save Customer</button>
         </div>

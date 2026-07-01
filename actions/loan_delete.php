@@ -9,7 +9,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 }
 require_csrf('pages/loans.php');
 
-require_roles(['superadmin', 'admin'], 'pages/loans.php');
+require_permission('loans.delete', 'pages/loans.php');
 
 $loanId = (int) ($_POST['loan_id'] ?? 0);
 if ($loanId <= 0) {

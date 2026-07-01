@@ -37,12 +37,146 @@ function role_display_name(string $role): string
     return match ($role) {
         'superadmin' => 'Owner',
         'admin' => 'Manager',
-        'collector_l1' => 'Collector L1',
-        'collector_l2' => 'Collector L2',
-        'collector' => 'Collector L2',
+        'collector_l1', 'collector_l2', 'collector' => 'Collector',
         'unassigned' => 'Unassigned',
         default => ucfirst($role),
     };
+}
+
+function normalize_user_role(string $role): string
+{
+    return match ($role) {
+        'superadmin', 'admin' => $role,
+        default => 'collector',
+    };
+}
+
+function permission_groups(): array
+{
+    return [
+        'Core Access' => [
+            'description' => 'Required starting point and profile access.',
+            'permissions' => [
+                'dashboard.view' => ['label' => 'Dashboard', 'description' => 'View overview cards, goals, and recent activity.'],
+                'profile.manage' => ['label' => 'Profile', 'description' => 'Update own username, avatar, and password.'],
+            ],
+        ],
+        'Collections' => [
+            'description' => 'Due collections, payment entry, and collection history.',
+            'permissions' => [
+                'today_collections.view' => ['label' => 'Today Collection', 'description' => 'View due installments and collection screen.'],
+                'collections.record' => ['label' => 'Record Collection', 'description' => 'Save installment payments.'],
+                'collections.backdate' => ['label' => 'Backdated Entry', 'description' => 'Record a payment as paid on an earlier date.'],
+                'collections.schedule' => ['label' => 'Schedule Next Payment', 'description' => 'Move a customer next payment date without marking bad quality.'],
+                'collections.history' => ['label' => 'Collection History', 'description' => 'View saved collection records.'],
+            ],
+        ],
+        'Customers' => [
+            'description' => 'Customer records, documents, and customer access scope.',
+            'permissions' => [
+                'customers.view' => ['label' => 'View Customers', 'description' => 'Open customer list and customer details.'],
+                'customers.view_all' => ['label' => 'View All Customers', 'description' => 'Bypass assigned/unassigned customer scope.'],
+                'customers.create' => ['label' => 'Create Customers', 'description' => 'Add new customer records.'],
+                'customers.edit' => ['label' => 'Edit Customers', 'description' => 'Update existing customer records.'],
+                'customers.delete' => ['label' => 'Delete Customers', 'description' => 'Delete customers with no linked loans.'],
+                'customers.documents' => ['label' => 'Customer Documents', 'description' => 'Upload, view, and download customer documents.'],
+            ],
+        ],
+        'Loans' => [
+            'description' => 'Loan records, loan assignment, and repayment timeline collection.',
+            'permissions' => [
+                'loans.view' => ['label' => 'View Loans', 'description' => 'Open loan list and loan details.'],
+                'loans.create' => ['label' => 'Create Loans', 'description' => 'Create new and old loans.'],
+                'loans.edit' => ['label' => 'Edit Loans', 'description' => 'Update loan notes, status, and allowed editable fields.'],
+                'loans.delete' => ['label' => 'Delete Loans', 'description' => 'Delete loans and their schedules.'],
+                'loans.assign' => ['label' => 'Assign Loans', 'description' => 'Assign a loan to a collector.'],
+                'loans.collect_inline' => ['label' => 'Repayment Timeline Collection', 'description' => 'Collect and undo payments from the loan timeline.'],
+                'calculator.view' => ['label' => 'Loan Calculator', 'description' => 'Use the standalone loan calculator.'],
+            ],
+        ],
+        'Management' => [
+            'description' => 'Users, reports, audit logs, settings, and backups.',
+            'permissions' => [
+                'users.manage' => ['label' => 'Users', 'description' => 'Create, edit, deactivate, and delete users.'],
+                'reports.view' => ['label' => 'Reports', 'description' => 'View business and collection reports.'],
+                'backup.manage' => ['label' => 'Backup / Restore', 'description' => 'Download and restore database/full backups.'],
+                'activity_logs.view' => ['label' => 'Activity Logs', 'description' => 'Review audit history and user actions.'],
+                'business_settings.manage' => ['label' => 'Business Settings', 'description' => 'Update business profile and business icon.'],
+                'system_settings.view' => ['label' => 'View System Settings', 'description' => 'View system defaults and configuration.'],
+                'system_settings.manage' => ['label' => 'Edit System Settings', 'description' => 'Change system defaults and configuration.'],
+            ],
+        ],
+    ];
+}
+
+function permission_keys(): array
+{
+    $keys = [];
+    foreach (permission_groups() as $group) {
+        foreach ((array) ($group['permissions'] ?? []) as $key => $_meta) {
+            $keys[] = (string) $key;
+        }
+    }
+
+    return $keys;
+}
+
+function role_default_permissions(string $role): array
+{
+    $role = (string) $role;
+    $all = permission_keys();
+
+    if ($role === 'superadmin') {
+        return $all;
+    }
+
+    if ($role === 'admin') {
+        return array_values(array_diff($all, [
+            'activity_logs.view',
+            'system_settings.manage',
+        ]));
+    }
+
+    if ($role === 'collector_l2') {
+        return [
+            'dashboard.view',
+            'profile.manage',
+            'today_collections.view',
+            'collections.record',
+            'collections.history',
+            'customers.view',
+            'customers.view_all',
+            'customers.create',
+            'customers.edit',
+            'customers.documents',
+            'loans.view',
+            'loans.create',
+            'loans.edit',
+            'loans.collect_inline',
+            'calculator.view',
+        ];
+    }
+
+    if ($role === 'collector_l1') {
+        return [
+            'dashboard.view',
+            'profile.manage',
+            'today_collections.view',
+            'collections.record',
+            'collections.history',
+            'customers.view',
+            'customers.documents',
+        ];
+    }
+
+    return [
+        'dashboard.view',
+        'profile.manage',
+        'today_collections.view',
+        'collections.record',
+        'collections.history',
+        'customers.view',
+    ];
 }
 
 function short_name_words(string $fullName, int $maxWords = 2): string
@@ -891,7 +1025,70 @@ function ensure_user_schema(PDO $pdo): void
     $roleColumn = $roleColStmt->fetch();
 
     if (!$roleColumn) {
-        $pdo->exec("ALTER TABLE users ADD COLUMN role ENUM('superadmin','admin','collector','collector_l1','collector_l2') NOT NULL DEFAULT 'admin' AFTER password_hash");
+        $pdo->exec("ALTER TABLE users ADD COLUMN role ENUM('superadmin','admin','collector') NOT NULL DEFAULT 'admin' AFTER password_hash");
+        return;
+    }
+
+    $type = strtolower((string) ($roleColumn['Type'] ?? ''));
+    if (str_contains($type, 'collector_l1') || str_contains($type, 'collector_l2')) {
+        try {
+            ensure_user_permissions_schema($pdo);
+            $pdo->exec("ALTER TABLE users MODIFY COLUMN role ENUM('superadmin','admin','collector_l1','collector_l2','collector') NOT NULL DEFAULT 'admin'");
+            $pdo->exec("UPDATE users SET role = 'collector' WHERE role IN ('collector_l1', 'collector_l2')");
+            $pdo->exec("ALTER TABLE users MODIFY COLUMN role ENUM('superadmin','admin','collector') NOT NULL DEFAULT 'admin'");
+        } catch (Throwable $e) {
+            error_log('Failed to normalize users.role enum: ' . $e->getMessage());
+        }
+    }
+}
+
+function ensure_user_permissions_schema(PDO $pdo): void
+{
+    $pdo->exec(
+        "CREATE TABLE IF NOT EXISTS user_permissions (
+            user_id INT NOT NULL,
+            permission_key VARCHAR(80) NOT NULL,
+            allowed TINYINT(1) NOT NULL DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY (user_id, permission_key),
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        )"
+    );
+
+    $validKeys = permission_keys();
+    if ($validKeys === []) {
+        return;
+    }
+
+    $users = $pdo->query('SELECT id, role FROM users')->fetchAll();
+    $countStmt = $pdo->prepare('SELECT COUNT(*) FROM user_permissions WHERE user_id = :user_id');
+    $upsertStmt = $pdo->prepare(
+        'INSERT INTO user_permissions (user_id, permission_key, allowed)
+         VALUES (:user_id, :permission_key, 1)
+         ON DUPLICATE KEY UPDATE allowed = VALUES(allowed)'
+    );
+
+    foreach ($users as $user) {
+        $userId = (int) $user['id'];
+        if ($userId <= 0) {
+            continue;
+        }
+
+        $countStmt->execute(['user_id' => $userId]);
+        if ((int) $countStmt->fetchColumn() > 0) {
+            continue;
+        }
+
+        foreach (role_default_permissions((string) $user['role']) as $key) {
+            if (!in_array($key, $validKeys, true)) {
+                continue;
+            }
+            $upsertStmt->execute([
+                'user_id' => $userId,
+                'permission_key' => $key,
+            ]);
+        }
     }
 }
 
@@ -1187,6 +1384,17 @@ function customer_documents_upload_dir_abs(): string
 function customer_documents_upload_dir_rel(): string
 {
     return 'uploads/customer_docs';
+}
+
+function has_uploaded_files(?array $filesInput): bool
+{
+    foreach (normalize_uploaded_files($filesInput) as $file) {
+        if ((int) ($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE) {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 function business_icon_upload_dir_abs(): string
@@ -1925,36 +2133,162 @@ function log_activity(PDO $pdo, string $actionKey, string $description, array $m
     }
 }
 
-function current_user_role(): ?string
+function is_owner(?array $user = null): bool
 {
-    $user = current_user();
-    return $user['role'] ?? null;
+    $user = $user ?? current_user();
+    return (string) ($user['role'] ?? '') === 'superadmin';
 }
 
-function has_role(array $roles): bool
+function user_permission_keys(PDO $pdo, int $userId): array
 {
-    $role = current_user_role();
-    return $role !== null && in_array($role, $roles, true);
+    if ($userId <= 0) {
+        return [];
+    }
+
+    $stmt = $pdo->prepare('SELECT permission_key FROM user_permissions WHERE user_id = :user_id AND allowed = 1');
+    $stmt->execute(['user_id' => $userId]);
+
+    return array_map('strval', $stmt->fetchAll(PDO::FETCH_COLUMN));
+}
+
+function sync_user_permissions(PDO $pdo, int $userId, array $permissionKeys): void
+{
+    if ($userId <= 0) {
+        return;
+    }
+
+    $validKeys = permission_keys();
+    $permissionKeys = array_values(array_intersect(array_unique(array_map('strval', $permissionKeys)), $validKeys));
+
+    $deleteStmt = $pdo->prepare('DELETE FROM user_permissions WHERE user_id = :user_id');
+    $deleteStmt->execute(['user_id' => $userId]);
+
+    if ($permissionKeys === []) {
+        return;
+    }
+
+    $insertStmt = $pdo->prepare(
+        'INSERT INTO user_permissions (user_id, permission_key, allowed)
+         VALUES (:user_id, :permission_key, 1)'
+    );
+
+    foreach ($permissionKeys as $key) {
+        $insertStmt->execute([
+            'user_id' => $userId,
+            'permission_key' => $key,
+        ]);
+    }
+}
+
+function render_permission_fields(array $selectedKeys, bool $disabled = false): void
+{
+    $selected = array_flip(array_map('strval', $selectedKeys));
+    $disabledAttr = $disabled ? ' disabled' : '';
+    ?>
+    <div class="permission-panel">
+        <div class="permission-panel-head">
+            <div>
+                <h3>Module Permissions</h3>
+                <p>Permissions decide actual access. Role is only the user label.</p>
+            </div>
+        </div>
+
+        <?php foreach (permission_groups() as $groupTitle => $group): ?>
+            <section class="permission-section">
+                <div class="permission-section-head">
+                    <div>
+                        <h4><?= e((string) $groupTitle) ?></h4>
+                        <?php if (!empty($group['description'])): ?>
+                            <p><?= e((string) $group['description']) ?></p>
+                        <?php endif; ?>
+                    </div>
+                </div>
+                <div class="permission-grid">
+                    <?php foreach ((array) ($group['permissions'] ?? []) as $permissionKey => $meta): ?>
+                        <label class="permission-check">
+                            <input
+                                type="checkbox"
+                                name="permissions[]"
+                                value="<?= e((string) $permissionKey) ?>"
+                                <?= isset($selected[(string) $permissionKey]) ? 'checked' : '' ?>
+                                <?= $disabledAttr ?>
+                            >
+                            <span>
+                                <strong><?= e((string) ($meta['label'] ?? $permissionKey)) ?></strong>
+                                <?php if (!empty($meta['description'])): ?>
+                                    <small><?= e((string) $meta['description']) ?></small>
+                                <?php endif; ?>
+                            </span>
+                        </label>
+                    <?php endforeach; ?>
+                </div>
+            </section>
+        <?php endforeach; ?>
+    </div>
+    <?php
+}
+
+function can(string $permissionKey, ?array $viewer = null): bool
+{
+    $viewer = $viewer ?? current_user();
+    if (!$viewer) {
+        return false;
+    }
+
+    if (is_owner($viewer)) {
+        return true;
+    }
+
+    if (!in_array($permissionKey, permission_keys(), true)) {
+        return false;
+    }
+
+    $userId = (int) ($viewer['id'] ?? 0);
+    if ($userId <= 0) {
+        return false;
+    }
+
+    static $cache = [];
+    if (!array_key_exists($userId, $cache)) {
+        try {
+            $cache[$userId] = user_permission_keys(db(), $userId);
+        } catch (Throwable) {
+            $cache[$userId] = [];
+        }
+    }
+
+    return in_array($permissionKey, $cache[$userId], true);
+}
+
+function can_any(array $permissionKeys, ?array $viewer = null): bool
+{
+    foreach ($permissionKeys as $permissionKey) {
+        if (can((string) $permissionKey, $viewer)) {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 function can_manage_users(): bool
 {
-    return has_role(['superadmin', 'admin']);
+    return can('users.manage');
 }
 
 function is_collector_role(?string $role): bool
 {
-    return in_array((string) $role, ['collector', 'collector_l1', 'collector_l2'], true);
+    return (string) $role === 'collector';
 }
 
 function can_manage_loans(): bool
 {
-    return has_role(['superadmin', 'admin', 'collector_l2', 'collector']);
+    return can_any(['loans.view', 'loans.create', 'loans.edit', 'loans.delete', 'loans.assign', 'loans.collect_inline']);
 }
 
-function can_view_all_customers(): bool
+function can_view_all_customers(?array $viewer = null): bool
 {
-    return has_role(['superadmin', 'admin', 'collector_l2', 'collector']);
+    return can('customers.view_all', $viewer);
 }
 
 function can_access_customer(PDO $pdo, int $customerId, ?array $viewer = null): bool
@@ -1968,8 +2302,11 @@ function can_access_customer(PDO $pdo, int $customerId, ?array $viewer = null): 
         return false;
     }
 
-    $viewerRole = (string) ($viewer['role'] ?? '');
-    if (in_array($viewerRole, ['superadmin', 'admin', 'collector_l2', 'collector'], true)) {
+    if (!can('customers.view', $viewer)) {
+        return false;
+    }
+
+    if (can_view_all_customers($viewer) || is_owner($viewer)) {
         return true;
     }
 
@@ -2019,9 +2356,9 @@ function require_customer_access(PDO $pdo, int $customerId, string $redirectPath
     }
 }
 
-function require_roles(array $roles, string $redirectPath = 'index.php'): void
+function require_permission(string $permissionKey, string $redirectPath = 'index.php'): void
 {
-    if (!has_role($roles)) {
+    if (!can($permissionKey)) {
         set_flash('error', 'You do not have permission to access that page.');
         redirect($redirectPath);
     }
@@ -2208,7 +2545,7 @@ function dashboard_user_goals(PDO $pdo, ?array $viewer = null): array
         $usersStmt->execute(['id' => $viewerId]);
         $users = $usersStmt->fetchAll();
     } else {
-        $users = $pdo->query("SELECT id, full_name, username, role FROM users WHERE role IN ('superadmin', 'admin', 'collector', 'collector_l1', 'collector_l2') ORDER BY FIELD(role, 'collector_l1', 'collector_l2', 'collector', 'admin', 'superadmin'), full_name ASC")->fetchAll();
+        $users = $pdo->query("SELECT id, full_name, username, role FROM users WHERE role IN ('superadmin', 'admin', 'collector') ORDER BY FIELD(role, 'collector', 'admin', 'superadmin'), full_name ASC")->fetchAll();
     }
 
     $goalRows = [];

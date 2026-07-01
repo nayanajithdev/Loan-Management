@@ -3,11 +3,14 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../includes/bootstrap.php';
-require_roles(['superadmin', 'admin', 'collector_l1', 'collector_l2', 'collector']);
+require_permission('customers.view');
 
 $pageTitle = 'View Customer';
 $activePage = 'customers';
 $customerId = (int) ($_GET['customer_id'] ?? 0);
+$canEditCustomer = can('customers.edit');
+$canManageCustomerDocuments = can('customers.documents');
+$canViewLoans = can('loans.view');
 
 if ($customerId <= 0) {
     set_flash('error', 'Invalid customer selected.');
@@ -31,14 +34,17 @@ $viewLoanUrl = $latestLoanId > 0
     ? url('pages/loan_edit.php?loan_id=' . $latestLoanId)
     : url('pages/loans.php');
 
-$docStmt = $pdo->prepare(
-    'SELECT id, original_name, file_path, mime_type, file_size, created_at
-     FROM customer_documents
-     WHERE customer_id = :customer_id
-     ORDER BY id DESC'
-);
-$docStmt->execute(['customer_id' => $customerId]);
-$documents = $docStmt->fetchAll();
+$documents = [];
+if ($canManageCustomerDocuments) {
+    $docStmt = $pdo->prepare(
+        'SELECT id, original_name, file_path, mime_type, file_size, created_at
+         FROM customer_documents
+         WHERE customer_id = :customer_id
+         ORDER BY id DESC'
+    );
+    $docStmt->execute(['customer_id' => $customerId]);
+    $documents = $docStmt->fetchAll();
+}
 
 require __DIR__ . '/../includes/layout_start.php';
 ?>
@@ -47,19 +53,23 @@ require __DIR__ . '/../includes/layout_start.php';
     <div class="panel-head">
         <h2 class="panel-title">View Customer</h2>
         <div class="panel-head-actions">
-            <label class="edit-mode-switch" for="customer-edit-switch" title="Enable or disable edit mode">
-                <input type="checkbox" id="customer-edit-switch">
-                <span class="edit-mode-slider"></span>
-                <span class="edit-mode-label" id="customer-edit-label">Edit Off</span>
-            </label>
-            <a class="btn" href="<?= e($viewLoanUrl) ?>">View Loan</a>
+            <?php if ($canEditCustomer): ?>
+                <label class="edit-mode-switch" for="customer-edit-switch" title="Enable or disable edit mode">
+                    <input type="checkbox" id="customer-edit-switch">
+                    <span class="edit-mode-slider"></span>
+                    <span class="edit-mode-label" id="customer-edit-label">Edit Off</span>
+                </label>
+            <?php endif; ?>
+            <?php if ($canViewLoans): ?>
+                <a class="btn" href="<?= e($viewLoanUrl) ?>">View Loan</a>
+            <?php endif; ?>
             <a class="btn" href="<?= e(url('pages/customers.php')) ?>">
                 <span class="btn-icon-inline" aria-hidden="true">
                     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-arrow-left-icon lucide-arrow-left"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>
                 </span>
                 Back to Customers
             </a>
-            <?php if (has_role(['superadmin', 'admin'])): ?>
+            <?php if (can('customers.delete')): ?>
                 <form method="post" action="<?= e(url('actions/customer_delete.php')) ?>" class="inline-form" onsubmit="return confirm('Delete this customer permanently? This action cannot be undone.');">
                     <?= csrf_input() ?>
                     <input type="hidden" name="customer_id" value="<?= e((string) $customerId) ?>">
@@ -105,58 +115,64 @@ require __DIR__ . '/../includes/layout_start.php';
             <label>Note</label>
             <textarea name="note" placeholder="Optional" readonly data-editable><?= e((string) ($customer['note'] ?? '')) ?></textarea>
         </div>
-        <div class="field full">
-            <label>Add Documents (Images or PDF)</label>
-            <input type="file" name="documents[]" accept=".jpg,.jpeg,.png,.webp,.gif,.pdf,application/pdf,image/*" multiple disabled data-editable>
-            <small>You can add more files. Max 10MB each.</small>
-        </div>
-        <div class="field full form-actions">
-            <button type="submit" class="btn btn-primary customer-submit-btn" id="customer-update-submit" disabled>Update Customer</button>
-        </div>
+        <?php if ($canEditCustomer && $canManageCustomerDocuments): ?>
+            <div class="field full">
+                <label>Add Documents (Images or PDF)</label>
+                <input type="file" name="documents[]" accept=".jpg,.jpeg,.png,.webp,.gif,.pdf,application/pdf,image/*" multiple disabled data-editable>
+                <small>You can add more files. Max 10MB each.</small>
+            </div>
+        <?php endif; ?>
+        <?php if ($canEditCustomer): ?>
+            <div class="field full form-actions">
+                <button type="submit" class="btn btn-primary customer-submit-btn" id="customer-update-submit" disabled>Update Customer</button>
+            </div>
+        <?php endif; ?>
     </form>
 </section>
 
-<section class="panel">
-    <div class="panel-head">
-        <h2 class="panel-title">Documents</h2>
-    </div>
-
-    <?php if (!$documents): ?>
-        <p>No documents uploaded for this customer.</p>
-    <?php else: ?>
-        <div class="table-wrap">
-            <table>
-                <thead>
-                <tr>
-                    <th>File</th>
-                    <th>Type</th>
-                    <th>Size</th>
-                    <th>Uploaded</th>
-                    <th>Action</th>
-                </tr>
-                </thead>
-                <tbody>
-                <?php foreach ($documents as $doc): ?>
-                    <tr>
-                        <td class="doc-name-cell" title="<?= e($doc['original_name']) ?>"><?= e($doc['original_name']) ?></td>
-                        <td><?= e($doc['mime_type']) ?></td>
-                        <td><?= e(readable_file_size((int) $doc['file_size'])) ?></td>
-                        <td><?= e(display_datetime((string) $doc['created_at'])) ?></td>
-                        <td>
-                            <a class="btn btn-icon" href="<?= e(url('actions/customer_document_view.php?doc_id=' . (int) $doc['id'])) ?>" target="_blank" rel="noopener" title="View" aria-label="View">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-eye-icon lucide-eye"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/></svg>
-                            </a>
-                            <a class="btn btn-icon" href="<?= e(url('actions/customer_document_download.php?doc_id=' . (int) $doc['id'])) ?>" title="Download" aria-label="Download">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-download-icon lucide-download"><path d="M12 15V3"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/></svg>
-                            </a>
-                        </td>
-                    </tr>
-                <?php endforeach; ?>
-                </tbody>
-            </table>
+<?php if ($canManageCustomerDocuments): ?>
+    <section class="panel">
+        <div class="panel-head">
+            <h2 class="panel-title">Documents</h2>
         </div>
-    <?php endif; ?>
-</section>
+
+        <?php if (!$documents): ?>
+            <p>No documents uploaded for this customer.</p>
+        <?php else: ?>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                    <tr>
+                        <th>File</th>
+                        <th>Type</th>
+                        <th>Size</th>
+                        <th>Uploaded</th>
+                        <th>Action</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <?php foreach ($documents as $doc): ?>
+                        <tr>
+                            <td class="doc-name-cell" title="<?= e($doc['original_name']) ?>"><?= e($doc['original_name']) ?></td>
+                            <td><?= e($doc['mime_type']) ?></td>
+                            <td><?= e(readable_file_size((int) $doc['file_size'])) ?></td>
+                            <td><?= e(display_datetime((string) $doc['created_at'])) ?></td>
+                            <td>
+                                <a class="btn btn-icon" href="<?= e(url('actions/customer_document_view.php?doc_id=' . (int) $doc['id'])) ?>" target="_blank" rel="noopener" title="View" aria-label="View">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-eye-icon lucide-eye"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/></svg>
+                                </a>
+                                <a class="btn btn-icon" href="<?= e(url('actions/customer_document_download.php?doc_id=' . (int) $doc['id'])) ?>" title="Download" aria-label="Download">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-download-icon lucide-download"><path d="M12 15V3"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/></svg>
+                                </a>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+        <?php endif; ?>
+    </section>
+<?php endif; ?>
 
 <script>
 (() => {

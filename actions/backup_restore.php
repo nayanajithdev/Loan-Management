@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../includes/bootstrap.php';
-require_roles(['superadmin', 'admin']);
+require_permission('backup.manage');
 
 function remove_tree_contents(string $dir): void
 {

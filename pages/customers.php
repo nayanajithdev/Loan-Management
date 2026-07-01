@@ -3,13 +3,14 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../includes/bootstrap.php';
-require_roles(['superadmin', 'admin', 'collector_l1', 'collector_l2', 'collector']);
+require_permission('customers.view');
 
 $pageTitle = 'Customers';
 $activePage = 'customers';
 
 $current = current_user();
 $currentUserId = (int) ($current['id'] ?? 0);
+$canCreateCustomer = can('customers.create');
 $searchTerm = trim((string) ($_GET['q'] ?? ''));
 $searchTerm = mb_substr($searchTerm, 0, 120);
 $searchClause = " AND (
@@ -126,7 +127,9 @@ require __DIR__ . '/../includes/layout_start.php';
                     >Reset</a>
                 <?php endif; ?>
             </form>
-            <a class="btn btn-primary" href="<?= e(url('pages/customer_create.php')) ?>">New Customer</a>
+            <?php if ($canCreateCustomer): ?>
+                <a class="btn btn-primary" href="<?= e(url('pages/customer_create.php')) ?>">New Customer</a>
+            <?php endif; ?>
         </div>
     </div>
 

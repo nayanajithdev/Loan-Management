@@ -33,8 +33,7 @@ require __DIR__ . '/../includes/layout_start.php';
     <ul class="about-list">
         <li><strong>Owner:</strong> full system control and security ownership.</li>
         <li><strong>Manager:</strong> day-to-day management across teams and records.</li>
-        <li><strong>Collector L2:</strong> collection operations with extended workflow access.</li>
-        <li><strong>Collector L1:</strong> collection-focused access on permitted records only.</li>
+        <li><strong>Collector:</strong> collection-focused access based on assigned permissions.</li>
     </ul>
 
     <h4>Privacy & Data Use</h4>
@@ -57,7 +56,7 @@ require __DIR__ . '/../includes/layout_start.php';
     </p>
 
     <div class="about-note">
-        LoanDesk v1.1 • Multi-User Loan Management System
+        LoanDesk v1.1 - Multi-User Loan Management System
     </div>
 </section>
 

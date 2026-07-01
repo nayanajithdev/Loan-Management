@@ -9,7 +9,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 }
 require_csrf('pages/customers.php');
 
-require_roles(['superadmin', 'admin'], 'pages/customers.php');
+require_permission('customers.delete', 'pages/customers.php');
 
 $customerId = (int) ($_POST['customer_id'] ?? 0);
 if ($customerId <= 0) {

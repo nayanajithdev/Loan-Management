@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../includes/bootstrap.php';
-require_roles(['superadmin', 'admin']);
+require_permission('backup.manage');
 
 $pageTitle = 'Backup';
 $activePage = 'backup';
@@ -43,7 +43,7 @@ require __DIR__ . '/../includes/layout_start.php';
                 <p class="backup-kicker">Recovery</p>
                 <h2 class="panel-title">Upload and restore backup</h2>
             </div>
-            <span class="backup-badge">Owner / Manager only</span>
+            <span class="backup-badge">Backup permission required</span>
         </div>
 
         <div class="backup-note backup-warning">

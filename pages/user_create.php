@@ -4,10 +4,11 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../includes/bootstrap.php';
 
-require_roles(['superadmin', 'admin']);
+require_permission('users.manage');
 
 $pageTitle = 'Create User';
 $activePage = 'users';
+$createDefaultPermissions = role_default_permissions('admin');
 
 require __DIR__ . '/../includes/layout_start.php';
 ?>
@@ -23,7 +24,7 @@ require __DIR__ . '/../includes/layout_start.php';
         </a>
     </div>
 
-    <form class="form-grid" method="post" action="<?= e(url('actions/user_save.php')) ?>">
+    <form class="form-grid" method="post" action="<?= e(url('actions/user_save.php')) ?>" data-permission-role-defaults>
         <?= csrf_input() ?>
         <div class="field">
             <label>Full Name</label>
@@ -39,10 +40,9 @@ require __DIR__ . '/../includes/layout_start.php';
         </div>
         <div class="field">
             <label>Role</label>
-            <select name="role" required>
+            <select name="role" required data-permission-role-select>
                 <option value="admin">Manager</option>
-                <option value="collector_l2">Collector L2</option>
-                <option value="collector_l1">Collector L1</option>
+                <option value="collector">Collector</option>
             </select>
         </div>
         <div class="field">
@@ -54,10 +54,34 @@ require __DIR__ . '/../includes/layout_start.php';
             <input type="password" name="confirm_password" minlength="6" required>
         </div>
         <input type="hidden" name="status" value="active">
+        <?php render_permission_fields($createDefaultPermissions); ?>
         <div class="field full form-actions">
             <button type="submit" class="btn btn-primary">Create User</button>
         </div>
     </form>
 </section>
+
+<script>
+(() => {
+    const defaults = <?= json_encode([
+        'admin' => role_default_permissions('admin'),
+        'collector' => role_default_permissions('collector'),
+    ], JSON_THROW_ON_ERROR) ?>;
+
+    document.querySelectorAll('[data-permission-role-defaults]').forEach((form) => {
+        const select = form.querySelector('[data-permission-role-select]');
+        if (!select) {
+            return;
+        }
+
+        select.addEventListener('change', () => {
+            const allowed = new Set(defaults[select.value] || []);
+            form.querySelectorAll('input[name="permissions[]"]').forEach((input) => {
+                input.checked = allowed.has(input.value);
+            });
+        });
+    });
+})();
+</script>
 
 <?php require __DIR__ . '/../includes/layout_end.php';

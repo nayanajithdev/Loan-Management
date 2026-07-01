@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../includes/bootstrap.php';
 
-require_roles(['superadmin', 'admin'], 'index.php');
+require_permission('users.manage', 'index.php');
 
 function user_save_safe_return_target(string $raw, string $fallback): string
 {
@@ -60,7 +60,7 @@ require_csrf($resolvedCreateReturnTo);
 $fullName = trim((string) ($_POST['full_name'] ?? ''));
 $username = trim((string) ($_POST['username'] ?? ''));
 $email = mb_strtolower(trim((string) ($_POST['email'] ?? '')));
-$role = trim((string) ($_POST['role'] ?? 'collector_l1'));
+$role = trim((string) ($_POST['role'] ?? 'collector'));
 $status = trim((string) ($_POST['status'] ?? 'active'));
 $password = (string) ($_POST['password'] ?? '');
 $confirmPassword = (string) ($_POST['confirm_password'] ?? '');
@@ -75,7 +75,7 @@ if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
     redirect($resolvedCreateReturnTo);
 }
 
-if (!in_array($role, ['admin', 'collector_l1', 'collector_l2', 'collector'], true)) {
+if (!in_array($role, ['admin', 'collector'], true)) {
     set_flash('error', 'Invalid role selected.');
     redirect($resolvedCreateReturnTo);
 }
@@ -84,7 +84,7 @@ if (!in_array($status, ['active', 'inactive'], true)) {
     $status = 'active';
 }
 $current = current_user();
-if (!$current || (string) ($current['role'] ?? '') !== 'superadmin') {
+if (!is_owner($current)) {
     $status = 'active';
 }
 
@@ -127,6 +127,7 @@ $insertStmt->execute([
     'status' => $status,
 ]);
 $createdUserId = (int) $pdo->lastInsertId();
+sync_user_permissions($pdo, $createdUserId, (array) ($_POST['permissions'] ?? []));
 
 log_activity($pdo, 'user.created', 'User created: ' . $fullName . '.', [
     'user_id' => $createdUserId,

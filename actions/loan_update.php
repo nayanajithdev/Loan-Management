@@ -9,7 +9,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 }
 require_csrf('pages/loans.php');
 
-require_roles(['superadmin', 'admin', 'collector_l2', 'collector'], 'pages/loans.php');
+require_permission('loans.edit', 'pages/loans.php');
 
 $loanId = (int) ($_POST['loan_id'] ?? 0);
 $customerId = (int) ($_POST['customer_id'] ?? 0);
@@ -26,7 +26,8 @@ $scheduleNextPayment = (int) ($_POST['schedule_next_payment'] ?? 0) === 1;
 $nextPaymentDateInput = trim((string) ($_POST['next_payment_date'] ?? ''));
 $assignedUserIdRaw = trim((string) ($_POST['assigned_user_id'] ?? ''));
 $assignedUserId = $assignedUserIdRaw === '' ? null : (int) $assignedUserIdRaw;
-$canEditAssignment = has_role(['superadmin', 'admin']);
+$canEditAssignment = can('loans.assign');
+$canScheduleNextPayment = can('collections.schedule');
 
 if ($loanId <= 0) {
     set_flash('error', 'Invalid loan selected.');
@@ -54,6 +55,11 @@ if (!in_array($status, ['active', 'closed', 'defaulted'], true)) {
 }
 
 if ($scheduleNextPayment) {
+    if (!$canScheduleNextPayment) {
+        set_flash('error', 'You do not have permission to schedule the next payment.');
+        redirect('pages/loan_edit.php?loan_id=' . $loanId);
+    }
+
     $nextDateObj = DateTimeImmutable::createFromFormat('Y-m-d', $nextPaymentDateInput);
     if (!$nextDateObj || $nextDateObj->format('Y-m-d') !== $nextPaymentDateInput) {
         set_flash('error', 'Invalid next payment date.');

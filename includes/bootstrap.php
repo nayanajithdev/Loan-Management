@@ -19,6 +19,7 @@ require_once __DIR__ . '/helpers.php';
 $pdo = db();
 sync_mysql_session_timezone($pdo, date_default_timezone_get());
 ensure_user_schema($pdo);
+ensure_user_permissions_schema($pdo);
 ensure_user_email_schema($pdo);
 ensure_user_profile_schema($pdo);
 ensure_user_status_schema($pdo);

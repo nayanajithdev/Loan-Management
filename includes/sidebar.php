@@ -25,51 +25,60 @@ $iconSvgs = [
     'users' => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m14.305 19.53.923-.382"/><path d="m15.228 16.852-.923-.383"/><path d="m16.852 15.228-.383-.923"/><path d="m16.852 20.772-.383.924"/><path d="m19.148 15.228.383-.923"/><path d="m19.53 21.696-.382-.924"/><path d="M2 21a8 8 0 0 1 10.434-7.62"/><path d="m20.772 16.852.924-.383"/><path d="m20.772 19.148.924.383"/><circle cx="10" cy="8" r="5"/><circle cx="18" cy="18" r="3"/></svg>',
 ];
 
-$menuItems = [
-    ['key' => 'dashboard', 'label' => 'Dashboard', 'path' => 'index.php'],
-    ['key' => 'today_collections', 'label' => 'Today Collection', 'path' => 'pages/today_collections.php'],
-    ['key' => 'collections', 'label' => 'Collection History', 'path' => 'pages/collections.php'],
-    ['key' => 'customers', 'label' => 'Customers', 'path' => 'pages/customers.php'],
-];
+$menuItems = [];
 
-if (can_manage_loans()) {
-    $menuItems[] = ['key' => 'loans', 'label' => 'Loans', 'path' => 'pages/loans.php'];
+if (can('dashboard.view')) {
+    $menuItems[] = ['key' => 'dashboard', 'label' => 'Dashboard', 'path' => 'index.php'];
+}
+if (can('today_collections.view')) {
+    $menuItems[] = ['key' => 'today_collections', 'label' => 'Today Collection', 'path' => 'pages/today_collections.php'];
+}
+if (can('collections.history')) {
+    $menuItems[] = ['key' => 'collections', 'label' => 'Collection History', 'path' => 'pages/collections.php'];
+}
+if (can('customers.view')) {
+    $menuItems[] = ['key' => 'customers', 'label' => 'Customers', 'path' => 'pages/customers.php', 'create_permission' => 'customers.create'];
+}
+if (can('loans.view')) {
+    $menuItems[] = ['key' => 'loans', 'label' => 'Loans', 'path' => 'pages/loans.php', 'create_permission' => 'loans.create'];
+}
+if (can('calculator.view')) {
     $menuItems[] = ['key' => 'calculator', 'label' => 'Calculator', 'path' => 'pages/calculator.php'];
 }
-
-if (can_manage_users()) {
+if (can('users.manage')) {
     $menuItems[] = ['key' => 'users', 'label' => 'Users', 'path' => 'pages/users.php'];
 }
+if (can('reports.view')) {
+    $menuItems[] = ['key' => 'reports', 'label' => 'Reports', 'path' => 'pages/reports.php'];
+}
+
+$menuItems[] = ['key' => 'menu_divider'];
+$menuItems[] = ['key' => 'about', 'label' => 'About', 'path' => 'pages/about.php'];
 
 /** @var array<int, array{key:string,label:string,path:string}> $settingsChildren */
 $settingsChildren = [];
-if (can_manage_users()) {
+if (can('backup.manage')) {
     $settingsChildren[] = ['key' => 'backup', 'label' => 'Backup', 'path' => 'pages/backup.php'];
 }
-
-if (has_role(['superadmin'])) {
+if (can('activity_logs.view')) {
     $settingsChildren[] = ['key' => 'activity_logs', 'label' => 'Activity Logs', 'path' => 'pages/activity_logs.php'];
 }
-
-if (has_role(['superadmin', 'admin'])) {
+if (can('business_settings.manage')) {
     $settingsChildren[] = ['key' => 'settings', 'icon_key' => 'business_settings', 'label' => 'Business Settings', 'path' => 'pages/settings.php'];
+}
+if (can('system_settings.view')) {
     $settingsChildren[] = ['key' => 'system_settings', 'label' => 'System Settings', 'path' => 'pages/system_settings.php'];
 }
-
-if (has_role(['superadmin', 'admin'])) {
-    $menuItems[] = ['key' => 'reports', 'label' => 'Reports', 'path' => 'pages/reports.php'];
-    $menuItems[] = ['key' => 'menu_divider'];
-}
-
-$menuItems[] = ['key' => 'about', 'label' => 'About', 'path' => 'pages/about.php'];
 
 if ($settingsChildren !== []) {
     $menuItems[] = ['key' => 'settings_group', 'label' => 'Settings', 'children' => $settingsChildren];
 }
+
+$brandHref = can('business_settings.manage') ? 'pages/settings.php' : 'pages/about.php';
 ?>
 
 <aside class="sidebar" id="main-sidebar">
-    <a class="brand-card brand-card-link" href="<?= e(url('pages/settings.php')) ?>">
+    <a class="brand-card brand-card-link" href="<?= e(url($brandHref)) ?>">
         <div class="brand-avatar">
             <?php if ($businessIconPath !== ''): ?>
                 <img src="<?= e(url($businessIconPath)) ?>" alt="Business icon">
@@ -166,19 +175,22 @@ if ($settingsChildren !== []) {
                     <?php
                     $createPath = $item['key'] === 'loans' ? 'pages/loan_create.php' : 'pages/customer_create.php';
                     $createScript = $item['key'] === 'loans' ? 'loan_create.php' : 'customer_create.php';
+                    $canCreateItem = can((string) ($item['create_permission'] ?? ''));
                     ?>
                     <div class="menu-item-row <?= $activePage === $item['key'] ? 'active' : '' ?>">
                         <a class="menu-item menu-item-main <?= $activePage === $item['key'] ? 'active' : '' ?>" href="<?= e(url($item['path'])) ?>">
                             <span class="menu-icon"><?= $iconSvgs[$item['key']] ?? '' ?></span>
                             <span><?= e($item['label']) ?></span>
                         </a>
-                        <a class="menu-item-add <?= $currentScript === $createScript ? 'active' : '' ?>" href="<?= e(url($createPath)) ?>" title="New <?= e(rtrim($item['label'], 's')) ?>" aria-label="New <?= e(rtrim($item['label'], 's')) ?>">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-plus-icon lucide-circle-plus">
-                                <circle cx="12" cy="12" r="10"/>
-                                <path d="M8 12h8"/>
-                                <path d="M12 8v8"/>
-                            </svg>
-                        </a>
+                        <?php if ($canCreateItem): ?>
+                            <a class="menu-item-add <?= $currentScript === $createScript ? 'active' : '' ?>" href="<?= e(url($createPath)) ?>" title="New <?= e(rtrim($item['label'], 's')) ?>" aria-label="New <?= e(rtrim($item['label'], 's')) ?>">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-plus-icon lucide-circle-plus">
+                                    <circle cx="12" cy="12" r="10"/>
+                                    <path d="M8 12h8"/>
+                                    <path d="M12 8v8"/>
+                                </svg>
+                            </a>
+                        <?php endif; ?>
                     </div>
                 <?php else: ?>
                     <a class="menu-item <?= $activePage === $item['key'] ? 'active' : '' ?>" href="<?= e(url($item['path'])) ?>">

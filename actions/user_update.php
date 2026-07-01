@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../includes/bootstrap.php';
 
-require_roles(['superadmin', 'admin'], 'index.php');
+require_permission('users.manage', 'index.php');
 
 function user_update_safe_return_target(string $raw, string $fallback): string
 {
@@ -64,7 +64,7 @@ require_csrf($resolvedEditReturnTo);
 $fullName = trim((string) ($_POST['full_name'] ?? ''));
 $username = trim((string) ($_POST['username'] ?? ''));
 $email = mb_strtolower(trim((string) ($_POST['email'] ?? '')));
-$role = trim((string) ($_POST['role'] ?? 'collector_l1'));
+$role = trim((string) ($_POST['role'] ?? 'collector'));
 $status = trim((string) ($_POST['status'] ?? 'active'));
 $password = (string) ($_POST['password'] ?? '');
 $confirmPassword = (string) ($_POST['confirm_password'] ?? '');
@@ -93,24 +93,23 @@ if (!$targetUser) {
     redirect('pages/users.php');
 }
 
-$currentRole = (string) $current['role'];
 $targetRole = (string) $targetUser['role'];
 
 if ($targetRole === 'superadmin') {
     $role = 'superadmin';
 } else {
-    if (!in_array($role, ['admin', 'collector_l1', 'collector_l2', 'collector'], true)) {
+    if (!in_array($role, ['admin', 'collector'], true)) {
         set_flash('error', 'Invalid role selected.');
         redirect($resolvedEditReturnTo);
     }
 }
 
-if ($currentRole === 'admin' && $targetRole === 'superadmin') {
-    set_flash('error', 'Manager cannot edit owner.');
+if (!is_owner($current) && $targetRole === 'superadmin') {
+    set_flash('error', 'Only owner can edit owner account.');
     redirect('pages/users.php');
 }
 
-if (((string) $currentRole) !== 'superadmin') {
+if (!is_owner($current)) {
     $status = (string) $targetUser['status'];
 }
 if (!in_array($status, ['active', 'inactive'], true)) {
@@ -183,6 +182,10 @@ if ((int) $current['id'] === $userId) {
     $_SESSION['auth_user']['email'] = $email;
     $_SESSION['auth_user']['role'] = $role;
     $_SESSION['auth_user']['status'] = $status;
+}
+
+if ($targetRole !== 'superadmin') {
+    sync_user_permissions($pdo, $userId, (array) ($_POST['permissions'] ?? []));
 }
 
 log_activity($pdo, 'user.updated', 'User updated: ' . $fullName . '.', [

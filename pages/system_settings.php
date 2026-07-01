@@ -3,11 +3,11 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../includes/bootstrap.php';
-require_roles(['superadmin', 'admin']);
+require_permission('system_settings.view');
 
 $pageTitle = 'System Settings';
 $activePage = 'system_settings';
-$canEditSystemSettings = has_role(['superadmin']);
+$canEditSystemSettings = can('system_settings.manage');
 $disabledAttr = $canEditSystemSettings ? '' : ' disabled';
 
 $settings = system_settings_all($pdo);

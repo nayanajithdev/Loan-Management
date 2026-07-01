@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../includes/bootstrap.php';
 
-require_roles(['superadmin', 'admin', 'collector_l2', 'collector']);
+require_permission('loans.view');
 
 $pageTitle = 'Edit Loan';
 $activePage = 'loans';
@@ -32,8 +32,12 @@ if (!$loan) {
 }
 
 $customers = $pdo->query("SELECT id, customer_code, full_name FROM customers WHERE status = 'active' ORDER BY full_name ASC")->fetchAll();
-$users = $pdo->query("SELECT id, full_name, username, role FROM users ORDER BY FIELD(role, 'superadmin', 'admin', 'collector_l2', 'collector_l1', 'collector'), full_name ASC")->fetchAll();
-$canEditAssignment = has_role(['superadmin', 'admin']);
+$users = $pdo->query("SELECT id, full_name, username, role FROM users ORDER BY FIELD(role, 'superadmin', 'admin', 'collector'), full_name ASC")->fetchAll();
+$canEditAssignment = can('loans.assign');
+$canScheduleNextPayment = can('collections.schedule');
+$canDeleteLoan = can('loans.delete');
+$canViewCustomer = can('customers.view');
+$canViewCollectionHistory = can('collections.history');
 
 $collectionCountStmt = $pdo->prepare('SELECT COUNT(*) FROM collections WHERE loan_id = :loan_id');
 $collectionCountStmt->execute(['loan_id' => $loanId]);
@@ -183,7 +187,7 @@ if ($installments !== []) {
     }
 }
 
-$canInlineCollect = $firstPendingInstallmentId > 0 && (string) $loan['status'] !== 'closed';
+$canInlineCollect = can('loans.collect_inline') && $firstPendingInstallmentId > 0 && (string) $loan['status'] !== 'closed';
 $latestUndoAvailable = false;
 
 if ($hasCollections) {
@@ -217,14 +221,18 @@ require __DIR__ . '/../includes/layout_start.php';
             </a>
         </div>
         <div class="panel-head-actions">
-            <a class="btn" href="<?= e(url('pages/customer_edit.php?customer_id=' . (int) $loan['customer_id'])) ?>">
-                <span class="btn-icon-inline" aria-hidden="true">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-user-icon lucide-user"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-                </span>
-                View Customer
-            </a>
-            <a class="btn" href="<?= e(url('pages/collections.php?customer_id=' . (int) $loan['customer_id'])) ?>">Collection History</a>
-            <?php if ($canEditAssignment): ?>
+            <?php if ($canViewCustomer): ?>
+                <a class="btn" href="<?= e(url('pages/customer_edit.php?customer_id=' . (int) $loan['customer_id'])) ?>">
+                    <span class="btn-icon-inline" aria-hidden="true">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-user-icon lucide-user"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                    </span>
+                    View Customer
+                </a>
+            <?php endif; ?>
+            <?php if ($canViewCollectionHistory): ?>
+                <a class="btn" href="<?= e(url('pages/collections.php?customer_id=' . (int) $loan['customer_id'])) ?>">Collection History</a>
+            <?php endif; ?>
+            <?php if ($canDeleteLoan): ?>
                 <form method="post" action="<?= e(url('actions/loan_delete.php')) ?>" class="inline-form" onsubmit="return confirm('Delete this loan permanently? This action cannot be undone.');">
                     <?= csrf_input() ?>
                     <input type="hidden" name="loan_id" value="<?= e((string) $loanId) ?>">
@@ -345,10 +353,13 @@ require __DIR__ . '/../includes/layout_start.php';
             <label>Schedule Next Payment</label>
             <div class="loan-schedule-row">
                 <div class="loan-schedule-checkbox-field">
-                    <input type="checkbox" name="schedule_next_payment" id="schedule-next-payment-toggle" value="1" class="loan-schedule-checkbox-input">
+                    <input type="checkbox" name="schedule_next_payment" id="schedule-next-payment-toggle" value="1" class="loan-schedule-checkbox-input" <?= $canScheduleNextPayment ? '' : 'disabled' ?>>
                 </div>
                 <input type="date" name="next_payment_date" id="next-payment-date-input" value="<?= e($tomorrowDate) ?>" min="<?= e($tomorrowDate) ?>" disabled>
             </div>
+            <?php if (!$canScheduleNextPayment): ?>
+                <small>You do not have permission to schedule payments.</small>
+            <?php endif; ?>
         </div>
 
         <div class="field full">

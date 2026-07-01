@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../includes/bootstrap.php';
-require_roles(['superadmin', 'admin', 'collector_l1', 'collector_l2', 'collector']);
+require_permission('customers.documents', 'pages/customers.php');
 if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
     redirect('pages/customers.php');
 }

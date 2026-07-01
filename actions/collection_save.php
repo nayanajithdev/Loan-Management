@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../includes/bootstrap.php';
-require_roles(['superadmin', 'admin', 'collector_l1', 'collector_l2', 'collector'], 'pages/today_collections.php');
+require_permission('collections.record', 'pages/today_collections.php');
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     redirect('pages/today_collections.php');
@@ -67,7 +67,8 @@ if ($collectedOn > today()) {
 
 $current = current_user();
 $currentRole = (string) ($current['role'] ?? '');
-$canBackdatePaid = in_array($currentRole, ['superadmin', 'admin'], true);
+$canBackdatePaid = can('collections.backdate');
+$canScheduleNextPayment = can('collections.schedule');
 $paidOnDate = $collectedOn;
 if ($backdatedEntry) {
     if (!$canBackdatePaid) {
@@ -92,6 +93,11 @@ if ($backdatedEntry) {
     }
 
     $paidOnDate = $paidOnDateInput;
+}
+
+if ($scheduleNextPayment && !$canScheduleNextPayment) {
+    set_flash('error', 'You do not have permission to schedule the next payment.');
+    redirect($returnTo);
 }
 
 if (!in_array($method, ['cash', 'bank', 'online'], true)) {
@@ -310,7 +316,7 @@ try {
 
     $activityDescription = $currentUserName . ' recorded collection for loan ' . $loanNumber . '.';
     if (
-        $currentRole === 'admin'
+        !is_collector_role($currentRole)
         && $assignedUser !== null
         && is_collector_role((string) ($assignedUser['role'] ?? ''))
         && (int) ($assignedUser['id'] ?? 0) !== $currentUserId

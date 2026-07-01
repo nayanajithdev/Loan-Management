@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../includes/bootstrap.php';
-require_roles(['superadmin', 'admin', 'collector_l1', 'collector_l2', 'collector']);
+require_permission('customers.edit', 'pages/customers.php');
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     redirect('pages/customers.php');
@@ -19,6 +19,7 @@ $note = trim((string) ($_POST['note'] ?? ''));
 $status = trim((string) ($_POST['status'] ?? 'active'));
 $uploadedByUserId = (int) (current_user()['id'] ?? 0);
 $documentsInput = $_FILES['documents'] ?? null;
+$canUploadDocuments = can('customers.documents');
 
 if ($customerId <= 0 || $fullName === '' || $phone === '') {
     set_flash('error', 'Customer, full name and phone are required.');
@@ -27,6 +28,11 @@ if ($customerId <= 0 || $fullName === '' || $phone === '') {
 
 if (!in_array($status, ['active', 'inactive'], true)) {
     $status = 'active';
+}
+
+if (has_uploaded_files($documentsInput) && !$canUploadDocuments) {
+    set_flash('error', 'You do not have permission to upload customer documents.');
+    redirect('pages/customer_edit.php?customer_id=' . $customerId);
 }
 
 $existsStmt = $pdo->prepare('SELECT id FROM customers WHERE id = :id LIMIT 1');
@@ -68,7 +74,9 @@ try {
         'id' => $customerId,
     ]);
 
-    $uploadedCount = store_customer_documents($pdo, $customerId, (string) $customer['customer_code'], $documentsInput, $uploadedByUserId);
+    $uploadedCount = $canUploadDocuments
+        ? store_customer_documents($pdo, $customerId, (string) $customer['customer_code'], $documentsInput, $uploadedByUserId)
+        : 0;
 
     $pdo->commit();
 

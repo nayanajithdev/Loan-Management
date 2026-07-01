@@ -7,11 +7,21 @@ CREATE TABLE IF NOT EXISTS users (
     username VARCHAR(80) NOT NULL UNIQUE,
     email VARCHAR(190) NULL,
     password_hash VARCHAR(255) NOT NULL,
-    role ENUM('superadmin', 'admin', 'collector', 'collector_l1', 'collector_l2') NOT NULL DEFAULT 'admin',
+    role ENUM('superadmin', 'admin', 'collector') NOT NULL DEFAULT 'admin',
     status ENUM('active', 'inactive') NOT NULL DEFAULT 'active',
     avatar_path VARCHAR(255) DEFAULT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE KEY uq_users_email (email)
+);
+
+CREATE TABLE IF NOT EXISTS user_permissions (
+    user_id INT NOT NULL,
+    permission_key VARCHAR(80) NOT NULL,
+    allowed TINYINT(1) NOT NULL DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, permission_key),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS password_reset_tokens (

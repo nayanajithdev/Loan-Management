@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../includes/bootstrap.php';
-require_roles(['superadmin', 'admin', 'collector_l1', 'collector_l2', 'collector']);
+require_permission('today_collections.view');
 
 $pageTitle = 'Collection';
 $activePage = 'today_collections';
@@ -44,7 +44,9 @@ $mobileRecordMode = (int) ($_GET['mobile_record'] ?? 0) === 1;
 $current = current_user();
 $currentRole = (string) ($current['role'] ?? '');
 $currentUserId = (int) ($current['id'] ?? 0);
-$canBackdatePaid = has_role(['superadmin', 'admin']);
+$canRecordCollection = can('collections.record');
+$canBackdatePaid = can('collections.backdate');
+$canScheduleNextPayment = can('collections.schedule');
 $dueDateOperator = $selectedDate > $todayDate ? '=' : '<=';
 
 $sql = "SELECT
@@ -108,7 +110,7 @@ foreach ($dueInstallments as $item) {
 $hasSelectedInstallment = $selectedInstallment !== null;
 $isFutureInstallmentSelected = $hasSelectedInstallment && (string) $selectedInstallment['due_date'] > $todayDate;
 $isTodayInstallmentSelected = $hasSelectedInstallment && (string) $selectedInstallment['due_date'] === $todayDate;
-$canCollectSelectedInstallment = $hasSelectedInstallment && !$isFutureInstallmentSelected;
+$canCollectSelectedInstallment = $canRecordCollection && $hasSelectedInstallment && !$isFutureInstallmentSelected;
 $canUseBackdatedEntryForSelection = $hasSelectedInstallment && !$isFutureInstallmentSelected && !$isTodayInstallmentSelected;
 $effectiveCollectedOn = $isFutureDate ? $todayDate : $selectedDate;
 
@@ -271,6 +273,8 @@ require __DIR__ . '/../includes/layout_start.php';
             <?php
             if ($hasSelectedInstallment && $isFutureInstallmentSelected) {
                 echo 'Future installment selected. Collection is disabled for future dues.';
+            } elseif ($hasSelectedInstallment && !$canRecordCollection) {
+                echo 'You can view this installment, but you do not have permission to record collections.';
             } else {
                 echo $hasSelectedInstallment ? 'Selected installment is ready for collection.' : 'Select an installment to continue.';
             }
@@ -332,12 +336,15 @@ require __DIR__ . '/../includes/layout_start.php';
             <?php endif; ?>
             <div class="field full">
                 <label class="choice-check">
-                    <input type="checkbox" name="schedule_next_payment" id="schedule-next-payment-toggle" value="1" <?= $canCollectSelectedInstallment ? '' : 'disabled' ?>>
+                    <input type="checkbox" name="schedule_next_payment" id="schedule-next-payment-toggle" value="1" <?= ($canCollectSelectedInstallment && $canScheduleNextPayment) ? '' : 'disabled' ?>>
                     <span class="choice-check-box" aria-hidden="true">
                         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-check-icon lucide-check"><path d="M20 6 9 17l-5-5"/></svg>
                     </span>
                     <span class="choice-check-label">Schedule Next Payment</span>
                 </label>
+                <?php if (!$canScheduleNextPayment): ?>
+                    <small>You do not have permission to schedule payments.</small>
+                <?php endif; ?>
             </div>
             <div class="field" id="next-payment-date-field" style="display:none;">
                 <label>Next Payment Date</label>
@@ -347,7 +354,7 @@ require __DIR__ . '/../includes/layout_start.php';
                     id="next-payment-date-input"
                     value="<?= e($nextPaymentDefault) ?>"
                     min="<?= e($tomorrowDate) ?>"
-                    <?= $canCollectSelectedInstallment ? '' : 'disabled' ?>
+                    <?= ($canCollectSelectedInstallment && $canScheduleNextPayment) ? '' : 'disabled' ?>
                 >
             </div>
             <div class="field full">

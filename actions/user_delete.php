@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../includes/bootstrap.php';
 
-require_roles(['superadmin', 'admin'], 'index.php');
+require_permission('users.manage', 'index.php');
 
 function user_delete_safe_return_target(string $raw, string $fallback): string
 {
@@ -85,11 +85,10 @@ if (!$targetUser) {
     redirect('pages/users.php');
 }
 
-$currentRole = (string) $current['role'];
 $targetRole = (string) $targetUser['role'];
 
-if ($currentRole === 'admin' && $targetRole === 'superadmin') {
-    set_flash('error', 'Manager cannot delete owner.');
+if (!is_owner($current) && $targetRole === 'superadmin') {
+    set_flash('error', 'Owner cannot be deleted.');
     redirect($resolvedDeleteReturnTo);
 }
 
