@@ -18,6 +18,7 @@ $interestRateMonths = normalize_interest_rate_months((int) ($_POST['interest_rat
 $frequency = trim((string) ($_POST['installment_frequency'] ?? 'daily'));
 $timeframeValue = (int) ($_POST['timeframe_value'] ?? 0);
 $timeframeUnit = trim((string) ($_POST['timeframe_unit'] ?? 'days'));
+$assignedUserId = can('loans.assign') ? (int) ($_POST['assigned_user_id'] ?? 0) : 0;
 $notes = trim((string) ($_POST['notes'] ?? ''));
 
 if ($customerId <= 0 || $principal <= 0 || $timeframeValue <= 0) {
@@ -44,6 +45,21 @@ if (!$customerStmt->fetch()) {
     redirect('pages/loans.php');
 }
 
+if ($assignedUserId > 0) {
+    $assignedStmt = $pdo->prepare(
+        "SELECT id FROM users
+         WHERE id = :id
+           AND status = 'active'
+           AND role IN ('collector', 'collector_l1', 'collector_l2')
+         LIMIT 1"
+    );
+    $assignedStmt->execute(['id' => $assignedUserId]);
+    if (!$assignedStmt->fetch()) {
+        set_flash('error', 'Selected collector is not available.');
+        redirect('pages/loan_create.php');
+    }
+}
+
 $totalAmount = loan_total_amount($principal, $interestRate, $interestRateType, $interestRateMonths);
 $installmentAmount = round($totalAmount / $installmentCount, 2);
 
@@ -58,6 +74,7 @@ try {
         'INSERT INTO loans (
             loan_number,
             customer_id,
+            assigned_user_id,
             principal_amount,
             interest_rate,
             interest_rate_type,
@@ -72,6 +89,7 @@ try {
         ) VALUES (
             :loan_number,
             :customer_id,
+            :assigned_user_id,
             :principal_amount,
             :interest_rate,
             :interest_rate_type,
@@ -89,6 +107,7 @@ try {
     $insertLoan->execute([
         'loan_number' => $loanNumber,
         'customer_id' => $customerId,
+        'assigned_user_id' => $assignedUserId > 0 ? $assignedUserId : null,
         'principal_amount' => $principal,
         'interest_rate' => $interestRate,
         'interest_rate_type' => $interestRateType,
@@ -134,6 +153,7 @@ try {
     log_activity($pdo, 'loan.created', 'Loan created: ' . $loanNumber . '.', [
         'loan_id' => $loanId,
         'customer_id' => $customerId,
+        'assigned_user_id' => $assignedUserId > 0 ? $assignedUserId : null,
         'principal_amount' => $principal,
         'interest_rate_type' => $interestRateType,
         'interest_rate_months' => $interestRateType === 'monthly' ? $interestRateMonths : 1,

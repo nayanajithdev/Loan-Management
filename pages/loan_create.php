@@ -8,8 +8,12 @@ require_permission('loans.create');
 $pageTitle = 'Create Loan';
 $activePage = 'loans';
 $canCreateCustomer = can('customers.create');
+$canAssignLoan = can('loans.assign');
 
 $customers = $pdo->query("SELECT id, customer_code, full_name FROM customers WHERE status = 'active' ORDER BY full_name ASC")->fetchAll();
+$collectors = $canAssignLoan
+    ? $pdo->query("SELECT id, full_name, username FROM users WHERE status = 'active' AND role IN ('collector', 'collector_l1', 'collector_l2') ORDER BY full_name ASC")->fetchAll()
+    : [];
 $defaultInterestRate = system_setting($pdo, 'default_interest_rate', '0.00');
 $defaultInterestRateType = 'amount_based';
 $defaultFrequency = system_setting($pdo, 'default_installment_frequency', 'daily');
@@ -105,6 +109,19 @@ require __DIR__ . '/../includes/layout_start.php';
                     </select>
                 </div>
             </div>
+            <?php if ($canAssignLoan): ?>
+                <div class="field">
+                    <label>Assign Loan To Collector</label>
+                    <select name="assigned_user_id">
+                        <option value="">Unassigned</option>
+                        <?php foreach ($collectors as $collector): ?>
+                            <option value="<?= e((string) $collector['id']) ?>">
+                                <?= e($collector['full_name'] . ' (' . $collector['username'] . ')') ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+            <?php endif; ?>
             <div class="field full">
                 <label>Notes</label>
                 <textarea name="notes" placeholder="Optional"></textarea>

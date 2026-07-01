@@ -335,7 +335,7 @@ require __DIR__ . '/../includes/layout_start.php';
         </div>
 
         <div class="field">
-            <label>Assign Loan To User</label>
+            <label>Assign Loan To Collector</label>
             <select name="assigned_user_id" <?= $canEditAssignment ? '' : 'disabled' ?>>
                 <option value="">Unassigned</option>
                 <?php foreach ($users as $user): ?>
