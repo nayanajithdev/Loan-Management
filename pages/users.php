@@ -28,6 +28,7 @@ $sql .= " ORDER BY FIELD(role, 'superadmin', 'admin', 'collector'), full_name AS
 $stmt = $pdo->prepare($sql);
 $stmt->execute($params);
 $users = $stmt->fetchAll();
+$current = current_user();
 
 require __DIR__ . '/../includes/layout_start.php';
 ?>
@@ -80,11 +81,18 @@ require __DIR__ . '/../includes/layout_start.php';
                     <?php
                     $role = (string) $user['role'];
                     $isOwnerRole = $role === 'superadmin';
+                    $isCurrentUser = $current && (
+                        (int) ($current['id'] ?? 0) === (int) $user['id']
+                        || ((string) ($current['username'] ?? '') !== '' && (string) $current['username'] === (string) $user['username'])
+                        || ((string) ($current['email'] ?? '') !== '' && (string) ($current['email'] ?? '') === (string) ($user['email'] ?? ''))
+                    );
+                    $isSelfRestricted = $isCurrentUser && !is_owner($current);
+                    $canOpenUser = !$isOwnerRole && !$isSelfRestricted;
                     $roleBadge = $isOwnerRole ? 'info' : ($role === 'admin' ? 'warning' : 'neutral');
                     $statusBadge = ((string) $user['status']) === 'active' ? 'success' : 'danger';
                     $editUrl = url('pages/user_edit.php?user_id=' . (int) $user['id']);
                     ?>
-                    <tr class="<?= $isOwnerRole ? '' : 'table-row-clickable' ?>" <?= $isOwnerRole ? '' : 'data-select-url="' . e($editUrl) . '"' ?>>
+                    <tr class="<?= $canOpenUser ? 'table-row-clickable' : '' ?>" <?= $canOpenUser ? 'data-select-url="' . e($editUrl) . '"' : '' ?>>
                         <td data-label="Name"><?= e((string) $user['full_name']) ?></td>
                         <td data-label="Email"><?= e((string) ($user['email'] ?? '-')) ?></td>
                         <td data-label="Username"><?= e((string) $user['username']) ?></td>
@@ -92,7 +100,7 @@ require __DIR__ . '/../includes/layout_start.php';
                         <td data-label="Status"><span class="badge badge-<?= e($statusBadge) ?>"><?= e(ucfirst((string) $user['status'])) ?></span></td>
                         <td data-label="Created"><?= e(display_date(substr((string) $user['created_at'], 0, 10))) ?></td>
                         <td data-label="Action">
-                            <?php if ($isOwnerRole): ?>
+                            <?php if (!$canOpenUser): ?>
                                 <span class="muted-text">Protected</span>
                             <?php else: ?>
                                 <a class="btn btn-icon-only" href="<?= e($editUrl) ?>" aria-label="Edit user">

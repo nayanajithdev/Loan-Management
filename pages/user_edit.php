@@ -30,9 +30,19 @@ if (!$editUser) {
 }
 
 $current = current_user();
-$isSelf = $current && (int) $current['id'] === (int) $editUser['id'];
+$isSelf = $current && (
+    (int) ($current['id'] ?? 0) === (int) $editUser['id']
+    || ((string) ($current['username'] ?? '') !== '' && (string) $current['username'] === (string) $editUser['username'])
+    || ((string) ($current['email'] ?? '') !== '' && (string) ($current['email'] ?? '') === (string) ($editUser['email'] ?? ''))
+);
 $isTargetSuperadmin = (string) $editUser['role'] === 'superadmin';
 $currentIsOwner = is_owner($current);
+
+if ($isSelf && !$currentIsOwner) {
+    set_flash('error', 'Managers cannot edit their own account from user management. Use Profile for personal account changes.');
+    redirect('pages/users.php');
+}
+
 $canDelete = !$isSelf && !$isTargetSuperadmin;
 $canChangeRole = !$isTargetSuperadmin;
 $canChangeStatus = $currentIsOwner && !$isTargetSuperadmin && !$isSelf;

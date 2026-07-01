@@ -94,6 +94,14 @@ if (!$targetUser) {
 }
 
 $targetRole = (string) $targetUser['role'];
+$isSelf = (int) ($current['id'] ?? 0) === $userId
+    || ((string) ($current['username'] ?? '') !== '' && (string) $current['username'] === (string) $targetUser['username'])
+    || ((string) ($current['email'] ?? '') !== '' && (string) ($current['email'] ?? '') === (string) ($targetUser['email'] ?? ''));
+
+if ($isSelf && !is_owner($current)) {
+    set_flash('error', 'Managers cannot edit their own account from user management. Use Profile for personal account changes.');
+    redirect('pages/users.php');
+}
 
 if ($targetRole === 'superadmin') {
     $role = 'superadmin';
@@ -115,7 +123,7 @@ if (!is_owner($current)) {
 if (!in_array($status, ['active', 'inactive'], true)) {
     $status = (string) $targetUser['status'];
 }
-if ($targetRole === 'superadmin' || ((int) $current['id'] === $userId)) {
+if ($targetRole === 'superadmin' || $isSelf) {
     $status = 'active';
 }
 
@@ -176,7 +184,7 @@ if ($password !== '' || $confirmPassword !== '') {
     ]);
 }
 
-if ((int) $current['id'] === $userId) {
+if ($isSelf) {
     $_SESSION['auth_user']['full_name'] = $fullName;
     $_SESSION['auth_user']['username'] = $username;
     $_SESSION['auth_user']['email'] = $email;
