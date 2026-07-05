@@ -99,7 +99,7 @@ $topCollectors = $topCollectorsStmt->fetchAll();
 
 $topCustomersStmt = $pdo->prepare(
     "SELECT
-        cu.customer_code,
+        cu.nic,
         cu.full_name,
         COUNT(*) AS entries,
         COALESCE(SUM(c.amount), 0) AS total_amount
@@ -107,7 +107,7 @@ $topCustomersStmt = $pdo->prepare(
      JOIN loans l ON l.id = c.loan_id
      JOIN customers cu ON cu.id = l.customer_id
      WHERE c.collected_on BETWEEN :from_date AND :to_date
-     GROUP BY cu.id, cu.customer_code, cu.full_name
+     GROUP BY cu.id, cu.nic, cu.full_name
      ORDER BY total_amount DESC"
 );
 $topCustomersStmt->execute(['from_date' => $fromDate, 'to_date' => $toDate]);
@@ -117,7 +117,7 @@ $overdueLoansStmt = $pdo->query(
     "SELECT
         l.loan_number,
         cu.full_name AS customer_name,
-        COALESCE(u.full_name, 'Unassigned') AS assigned_to,
+        COALESCE(u.full_name, 'Owner') AS assigned_to,
         COUNT(li.id) AS overdue_installments,
         MIN(li.due_date) AS oldest_due_date,
         COALESCE(SUM(li.due_amount - li.paid_amount), 0) AS overdue_balance
@@ -307,7 +307,7 @@ require __DIR__ . '/../includes/layout_start.php';
             <table class="reports-table-compact">
                 <thead>
                 <tr>
-                    <th>Code</th>
+                    <th>ID No</th>
                     <th>Customer</th>
                     <th>Entries</th>
                     <th class="text-right">Amount</th>
@@ -319,7 +319,7 @@ require __DIR__ . '/../includes/layout_start.php';
                 <?php else: ?>
                     <?php foreach ($topCustomers as $row): ?>
                         <tr>
-                            <td><?= e((string) $row['customer_code']) ?></td>
+                            <td><?= e(customer_id_no_label((string) ($row['nic'] ?? ''))) ?></td>
                             <td><?= e((string) $row['full_name']) ?></td>
                             <td><?= e((string) $row['entries']) ?></td>
                             <td class="text-right"><?= e(money_label($pdo, (float) $row['total_amount'])) ?></td>

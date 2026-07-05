@@ -31,8 +31,13 @@ if (!$loan) {
     redirect('pages/loans.php');
 }
 
-$customers = $pdo->query("SELECT id, customer_code, full_name FROM customers WHERE status = 'active' ORDER BY full_name ASC")->fetchAll();
-$users = $pdo->query("SELECT id, full_name, username, role FROM users ORDER BY FIELD(role, 'superadmin', 'admin', 'collector'), full_name ASC")->fetchAll();
+$currentAssignedUserId = (int) ($loan['loan_assigned_user_id'] ?? 0);
+if ($currentAssignedUserId <= 0) {
+    $currentAssignedUserId = default_loan_collector_id($pdo);
+}
+
+$customers = $pdo->query("SELECT id, customer_code, full_name, nic FROM customers WHERE status = 'active' ORDER BY full_name ASC")->fetchAll();
+$users = assignable_collector_rows($pdo, $currentAssignedUserId);
 $canEditAssignment = can('loans.assign');
 $canScheduleNextPayment = can('collections.schedule');
 $canDeleteLoan = can('loans.delete');
@@ -81,14 +86,7 @@ $pendingForCollect = array_values(array_filter(
 if ($pendingForCollect !== []) {
     usort(
         $pendingForCollect,
-        static function (array $a, array $b): int {
-            $dateCompare = strcmp((string) $a['due_date'], (string) $b['due_date']);
-            if ($dateCompare !== 0) {
-                return $dateCompare;
-            }
-
-            return ((int) $a['installment_no']) <=> ((int) $b['installment_no']);
-        }
+        static fn (array $a, array $b): int => ((int) $a['installment_no']) <=> ((int) $b['installment_no'])
     );
     $firstPendingInstallmentId = (int) ($pendingForCollect[0]['id'] ?? 0);
 }
@@ -267,7 +265,7 @@ require __DIR__ . '/../includes/layout_start.php';
                 <option value="">Select customer</option>
                 <?php foreach ($customers as $customer): ?>
                     <option value="<?= e((string) $customer['id']) ?>" <?= (int) $loan['customer_id'] === (int) $customer['id'] ? 'selected' : '' ?>>
-                        <?= e($customer['customer_code'] . ' - ' . $customer['full_name']) ?>
+                        <?= e(customer_display_label($customer)) ?>
                     </option>
                 <?php endforeach; ?>
             </select>
@@ -337,15 +335,14 @@ require __DIR__ . '/../includes/layout_start.php';
         <div class="field">
             <label>Assign Loan To Collector</label>
             <select name="assigned_user_id" <?= $canEditAssignment ? '' : 'disabled' ?>>
-                <option value="">Unassigned</option>
                 <?php foreach ($users as $user): ?>
-                    <option value="<?= e((string) $user['id']) ?>" <?= (int) $loan['loan_assigned_user_id'] === (int) $user['id'] ? 'selected' : '' ?>>
-                        <?= e($user['full_name'] . ' (' . $user['username'] . ' - ' . role_display_name((string) $user['role']) . ')') ?>
+                    <option value="<?= e((string) $user['id']) ?>" <?= $currentAssignedUserId === (int) $user['id'] ? 'selected' : '' ?>>
+                        <?= e($user['full_name'] . ' (' . $user['username'] . ' - ' . role_display_name((string) $user['role']) . ((string) ($user['status'] ?? 'active') !== 'active' ? ', inactive' : '') . ')') ?>
                     </option>
                 <?php endforeach; ?>
             </select>
             <?php if (!$canEditAssignment): ?>
-                <input type="hidden" name="assigned_user_id" value="<?= e((string) ($loan['loan_assigned_user_id'] ?? '')) ?>">
+                <input type="hidden" name="assigned_user_id" value="<?= e((string) $currentAssignedUserId) ?>">
             <?php endif; ?>
         </div>
 
@@ -442,7 +439,7 @@ require __DIR__ . '/../includes/layout_start.php';
                         <?php if ($displayStatus !== 'paid' || $showUndoOnCard): ?>
                             <div class="loan-inst-badges">
                                 <?php if ($showUndoOnCard): ?>
-                                    <form method="post" action="<?= e(url('actions/loan_collect_inline_undo.php')) ?>" class="loan-inst-undo-form" data-confirm="Undo latest collection for this loan?">
+                                    <form method="post" action="<?= e(url('actions/loan_collect_inline_undo.php')) ?>" class="loan-inst-undo-form" data-confirm="Undo latest payment for this loan?">
                                         <?= csrf_input() ?>
                                         <input type="hidden" name="loan_id" value="<?= e((string) $loanId) ?>">
                                         <button type="submit" class="loan-inst-undo-btn" title="Undo Latest" aria-label="Undo Latest">

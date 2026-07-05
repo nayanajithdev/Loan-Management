@@ -53,7 +53,7 @@ try {
 
     $assignedUserId = isset($loan['assigned_user_id']) ? (int) $loan['assigned_user_id'] : 0;
     if (is_collector_role($currentRole) && $assignedUserId > 0 && $assignedUserId !== $currentUserId) {
-        throw new RuntimeException('You can only collect loans assigned to you (or unassigned loans).');
+        throw new RuntimeException('You can only collect loans assigned to you.');
     }
 
     $outstandingStmt = $pdo->prepare(
@@ -78,7 +78,7 @@ try {
          FROM loan_installments
          WHERE loan_id = :loan_id
            AND status IN ('pending', 'partial', 'overdue')
-         ORDER BY due_date ASC, installment_no ASC
+         ORDER BY installment_no ASC
          FOR UPDATE"
     );
     $pendingAscStmt->execute(['loan_id' => $loanId]);
@@ -182,7 +182,7 @@ try {
              FROM loan_installments
              WHERE loan_id = :loan_id
                AND status IN ('pending', 'partial', 'overdue')
-             ORDER BY due_date ASC, installment_no ASC
+             ORDER BY installment_no ASC
              LIMIT 1
              FOR UPDATE"
         );

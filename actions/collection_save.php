@@ -143,7 +143,7 @@ try {
     }
 
     if (is_collector_role($currentRole) && $assignedUserId > 0 && $assignedUserId !== $currentUserId) {
-        throw new RuntimeException('You can only collect payments for loans assigned to you (or unassigned loans).');
+        throw new RuntimeException('You can only collect payments for loans assigned to you.');
     }
     $outstandingStmt = $pdo->prepare(
         "SELECT COALESCE(SUM(due_amount - paid_amount), 0)
@@ -337,7 +337,7 @@ try {
             'scheduled_installment_id' => (int) ($scheduledInstallment['installment_id'] ?? 0),
             'scheduled_to_date' => (string) ($scheduledInstallment['to_due_date'] ?? ''),
             'schedule_skipped_no_pending' => $scheduleSkippedNoPending ? 1 : 0,
-            'assigned_user' => $assignedUser !== null ? (string) ($assignedUser['full_name'] ?? '') : 'Unassigned',
+            'assigned_user' => $assignedUser !== null ? (string) ($assignedUser['full_name'] ?? '') : 'Owner',
         ]);
 
     if ($scheduleNextPayment && $scheduledInstallment !== null && (bool) ($scheduledInstallment['changed'] ?? false)) {

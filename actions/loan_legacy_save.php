@@ -10,6 +10,8 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 }
 require_csrf('pages/loan_legacy_create.php');
 
+$loanNumberInput = trim((string) ($_POST['loan_number'] ?? ''));
+$loanNumber = normalize_loan_number_input($loanNumberInput);
 $customerId = (int) ($_POST['customer_id'] ?? 0);
 $principal = (float) ($_POST['principal_amount'] ?? 0);
 $interestRate = (float) ($_POST['interest_rate'] ?? 0);
@@ -21,10 +23,29 @@ $timeframeUnit = trim((string) ($_POST['timeframe_unit'] ?? 'days'));
 $issuedDate = trim((string) ($_POST['issued_date'] ?? ''));
 $collectedAmount = round((float) ($_POST['collected_amount'] ?? 0), 2);
 $collectedIncludingToday = (int) ($_POST['collected_including_today'] ?? 0) === 1;
+$canAssignLoan = can('loans.assign');
+$assignedUserId = $canAssignLoan
+    ? assignable_collector_id_or_default($pdo, (int) ($_POST['assigned_user_id'] ?? 0))
+    : default_loan_collector_id($pdo);
 $notes = trim((string) ($_POST['notes'] ?? ''));
+
+if ($loanNumber === '' || (int) ltrim($loanNumber, '0') <= 0) {
+    set_flash('error', 'Loan No must be a positive number.');
+    redirect('pages/loan_legacy_create.php');
+}
+
+if (loan_number_exists($pdo, $loanNumber)) {
+    set_flash('error', 'Loan No already exists. Please use another number.');
+    redirect('pages/loan_legacy_create.php');
+}
 
 if ($customerId <= 0 || $principal <= 0 || $timeframeValue <= 0 || $issuedDate === '') {
     set_flash('error', 'Please fill all required old loan fields correctly.');
+    redirect('pages/loan_legacy_create.php');
+}
+
+if ($assignedUserId <= 0) {
+    set_flash('error', 'Owner account is required before adding old loans.');
     redirect('pages/loan_legacy_create.php');
 }
 
@@ -85,7 +106,6 @@ if ($remainingAmount > 0) {
 // schedule position instead of restarting from #1.
 $startingInstallmentNo = max(1, $originalInstallmentCount - $remainingInstallmentCount + 1);
 
-$loanNumber = next_loan_number($pdo);
 $startDate = $issuedDate;
 $firstDueDate = $collectedIncludingToday
     ? (new DateTimeImmutable(today()))->add(new DateInterval('P1D'))->format('Y-m-d')
@@ -98,6 +118,7 @@ try {
         'INSERT INTO loans (
             loan_number,
             customer_id,
+            assigned_user_id,
             principal_amount,
             interest_rate,
             interest_rate_type,
@@ -113,6 +134,7 @@ try {
         ) VALUES (
             :loan_number,
             :customer_id,
+            :assigned_user_id,
             :principal_amount,
             :interest_rate,
             :interest_rate_type,
@@ -131,6 +153,7 @@ try {
     $insertLoan->execute([
         'loan_number' => $loanNumber,
         'customer_id' => $customerId,
+        'assigned_user_id' => $assignedUserId,
         'principal_amount' => $principal,
         'interest_rate' => $interestRate,
         'interest_rate_type' => $interestRateType,
@@ -182,6 +205,7 @@ try {
     log_activity($pdo, 'loan.imported_old', 'Old loan imported: ' . $loanNumber . '.', [
         'loan_id' => $loanId,
         'customer_id' => $customerId,
+        'assigned_user_id' => $assignedUserId,
         'principal_amount' => $principal,
         'interest_rate_type' => $interestRateType,
         'interest_rate_months' => $interestRateType === 'monthly' ? $interestRateMonths : 1,

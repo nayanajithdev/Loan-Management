@@ -38,7 +38,6 @@ function role_display_name(string $role): string
         'superadmin' => 'Owner',
         'admin' => 'Manager',
         'collector_l1', 'collector_l2', 'collector' => 'Collector',
-        'unassigned' => 'Unassigned',
         default => ucfirst($role),
     };
 }
@@ -75,7 +74,7 @@ function permission_groups(): array
             'description' => 'Customer records, documents, and customer access scope.',
             'permissions' => [
                 'customers.view' => ['label' => 'View Customers', 'description' => 'Open customer list and customer details.'],
-                'customers.view_all' => ['label' => 'View All Customers', 'description' => 'Bypass assigned/unassigned customer scope.'],
+                'customers.view_all' => ['label' => 'View All Customers', 'description' => 'Bypass assigned customer scope.'],
                 'customers.create' => ['label' => 'Create Customers', 'description' => 'Add new customer records.'],
                 'customers.edit' => ['label' => 'Edit Customers', 'description' => 'Update existing customer records.'],
                 'customers.delete' => ['label' => 'Delete Customers', 'description' => 'Delete customers with no linked loans.'],
@@ -798,12 +797,85 @@ function loan_total_amount(
     return round($principal + ($baseInterest * $multiplier), 2);
 }
 
+function loan_number_digits(string $loanNumber): string
+{
+    $loanNumber = trim($loanNumber);
+    if ($loanNumber === '') {
+        return '';
+    }
+
+    if (preg_match('/^\d+$/', $loanNumber) === 1) {
+        return $loanNumber;
+    }
+
+    if (preg_match('/(\d+)$/', $loanNumber, $matches) === 1) {
+        return (string) $matches[1];
+    }
+
+    return '';
+}
+
+function normalize_loan_number_input(string $loanNumber, int $minimumWidth = 3): string
+{
+    $loanNumber = trim($loanNumber);
+    if (preg_match('/^\d+$/', $loanNumber) !== 1) {
+        return '';
+    }
+
+    $numericValue = (int) ltrim($loanNumber, '0');
+    $width = max($minimumWidth, strlen($loanNumber));
+
+    return str_pad((string) $numericValue, $width, '0', STR_PAD_LEFT);
+}
+
 function next_loan_number(PDO $pdo): string
 {
-    $stmt = $pdo->query('SELECT id FROM loans ORDER BY id DESC LIMIT 1');
-    $lastId = (int) ($stmt->fetchColumn() ?: 0);
+    $stmt = $pdo->query('SELECT loan_number FROM loans ORDER BY id DESC');
+    $maxNumber = 0;
+    $width = 3;
 
-    return 'LN-' . str_pad((string) ($lastId + 1), 6, '0', STR_PAD_LEFT);
+    foreach ($stmt->fetchAll() as $row) {
+        $existingLoanNumber = (string) ($row['loan_number'] ?? '');
+        $digits = loan_number_digits($existingLoanNumber);
+        if ($digits === '') {
+            continue;
+        }
+
+        $number = (int) ltrim($digits, '0');
+        if ($number >= $maxNumber) {
+            $maxNumber = $number;
+            $width = preg_match('/^\d+$/', $existingLoanNumber) === 1
+                ? max(3, strlen($digits))
+                : 3;
+        }
+    }
+
+    return str_pad((string) ($maxNumber + 1), $width, '0', STR_PAD_LEFT);
+}
+
+function loan_number_exists(PDO $pdo, string $loanNumber): bool
+{
+    $targetDigits = loan_number_digits($loanNumber);
+    if ($targetDigits === '') {
+        return false;
+    }
+
+    $targetNumber = (int) ltrim($targetDigits, '0');
+    $stmt = $pdo->query('SELECT loan_number FROM loans');
+
+    foreach ($stmt->fetchAll() as $row) {
+        $existing = (string) ($row['loan_number'] ?? '');
+        if ($existing === $loanNumber) {
+            return true;
+        }
+
+        $existingDigits = loan_number_digits($existing);
+        if ($existingDigits !== '' && (int) ltrim($existingDigits, '0') === $targetNumber) {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 function next_customer_code(PDO $pdo): string
@@ -812,6 +884,25 @@ function next_customer_code(PDO $pdo): string
     $lastId = (int) ($stmt->fetchColumn() ?: 0);
 
     return 'CUST-' . str_pad((string) ($lastId + 1), 5, '0', STR_PAD_LEFT);
+}
+
+function customer_id_no_label(?string $nic): string
+{
+    $nic = trim((string) $nic);
+
+    return $nic !== '' ? $nic : '-';
+}
+
+function customer_display_label(array $customer): string
+{
+    $name = trim((string) ($customer['full_name'] ?? ''));
+    $idNo = customer_id_no_label(isset($customer['nic']) ? (string) $customer['nic'] : '');
+
+    if ($name === '') {
+        return $idNo;
+    }
+
+    return $idNo !== '-' ? $name . ' - ' . $idNo : $name;
 }
 
 function status_badge_class(string $status): string
@@ -963,7 +1054,7 @@ function dashboard_stats(PDO $pdo, ?array $viewer = null): array
         $totals['overdue_count'] = (int) $pdo->query("SELECT COUNT(*) FROM loan_installments WHERE status = 'overdue'")->fetchColumn();
         $totals['overdue_customers'] = (int) $pdo->query("SELECT COUNT(DISTINCT l.customer_id) FROM loan_installments li JOIN loans l ON l.id = li.loan_id WHERE li.status = 'overdue'")->fetchColumn();
     } else {
-        $scope = '(l.assigned_user_id = :viewer_user_id OR l.assigned_user_id IS NULL)';
+        $scope = 'l.assigned_user_id = :viewer_user_id';
 
         $stmt = $pdo->prepare("SELECT COUNT(DISTINCT l.customer_id) FROM loans l WHERE {$scope}");
         $stmt->execute(['viewer_user_id' => $viewerId]);
@@ -1211,6 +1302,12 @@ function ensure_loan_assignment_schema(PDO $pdo): void
     if (!$col) {
         $pdo->exec('ALTER TABLE loans ADD COLUMN assigned_user_id INT NULL AFTER customer_id');
         $pdo->exec('ALTER TABLE loans ADD INDEX idx_loans_assigned_user (assigned_user_id)');
+    }
+
+    $ownerId = owner_user_id($pdo);
+    if ($ownerId > 0) {
+        $stmt = $pdo->prepare('UPDATE loans SET assigned_user_id = :owner_id WHERE assigned_user_id IS NULL');
+        $stmt->execute(['owner_id' => $ownerId]);
     }
 }
 
@@ -2180,6 +2277,93 @@ function sync_user_permissions(PDO $pdo, int $userId, array $permissionKeys): vo
     }
 }
 
+function owner_user_id(PDO $pdo): int
+{
+    $stmt = $pdo->query(
+        "SELECT id
+         FROM users
+         WHERE role = 'superadmin'
+         ORDER BY id ASC
+         LIMIT 1"
+    );
+
+    return (int) ($stmt->fetchColumn() ?: 0);
+}
+
+function default_loan_collector_id(PDO $pdo): int
+{
+    return owner_user_id($pdo);
+}
+
+function assignable_collector_rows(PDO $pdo, ?int $includeUserId = null): array
+{
+    $includeUserId = $includeUserId !== null ? max(0, $includeUserId) : 0;
+
+    if ($includeUserId > 0) {
+        $stmt = $pdo->prepare(
+            "SELECT id, full_name, username, role, status
+             FROM users
+             WHERE status = 'active'
+                OR id = :include_user_id
+             ORDER BY FIELD(role, 'superadmin', 'admin', 'collector'), full_name ASC"
+        );
+        $stmt->execute(['include_user_id' => $includeUserId]);
+
+        return $stmt->fetchAll();
+    }
+
+    return $pdo->query(
+        "SELECT id, full_name, username, role, status
+         FROM users
+         WHERE status = 'active'
+         ORDER BY FIELD(role, 'superadmin', 'admin', 'collector'), full_name ASC"
+    )->fetchAll();
+}
+
+function assignable_collector_id_or_default(PDO $pdo, int $userId): int
+{
+    $defaultId = default_loan_collector_id($pdo);
+    if ($userId <= 0) {
+        return $defaultId;
+    }
+
+    return is_assignable_collector($pdo, $userId) ? $userId : $defaultId;
+}
+
+function is_assignable_collector(PDO $pdo, int $userId): bool
+{
+    if ($userId <= 0) {
+        return false;
+    }
+
+    $stmt = $pdo->prepare(
+        "SELECT id
+         FROM users
+         WHERE id = :id
+           AND status = 'active'
+         LIMIT 1"
+    );
+    $stmt->execute(['id' => $userId]);
+
+    return (bool) $stmt->fetch();
+}
+
+function fallback_loan_assignments_to_owner(PDO $pdo, int $fromUserId): int
+{
+    $ownerId = default_loan_collector_id($pdo);
+    if ($fromUserId <= 0 || $ownerId <= 0 || $fromUserId === $ownerId) {
+        return 0;
+    }
+
+    $stmt = $pdo->prepare('UPDATE loans SET assigned_user_id = :owner_id WHERE assigned_user_id = :from_user_id');
+    $stmt->execute([
+        'owner_id' => $ownerId,
+        'from_user_id' => $fromUserId,
+    ]);
+
+    return (int) $stmt->rowCount();
+}
+
 function render_permission_fields(array $selectedKeys, bool $disabled = false): void
 {
     $selected = array_flip(array_map('strval', $selectedKeys));
@@ -2326,12 +2510,6 @@ function can_access_customer(PDO $pdo, int $customerId, ?array $viewer = null): 
                     WHERE l_assigned.customer_id = c.id
                       AND l_assigned.assigned_user_id = :viewer_user_id
                 )
-                OR EXISTS (
-                    SELECT 1
-                    FROM loans l_unassigned
-                    WHERE l_unassigned.customer_id = c.id
-                      AND l_unassigned.assigned_user_id IS NULL
-                )
                 OR NOT EXISTS (
                     SELECT 1
                     FROM loans l_any
@@ -2382,7 +2560,7 @@ function today_collection_goal(PDO $pdo, ?array $viewer = null): array
         );
         $collectedTowardGoalToday = (float) $collectedStmt->fetchColumn();
     } else {
-        $scope = '(l.assigned_user_id = :viewer_user_id OR l.assigned_user_id IS NULL)';
+        $scope = 'l.assigned_user_id = :viewer_user_id';
 
         $remainingStmt = $pdo->prepare(
             "SELECT COALESCE(SUM(li.due_amount - li.paid_amount), 0)
@@ -2438,7 +2616,7 @@ function today_collected_total(PDO $pdo, ?array $viewer = null): float
          FROM collections c
          JOIN loans l ON l.id = c.loan_id
          WHERE c.collected_on = CURDATE()
-           AND (l.assigned_user_id = :viewer_user_id OR l.assigned_user_id IS NULL)"
+           AND l.assigned_user_id = :viewer_user_id"
     );
     $stmt->execute(['viewer_user_id' => $viewerId]);
     return (float) $stmt->fetchColumn();
@@ -2471,7 +2649,7 @@ function collections_30day_trend(PDO $pdo, ?array $viewer = null): array
         $targetStmt->execute(['start_date' => $start]);
         $targetRows = $targetStmt->fetchAll();
     } else {
-        $scope = '(l.assigned_user_id = :viewer_user_id OR l.assigned_user_id IS NULL)';
+        $scope = 'l.assigned_user_id = :viewer_user_id';
 
         $collectedStmt = $pdo->prepare(
             "SELECT c.collected_on AS d, COALESCE(SUM(c.amount), 0) AS total
@@ -2563,16 +2741,7 @@ function dashboard_user_goals(PDO $pdo, ?array $viewer = null): array
         ];
     }
 
-    $goalRows['unassigned'] = [
-        'id' => null,
-        'full_name' => 'Unassigned',
-        'role' => 'unassigned',
-        'role_label' => 'Unassigned',
-        'remaining' => 0.0,
-        'collected' => 0.0,
-        'target' => 0.0,
-        'percentage' => 0.0,
-    ];
+    $ownerKey = 'user_' . owner_user_id($pdo);
 
     if ($isCollectorScope) {
         $remainingStmt = $pdo->prepare(
@@ -2581,7 +2750,7 @@ function dashboard_user_goals(PDO $pdo, ?array $viewer = null): array
              JOIN loans l ON l.id = li.loan_id
              WHERE li.due_date <= CURDATE()
                AND li.status IN ('pending', 'partial', 'overdue')
-               AND (l.assigned_user_id = :viewer_user_id OR l.assigned_user_id IS NULL)
+               AND l.assigned_user_id = :viewer_user_id
              GROUP BY l.assigned_user_id"
         );
         $remainingStmt->execute(['viewer_user_id' => $viewerId]);
@@ -2598,7 +2767,7 @@ function dashboard_user_goals(PDO $pdo, ?array $viewer = null): array
     }
 
     foreach ($remainingRows as $row) {
-        $key = $row['assigned_user_id'] === null ? 'unassigned' : 'user_' . (int) $row['assigned_user_id'];
+        $key = $row['assigned_user_id'] === null ? $ownerKey : 'user_' . (int) $row['assigned_user_id'];
         if (!isset($goalRows[$key])) {
             continue;
         }
@@ -2613,7 +2782,7 @@ function dashboard_user_goals(PDO $pdo, ?array $viewer = null): array
              JOIN loans l ON l.id = c.loan_id
              WHERE c.collected_on = CURDATE()
                AND li.due_date <= CURDATE()
-               AND (l.assigned_user_id = :viewer_user_id OR l.assigned_user_id IS NULL)
+               AND l.assigned_user_id = :viewer_user_id
              GROUP BY l.assigned_user_id"
         );
         $collectedStmt->execute(['viewer_user_id' => $viewerId]);
@@ -2631,7 +2800,7 @@ function dashboard_user_goals(PDO $pdo, ?array $viewer = null): array
     }
 
     foreach ($collectedRows as $row) {
-        $key = $row['assigned_user_id'] === null ? 'unassigned' : 'user_' . (int) $row['assigned_user_id'];
+        $key = $row['assigned_user_id'] === null ? $ownerKey : 'user_' . (int) $row['assigned_user_id'];
         if (!isset($goalRows[$key])) {
             continue;
         }
@@ -2650,12 +2819,6 @@ function dashboard_user_goals(PDO $pdo, ?array $viewer = null): array
 
     $goals = array_values($goalRows);
     usort($goals, static function (array $a, array $b): int {
-        if ($a['role'] === 'unassigned' && $b['role'] !== 'unassigned') {
-            return 1;
-        }
-        if ($b['role'] === 'unassigned' && $a['role'] !== 'unassigned') {
-            return -1;
-        }
         return $b['percentage'] <=> $a['percentage'];
     });
 

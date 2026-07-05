@@ -10,15 +10,17 @@ $activePage = 'loans';
 $canCreateCustomer = can('customers.create');
 $canAssignLoan = can('loans.assign');
 
-$customers = $pdo->query("SELECT id, customer_code, full_name FROM customers WHERE status = 'active' ORDER BY full_name ASC")->fetchAll();
+$customers = $pdo->query("SELECT id, customer_code, full_name, nic FROM customers WHERE status = 'active' ORDER BY full_name ASC")->fetchAll();
 $collectors = $canAssignLoan
-    ? $pdo->query("SELECT id, full_name, username FROM users WHERE status = 'active' AND role IN ('collector', 'collector_l1', 'collector_l2') ORDER BY full_name ASC")->fetchAll()
+    ? assignable_collector_rows($pdo)
     : [];
+$defaultCollectorId = default_loan_collector_id($pdo);
 $defaultInterestRate = system_setting($pdo, 'default_interest_rate', '0.00');
 $defaultInterestRateType = 'amount_based';
 $defaultFrequency = system_setting($pdo, 'default_installment_frequency', 'daily');
 $defaultTimeframeValue = (int) system_setting($pdo, 'default_timeframe_value', '30');
 $defaultTimeframeUnit = system_setting($pdo, 'default_timeframe_unit', 'days');
+$suggestedLoanNumber = next_loan_number($pdo);
 
 if (!in_array($defaultFrequency, ['daily', 'weekly', 'monthly'], true)) {
     $defaultFrequency = 'daily';
@@ -65,13 +67,23 @@ require __DIR__ . '/../includes/layout_start.php';
         <form id="loan-form" class="form-grid" method="post" action="<?= e(url('actions/loan_save.php')) ?>">
             <?= csrf_input() ?>
             <div class="field">
+                <label>Loan No</label>
+                <input type="text" name="loan_number" value="<?= e($suggestedLoanNumber) ?>" inputmode="numeric" pattern="\d+" required>
+            </div>
+            <div class="field">
                 <label>Customer</label>
-                <select name="customer_id" required>
-                    <option value="">Select customer</option>
-                    <?php foreach ($customers as $customer): ?>
-                        <option value="<?= e((string) $customer['id']) ?>"><?= e($customer['customer_code'] . ' - ' . $customer['full_name']) ?></option>
-                    <?php endforeach; ?>
-                </select>
+                <div class="searchable-select" data-searchable-select>
+                    <input type="hidden" name="customer_id" data-select-value required>
+                    <input type="search" data-select-search placeholder="Select customer" autocomplete="off" role="combobox" aria-expanded="false">
+                    <div class="searchable-select-menu" data-select-menu hidden>
+                        <?php foreach ($customers as $customer): ?>
+                            <button type="button" data-select-option value="<?= e((string) $customer['id']) ?>">
+                                <?= e(customer_display_label($customer)) ?>
+                            </button>
+                        <?php endforeach; ?>
+                    </div>
+                    <small class="searchable-select-empty" data-select-empty hidden>No matching customers.</small>
+                </div>
             </div>
             <div class="field">
                 <label>Principal Amount</label>
@@ -112,11 +124,11 @@ require __DIR__ . '/../includes/layout_start.php';
             <?php if ($canAssignLoan): ?>
                 <div class="field">
                     <label>Assign Loan To Collector</label>
-                    <select name="assigned_user_id">
-                        <option value="">Unassigned</option>
+                    <select name="assigned_user_id" required>
                         <?php foreach ($collectors as $collector): ?>
-                            <option value="<?= e((string) $collector['id']) ?>">
-                                <?= e($collector['full_name'] . ' (' . $collector['username'] . ')') ?>
+                            <?php $collectorId = (int) $collector['id']; ?>
+                            <option value="<?= e((string) $collectorId) ?>" <?= $collectorId === $defaultCollectorId ? 'selected' : '' ?>>
+                                <?= e($collector['full_name'] . ' (' . $collector['username'] . ' - ' . role_display_name((string) $collector['role']) . ')') ?>
                             </option>
                         <?php endforeach; ?>
                     </select>

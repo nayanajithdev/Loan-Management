@@ -18,7 +18,7 @@ $queryLimit = $perPage + 1;
 $scopeSql = '';
 $params = [];
 if (is_collector_role($currentRole)) {
-    $scopeSql = ' WHERE (l.assigned_user_id = :assigned_user_id OR l.assigned_user_id IS NULL)';
+    $scopeSql = ' WHERE l.assigned_user_id = :assigned_user_id';
     $params['assigned_user_id'] = $currentUserId;
 }
 

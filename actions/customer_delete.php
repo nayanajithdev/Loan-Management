@@ -20,7 +20,7 @@ if ($customerId <= 0) {
 try {
     $pdo->beginTransaction();
 
-    $customerStmt = $pdo->prepare('SELECT id, customer_code, full_name FROM customers WHERE id = :id FOR UPDATE');
+    $customerStmt = $pdo->prepare('SELECT id, customer_code, full_name, nic FROM customers WHERE id = :id FOR UPDATE');
     $customerStmt->execute(['id' => $customerId]);
     $customer = $customerStmt->fetch();
 
@@ -85,7 +85,7 @@ try {
         }
     }
 
-    $customerLabel = trim((string) ($customer['customer_code'] ?? '')) . ' - ' . trim((string) ($customer['full_name'] ?? ''));
+    $customerLabel = customer_display_label($customer);
     log_activity($pdo, 'customer.deleted', 'Customer deleted: ' . trim($customerLabel, ' -') . '.', [
         'customer_id' => $customerId,
         'customer_code' => (string) ($customer['customer_code'] ?? ''),

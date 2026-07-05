@@ -21,8 +21,8 @@ $uploadedByUserId = (int) (current_user()['id'] ?? 0);
 $documentsInput = $_FILES['documents'] ?? null;
 $canUploadDocuments = can('customers.documents');
 
-if ($customerId <= 0 || $fullName === '' || $phone === '') {
-    set_flash('error', 'Customer, full name and phone are required.');
+if ($customerId <= 0 || $fullName === '' || $phone === '' || $nic === '') {
+    set_flash('error', 'Customer, full name, phone and NIC / ID are required.');
     redirect('pages/customer_edit.php?customer_id=' . $customerId);
 }
 
@@ -42,6 +42,16 @@ if (!$existsStmt->fetch()) {
     redirect('pages/customers.php');
 }
 require_customer_access($pdo, $customerId);
+
+$duplicateNicStmt = $pdo->prepare('SELECT id FROM customers WHERE nic = :nic AND id <> :id LIMIT 1');
+$duplicateNicStmt->execute([
+    'nic' => $nic,
+    'id' => $customerId,
+]);
+if ($duplicateNicStmt->fetch()) {
+    set_flash('error', 'NIC / ID is already used by another customer.');
+    redirect('pages/customer_edit.php?customer_id=' . $customerId);
+}
 
 try {
     $pdo->beginTransaction();
@@ -67,7 +77,7 @@ try {
     $updateStmt->execute([
         'full_name' => $fullName,
         'phone' => $phone,
-        'nic' => $nic === '' ? null : $nic,
+        'nic' => $nic,
         'address' => $address === '' ? null : $address,
         'note' => $note === '' ? null : $note,
         'status' => $status,

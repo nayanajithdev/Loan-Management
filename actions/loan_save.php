@@ -10,6 +10,8 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 }
 require_csrf('pages/loan_create.php');
 
+$loanNumberInput = trim((string) ($_POST['loan_number'] ?? ''));
+$loanNumber = normalize_loan_number_input($loanNumberInput);
 $customerId = (int) ($_POST['customer_id'] ?? 0);
 $principal = (float) ($_POST['principal_amount'] ?? 0);
 $interestRate = (float) ($_POST['interest_rate'] ?? 0);
@@ -18,22 +20,35 @@ $interestRateMonths = normalize_interest_rate_months((int) ($_POST['interest_rat
 $frequency = trim((string) ($_POST['installment_frequency'] ?? 'daily'));
 $timeframeValue = (int) ($_POST['timeframe_value'] ?? 0);
 $timeframeUnit = trim((string) ($_POST['timeframe_unit'] ?? 'days'));
-$assignedUserId = can('loans.assign') ? (int) ($_POST['assigned_user_id'] ?? 0) : 0;
+$canAssignLoan = can('loans.assign');
+$assignedUserId = $canAssignLoan
+    ? assignable_collector_id_or_default($pdo, (int) ($_POST['assigned_user_id'] ?? 0))
+    : default_loan_collector_id($pdo);
 $notes = trim((string) ($_POST['notes'] ?? ''));
+
+if ($loanNumber === '' || (int) ltrim($loanNumber, '0') <= 0) {
+    set_flash('error', 'Loan No must be a positive number.');
+    redirect('pages/loan_create.php');
+}
+
+if (loan_number_exists($pdo, $loanNumber)) {
+    set_flash('error', 'Loan No already exists. Please use another number.');
+    redirect('pages/loan_create.php');
+}
 
 if ($customerId <= 0 || $principal <= 0 || $timeframeValue <= 0) {
     set_flash('error', 'Please fill all required loan fields correctly.');
-    redirect('pages/loans.php');
+    redirect('pages/loan_create.php');
 }
 
 if (!in_array($frequency, ['daily', 'weekly', 'monthly'], true)) {
     set_flash('error', 'Invalid installment frequency.');
-    redirect('pages/loans.php');
+    redirect('pages/loan_create.php');
 }
 
 if (!in_array($timeframeUnit, ['days', 'months'], true)) {
     set_flash('error', 'Invalid timeframe unit.');
-    redirect('pages/loans.php');
+    redirect('pages/loan_create.php');
 }
 
 $installmentCount = installment_count_from_timeframe($frequency, $timeframeValue, $timeframeUnit);
@@ -42,28 +57,17 @@ $customerStmt = $pdo->prepare('SELECT id FROM customers WHERE id = :id');
 $customerStmt->execute(['id' => $customerId]);
 if (!$customerStmt->fetch()) {
     set_flash('error', 'Customer not found.');
-    redirect('pages/loans.php');
+    redirect('pages/loan_create.php');
 }
 
-if ($assignedUserId > 0) {
-    $assignedStmt = $pdo->prepare(
-        "SELECT id FROM users
-         WHERE id = :id
-           AND status = 'active'
-           AND role IN ('collector', 'collector_l1', 'collector_l2')
-         LIMIT 1"
-    );
-    $assignedStmt->execute(['id' => $assignedUserId]);
-    if (!$assignedStmt->fetch()) {
-        set_flash('error', 'Selected collector is not available.');
-        redirect('pages/loan_create.php');
-    }
+if ($assignedUserId <= 0) {
+    set_flash('error', 'Owner account is required before creating loans.');
+    redirect('pages/loan_create.php');
 }
 
 $totalAmount = loan_total_amount($principal, $interestRate, $interestRateType, $interestRateMonths);
 $installmentAmount = round($totalAmount / $installmentCount, 2);
 
-$loanNumber = next_loan_number($pdo);
 $startDate = today();
 $firstDueDate = (new DateTimeImmutable($startDate))->add(new DateInterval('P1D'))->format('Y-m-d');
 
@@ -107,7 +111,7 @@ try {
     $insertLoan->execute([
         'loan_number' => $loanNumber,
         'customer_id' => $customerId,
-        'assigned_user_id' => $assignedUserId > 0 ? $assignedUserId : null,
+        'assigned_user_id' => $assignedUserId,
         'principal_amount' => $principal,
         'interest_rate' => $interestRate,
         'interest_rate_type' => $interestRateType,
@@ -153,7 +157,7 @@ try {
     log_activity($pdo, 'loan.created', 'Loan created: ' . $loanNumber . '.', [
         'loan_id' => $loanId,
         'customer_id' => $customerId,
-        'assigned_user_id' => $assignedUserId > 0 ? $assignedUserId : null,
+        'assigned_user_id' => $assignedUserId,
         'principal_amount' => $principal,
         'interest_rate_type' => $interestRateType,
         'interest_rate_months' => $interestRateType === 'monthly' ? $interestRateMonths : 1,

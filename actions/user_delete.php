@@ -100,10 +100,8 @@ if ($targetRole === 'superadmin') {
 try {
     $pdo->beginTransaction();
 
-    // Unassign loans linked to this user to satisfy FK constraints.
-    $unassignStmt = $pdo->prepare('UPDATE loans SET assigned_user_id = NULL WHERE assigned_user_id = :id');
-    $unassignStmt->execute(['id' => $userId]);
-    $unassignedLoanCount = (int) $unassignStmt->rowCount();
+    // Reassign linked loans before deleting so no loan loses its collector.
+    $reassignedLoanCount = fallback_loan_assignments_to_owner($pdo, $userId);
 
     $deleteStmt = $pdo->prepare('DELETE FROM users WHERE id = :id');
     $deleteStmt->execute(['id' => $userId]);
@@ -122,7 +120,7 @@ log_activity($pdo, 'user.deleted', 'User deleted: ' . (string) $targetUser['full
     'user_id' => $userId,
     'username' => (string) $targetUser['username'],
     'role' => role_display_name((string) $targetUser['role']),
-    'unassigned_loans' => $unassignedLoanCount ?? 0,
+    'reassigned_loans_to_owner' => $reassignedLoanCount ?? 0,
 ]);
 
 set_flash('success', 'User deleted successfully.');

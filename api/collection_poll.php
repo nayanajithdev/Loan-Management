@@ -63,7 +63,7 @@ $sql = "SELECT
 
 $params = ['selected_date' => $selectedDate];
 if (is_collector_role($currentRole)) {
-    $sql .= ' AND (l.assigned_user_id = :assigned_user_id OR l.assigned_user_id IS NULL)';
+    $sql .= ' AND l.assigned_user_id = :assigned_user_id';
     $params['assigned_user_id'] = $currentUserId;
 }
 if ($search !== '') {
@@ -96,7 +96,7 @@ if (is_collector_role($currentRole)) {
          FROM collections col
          JOIN loans l ON l.id = col.loan_id
          WHERE col.collected_on = :selected_date
-           AND (l.assigned_user_id = :assigned_user_id OR l.assigned_user_id IS NULL)"
+           AND l.assigned_user_id = :assigned_user_id"
     );
     $selectedCollectionTotalStmt->execute([
         'selected_date' => $selectedDate,

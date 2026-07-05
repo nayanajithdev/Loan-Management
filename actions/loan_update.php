@@ -24,10 +24,11 @@ $status = trim((string) ($_POST['status'] ?? 'active'));
 $notes = trim((string) ($_POST['notes'] ?? ''));
 $scheduleNextPayment = (int) ($_POST['schedule_next_payment'] ?? 0) === 1;
 $nextPaymentDateInput = trim((string) ($_POST['next_payment_date'] ?? ''));
-$assignedUserIdRaw = trim((string) ($_POST['assigned_user_id'] ?? ''));
-$assignedUserId = $assignedUserIdRaw === '' ? null : (int) $assignedUserIdRaw;
 $canEditAssignment = can('loans.assign');
 $canScheduleNextPayment = can('collections.schedule');
+$assignedUserId = $canEditAssignment
+    ? assignable_collector_id_or_default($pdo, (int) ($_POST['assigned_user_id'] ?? 0))
+    : 0;
 
 if ($loanId <= 0) {
     set_flash('error', 'Invalid loan selected.');
@@ -79,15 +80,9 @@ if (!$customerStmt->fetch()) {
     redirect('pages/loan_edit.php?loan_id=' . $loanId);
 }
 
-if ($canEditAssignment && $assignedUserId !== null && $assignedUserId > 0) {
-    $userStmt = $pdo->prepare('SELECT id FROM users WHERE id = :id LIMIT 1');
-    $userStmt->execute(['id' => $assignedUserId]);
-    if (!$userStmt->fetch()) {
-        set_flash('error', 'Selected assigned user not found.');
-        redirect('pages/loan_edit.php?loan_id=' . $loanId);
-    }
-} elseif ($canEditAssignment) {
-    $assignedUserId = null;
+if ($canEditAssignment && $assignedUserId <= 0) {
+    set_flash('error', 'Owner account is required before assigning loans.');
+    redirect('pages/loan_edit.php?loan_id=' . $loanId);
 }
 
 $installmentCount = installment_count_from_timeframe($frequency, $timeframeValue, $timeframeUnit);
@@ -194,7 +189,7 @@ try {
 
     if ($canEditAssignment) {
         $assignStmt = $pdo->prepare('UPDATE loans SET assigned_user_id = :assigned_user_id WHERE id = :loan_id');
-        $assignStmt->bindValue(':assigned_user_id', $assignedUserId, $assignedUserId === null ? PDO::PARAM_NULL : PDO::PARAM_INT);
+        $assignStmt->bindValue(':assigned_user_id', $assignedUserId, PDO::PARAM_INT);
         $assignStmt->bindValue(':loan_id', $loanId, PDO::PARAM_INT);
         $assignStmt->execute();
     }
@@ -223,7 +218,7 @@ try {
     log_activity($pdo, 'loan.updated', 'Loan updated: ' . $loanNumber . '.', [
         'loan_id' => $loanId,
         'customer_id' => $customerId,
-        'assigned_user_id' => $assignedUserId,
+        'assigned_user_id' => $canEditAssignment ? $assignedUserId : (int) ($loan['assigned_user_id'] ?? 0),
         'interest_rate_type' => $interestRateType,
         'interest_rate_months' => $interestRateType === 'monthly' ? $interestRateMonths : 1,
         'status' => $status,

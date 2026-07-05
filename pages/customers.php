@@ -14,8 +14,7 @@ $canCreateCustomer = can('customers.create');
 $searchTerm = trim((string) ($_GET['q'] ?? ''));
 $searchTerm = mb_substr($searchTerm, 0, 120);
 $searchClause = " AND (
-    c.customer_code LIKE :search_code ESCAPE '\\\\'
-    OR c.full_name LIKE :search_name ESCAPE '\\\\'
+    c.full_name LIKE :search_name ESCAPE '\\\\'
     OR c.phone LIKE :search_phone ESCAPE '\\\\'
     OR c.nic LIKE :search_nic ESCAPE '\\\\'
 )";
@@ -73,12 +72,6 @@ if (can_view_all_customers()) {
                     WHERE l_assigned.customer_id = c.id
                       AND l_assigned.assigned_user_id = :uid
                 )
-                OR EXISTS (
-                    SELECT 1
-                    FROM loans l_unassigned
-                    WHERE l_unassigned.customer_id = c.id
-                      AND l_unassigned.assigned_user_id IS NULL
-                )
                 OR NOT EXISTS (
                     SELECT 1
                     FROM loans l_any
@@ -92,7 +85,6 @@ if (can_view_all_customers()) {
 
 if ($searchTerm !== '') {
     $searchValue = '%' . str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $searchTerm) . '%';
-    $params['search_code'] = $searchValue;
     $params['search_name'] = $searchValue;
     $params['search_phone'] = $searchValue;
     $params['search_nic'] = $searchValue;
@@ -137,8 +129,8 @@ require __DIR__ . '/../includes/layout_start.php';
         <table class="zebra-table customers-table">
             <thead>
             <tr>
-                <th>Code</th>
                 <th>Name</th>
+                <th>ID No</th>
                 <th>Phone</th>
                 <th>Running Loan (Principal)</th>
                 <th>Customer Quality</th>
@@ -157,8 +149,8 @@ require __DIR__ . '/../includes/layout_start.php';
                     <?php $selectUrl = url('pages/customer_edit.php?customer_id=' . (int) $customer['id']); ?>
                     <?php $overdueCount = (int) ($customer['overdue_installment_count'] ?? 0); ?>
                     <tr class="table-row-clickable" data-select-url="<?= e($selectUrl) ?>">
-                        <td><?= e($customer['customer_code']) ?></td>
                         <td><?= e($customer['full_name']) ?></td>
+                        <td><?= e(customer_id_no_label((string) ($customer['nic'] ?? ''))) ?></td>
                         <td><?= e($customer['phone']) ?></td>
                         <td><?= e(money_label($pdo, (float) ($customer['running_principal'] ?? 0))) ?></td>
                         <td>

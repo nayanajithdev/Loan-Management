@@ -33,7 +33,7 @@ try {
 
     $assignedUserId = isset($loan['assigned_user_id']) ? (int) $loan['assigned_user_id'] : 0;
     if (is_collector_role($currentRole) && $assignedUserId > 0 && $assignedUserId !== $currentUserId) {
-        throw new RuntimeException('You can only undo collections for loans assigned to you (or unassigned loans).');
+        throw new RuntimeException('You can only undo collections for loans assigned to you.');
     }
 
     $latestStmt = $pdo->prepare(
@@ -53,14 +53,43 @@ try {
 
     $paymentRef = trim((string) ($latest['payment_ref'] ?? ''));
 
-    $affectedInstallmentIds = [];
-    $latestInstallmentId = (int) ($latest['installment_id'] ?? 0);
-    if ($latestInstallmentId > 0) {
-        $affectedInstallmentIds[$latestInstallmentId] = true;
+    if ($paymentRef !== '') {
+        $groupStmt = $pdo->prepare(
+            'SELECT id, installment_id
+             FROM collections
+             WHERE loan_id = :loan_id
+               AND payment_ref = :payment_ref
+             FOR UPDATE'
+        );
+        $groupStmt->execute([
+            'loan_id' => $loanId,
+            'payment_ref' => $paymentRef,
+        ]);
+        $collectionRows = $groupStmt->fetchAll();
+
+        $deleteStmt = $pdo->prepare(
+            'DELETE FROM collections
+             WHERE loan_id = :loan_id
+               AND payment_ref = :payment_ref'
+        );
+        $deleteStmt->execute([
+            'loan_id' => $loanId,
+            'payment_ref' => $paymentRef,
+        ]);
+    } else {
+        $collectionRows = [$latest];
+
+        $deleteStmt = $pdo->prepare('DELETE FROM collections WHERE id = :id');
+        $deleteStmt->execute(['id' => (int) $latest['id']]);
     }
 
-    $deleteStmt = $pdo->prepare('DELETE FROM collections WHERE id = :id');
-    $deleteStmt->execute(['id' => (int) $latest['id']]);
+    $affectedInstallmentIds = [];
+    foreach ($collectionRows as $row) {
+        $instId = (int) ($row['installment_id'] ?? 0);
+        if ($instId > 0) {
+            $affectedInstallmentIds[$instId] = true;
+        }
+    }
 
     if ($affectedInstallmentIds !== []) {
         $recalcStmt = $pdo->prepare(
@@ -152,7 +181,7 @@ try {
     log_activity($pdo, 'loan.inline_collection_undo', 'Latest inline collection undone for loan ' . $loanNumber . '.', [
         'loan_id' => $loanId,
         'payment_ref' => $paymentRef,
-        'collection_rows' => 1,
+        'collection_rows' => count($collectionRows),
     ]);
     set_flash('success', 'Latest collection undone.');
 } catch (Throwable $e) {

@@ -27,12 +27,7 @@ if (!$customer) {
     redirect('pages/customers.php');
 }
 
-$latestLoanStmt = $pdo->prepare('SELECT id FROM loans WHERE customer_id = :customer_id ORDER BY id DESC LIMIT 1');
-$latestLoanStmt->execute(['customer_id' => $customerId]);
-$latestLoanId = (int) ($latestLoanStmt->fetchColumn() ?: 0);
-$viewLoanUrl = $latestLoanId > 0
-    ? url('pages/loan_edit.php?loan_id=' . $latestLoanId)
-    : url('pages/loans.php');
+$viewLoanUrl = url('pages/loans.php?status=active&q=' . rawurlencode((string) $customer['nic']));
 
 $documents = [];
 if ($canManageCustomerDocuments) {
@@ -98,7 +93,7 @@ require __DIR__ . '/../includes/layout_start.php';
         </div>
         <div class="field">
             <label>NIC / ID</label>
-            <input type="text" name="nic" value="<?= e((string) $customer['nic']) ?>" readonly data-editable>
+            <input type="text" name="nic" value="<?= e((string) $customer['nic']) ?>" required readonly data-editable>
         </div>
         <div class="field full">
             <label>Status</label>

@@ -35,7 +35,7 @@ require __DIR__ . '/../includes/layout_start.php';
         </div>
         <div class="field">
             <label>NIC / ID</label>
-            <input type="text" name="nic">
+            <input type="text" name="nic" required>
         </div>
         <div class="field full">
             <label>Status</label>

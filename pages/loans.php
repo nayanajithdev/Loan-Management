@@ -27,8 +27,10 @@ $sql = "SELECT l.*, c.full_name, l.assigned_user_id, u.full_name AS assigned_use
 
 $params = ['status' => $status];
 if ($search !== '') {
-    $sql .= " AND c.full_name LIKE :search_name ESCAPE '\\\\'";
-    $params['search_name'] = '%' . str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $search) . '%';
+    $searchLike = '%' . str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $search) . '%';
+    $sql .= " AND (c.full_name LIKE :search_name ESCAPE '\\\\' OR c.nic LIKE :search_nic ESCAPE '\\\\')";
+    $params['search_name'] = $searchLike;
+    $params['search_nic'] = $searchLike;
 }
 
 $sql .= ' ORDER BY l.id DESC';
@@ -65,7 +67,7 @@ $renderLoansBody = static function (array $loans, PDO $pdo): string {
                     <?php if (!empty($loan['assigned_user_name'])): ?>
                         <?= e($loan['assigned_user_name']) ?>
                     <?php else: ?>
-                        <span class="badge badge-neutral">Unassigned</span>
+                        <span class="badge badge-info">Owner</span>
                     <?php endif; ?>
                 </td>
                 <td><span class="badge badge-<?= e(status_badge_class($loan['status'])) ?>"><?= e($loan['status']) ?></span></td>
@@ -106,7 +108,7 @@ require __DIR__ . '/../includes/layout_start.php';
                 </div>
                 <div class="field" style="min-width:260px; margin:0;">
                     <label>Search Customer</label>
-                    <input type="text" name="q" value="<?= e($search) ?>" placeholder="Type customer name">
+                    <input type="text" name="q" value="<?= e($search) ?>" placeholder="Type customer name or ID no">
                 </div>
                 <button type="submit" class="btn btn-primary">Apply</button>
                 <a class="btn" href="<?= e(url('pages/loans.php')) ?>">Reset</a>

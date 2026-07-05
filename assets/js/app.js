@@ -137,6 +137,95 @@
 })();
 
 (function () {
+    const widgets = document.querySelectorAll('[data-searchable-select]');
+    widgets.forEach((widget) => {
+        const search = widget.querySelector('[data-select-search]');
+        const valueInput = widget.querySelector('[data-select-value]');
+        const menu = widget.querySelector('[data-select-menu]');
+        const empty = widget.querySelector('[data-select-empty]');
+
+        if (!(search instanceof HTMLInputElement) || !(valueInput instanceof HTMLInputElement) || !(menu instanceof HTMLElement)) {
+            return;
+        }
+
+        const options = Array.from(menu.querySelectorAll('[data-select-option]'))
+            .filter((option) => option instanceof HTMLButtonElement)
+            .map((option) => ({
+                element: option,
+                value: option.getAttribute('value') || '',
+                label: option.textContent || '',
+                search: (option.textContent || '').replace(/\s+/g, ' ').trim().toLowerCase(),
+            }));
+
+        const setOpen = (open) => {
+            menu.hidden = !open;
+            widget.classList.toggle('open', open);
+            search.setAttribute('aria-expanded', open ? 'true' : 'false');
+        };
+
+        const render = () => {
+            const query = search.value.trim().toLowerCase();
+            let visibleCount = 0;
+
+            options.forEach((option, index) => {
+                const isMatch = query === '' ? index < 5 : option.search.includes(query);
+                option.element.hidden = !isMatch;
+                if (isMatch) {
+                    visibleCount += 1;
+                }
+            });
+
+            const selectedOption = options.find((option) => option.value === valueInput.value);
+            if (!selectedOption || search.value.trim() !== selectedOption.label.trim()) {
+                valueInput.value = '';
+            }
+
+            if (empty instanceof HTMLElement) {
+                empty.hidden = visibleCount > 0 || query === '';
+            }
+        };
+
+        search.addEventListener('focus', () => {
+            render();
+            setOpen(true);
+        });
+
+        search.addEventListener('click', () => {
+            render();
+            setOpen(true);
+        });
+
+        search.addEventListener('input', () => {
+            render();
+            setOpen(true);
+        });
+
+        options.forEach((option) => {
+            option.element.addEventListener('click', () => {
+                valueInput.value = option.value;
+                search.value = option.label.trim();
+                render();
+                setOpen(false);
+            });
+        });
+
+        document.addEventListener('click', (event) => {
+            const target = event.target;
+            if (target instanceof Node && !widget.contains(target)) {
+                setOpen(false);
+            }
+        });
+
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape') {
+                setOpen(false);
+                search.blur();
+            }
+        });
+    });
+})();
+
+(function () {
     const menus = document.querySelectorAll('[data-user-menu]');
     if (!menus.length) {
         return;

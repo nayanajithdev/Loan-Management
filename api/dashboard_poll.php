@@ -32,7 +32,7 @@ if ($isCollectorScope) {
          FROM collections c
          JOIN loans l ON l.id = c.loan_id
          JOIN customers cu ON cu.id = l.customer_id
-         WHERE l.assigned_user_id = :viewer_user_id OR l.assigned_user_id IS NULL
+         WHERE l.assigned_user_id = :viewer_user_id
          ORDER BY c.id DESC
          LIMIT 8'
     );
@@ -134,9 +134,7 @@ ob_start();
                 <div class="user-goal-top">
                     <div>
                         <strong><?= e($user['full_name']) ?></strong>
-                        <?php if (($user['role'] ?? '') !== 'unassigned'): ?>
-                            <span class="badge <?= e($roleBadgeClass) ?>"><?= e((string) ($user['role_label'] ?? $user['role'])) ?></span>
-                        <?php endif; ?>
+                                <span class="badge <?= e($roleBadgeClass) ?>"><?= e((string) ($user['role_label'] ?? $user['role'])) ?></span>
                     </div>
                     <div class="user-goal-money"><?= e(money_label($pdo, (float) $user['collected'])) ?></div>
                 </div>

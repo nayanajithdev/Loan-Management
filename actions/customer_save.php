@@ -20,8 +20,15 @@ $uploadedByUserId = (int) (current_user()['id'] ?? 0);
 $documentsInput = $_FILES['documents'] ?? null;
 $canUploadDocuments = can('customers.documents');
 
-if ($fullName === '' || $phone === '') {
-    set_flash('error', 'Full name and phone are required.');
+if ($fullName === '' || $phone === '' || $nic === '') {
+    set_flash('error', 'Full name, phone and NIC / ID are required.');
+    redirect('pages/customer_create.php');
+}
+
+$duplicateNicStmt = $pdo->prepare('SELECT id FROM customers WHERE nic = :nic LIMIT 1');
+$duplicateNicStmt->execute(['nic' => $nic]);
+if ($duplicateNicStmt->fetch()) {
+    set_flash('error', 'NIC / ID is already used by another customer.');
     redirect('pages/customer_create.php');
 }
 
@@ -48,7 +55,7 @@ try {
         'customer_code' => $customerCode,
         'full_name' => $fullName,
         'phone' => $phone,
-        'nic' => $nic === '' ? null : $nic,
+        'nic' => $nic,
         'address' => $address === '' ? null : $address,
         'note' => $note === '' ? null : $note,
         'status' => $status,

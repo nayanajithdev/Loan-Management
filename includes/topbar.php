@@ -5,7 +5,6 @@ $topbarBusinessName = system_setting($pdo, 'business_name', 'Loan Manager');
 <header class="topbar">
     <div class="topbar-left">
         <div>
-            <p class="breadcrumb"><?= e($topbarBusinessName) ?> / <?= e(ucfirst($activePage)) ?></p>
             <h1 class="page-title"><?= e($pageTitle) ?></h1>
         </div>
     </div>
