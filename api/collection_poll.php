@@ -36,59 +36,12 @@ $selectedDate = match ($selectedDateMode) {
     default => $customDate,
 };
 $todayForStatus = today();
-$dueDateOperator = $selectedDate > $todayDate ? '=' : '<=';
 $current = current_user();
 $currentRole = (string) ($current['role'] ?? '');
 $currentUserId = (int) ($current['id'] ?? 0);
 
 $selectedInstallmentId = (int) ($_GET['selected_installment'] ?? 0);
-
-$sql = "SELECT
-            li.id,
-            li.loan_id,
-            li.installment_no,
-            li.due_date,
-            li.due_amount,
-            li.paid_amount,
-            li.status,
-            l.loan_number,
-            l.installment_frequency,
-            c.full_name,
-            c.phone
-        FROM loan_installments li
-        JOIN loans l ON l.id = li.loan_id
-        JOIN customers c ON c.id = l.customer_id
-        WHERE li.due_date {$dueDateOperator} :selected_date
-          AND li.status IN ('pending', 'partial', 'overdue')";
-
-$params = ['selected_date' => $selectedDate];
-if (is_collector_role($currentRole)) {
-    $sql .= ' AND l.assigned_user_id = :assigned_user_id';
-    $params['assigned_user_id'] = $currentUserId;
-}
-if ($search !== '') {
-    $sql .= " AND (l.loan_number LIKE :q_loan OR c.full_name LIKE :q_name OR c.phone LIKE :q_phone)";
-    $searchLike = '%' . $search . '%';
-    $params['q_loan'] = $searchLike;
-    $params['q_name'] = $searchLike;
-    $params['q_phone'] = $searchLike;
-}
-
-$sql .= ' ORDER BY li.due_date ASC, c.full_name ASC, li.installment_no ASC';
-
-$stmt = $pdo->prepare($sql);
-$stmt->execute($params);
-$dueInstallments = $stmt->fetchAll();
-
-$oldestCollectibleByLoan = [];
-if ($selectedDate <= $todayDate) {
-    foreach ($dueInstallments as $item) {
-        $loanKey = (int) $item['loan_id'];
-        if (!isset($oldestCollectibleByLoan[$loanKey])) {
-            $oldestCollectibleByLoan[$loanKey] = (int) $item['id'];
-        }
-    }
-}
+$dueInstallments = collection_due_installments_for_date($pdo, $selectedDate, $todayDate, $search, $currentRole, $currentUserId);
 
 if (is_collector_role($currentRole)) {
     $selectedCollectionTotalStmt = $pdo->prepare(
@@ -133,28 +86,24 @@ else:
         if ($item['status'] !== 'paid' && $item['due_date'] < $todayForStatus) {
             $displayStatus = 'overdue';
         }
+        $displayStatusLabel = installment_status_label($displayStatus, (string) $item['due_date'], $todayForStatus);
 
-        $loanKey = (int) $item['loan_id'];
         $itemId = (int) $item['id'];
-        $isOldestCollectible = !isset($oldestCollectibleByLoan[$loanKey]) || $oldestCollectibleByLoan[$loanKey] === $itemId;
-        $canSelectThisRow = $isOldestCollectible;
-        $rowSelectUrl = $canSelectThisRow
-            ? url('pages/today_collections.php?' . http_build_query([
-                'date_mode' => $selectedDateMode,
-                'date' => $selectedDate,
-                'q' => $search,
-                'selected_installment' => $itemId,
-            ]))
-            : '';
+        $rowSelectUrl = url('pages/today_collections.php?' . http_build_query([
+            'date_mode' => $selectedDateMode,
+            'date' => $selectedDate,
+            'q' => $search,
+            'selected_installment' => $itemId,
+        ]));
 ?>
-<tr class="<?= $canSelectThisRow ? 'table-row-clickable' : 'row-disabled' ?> <?= $itemId === $selectedInstallmentId ? 'row-selected' : '' ?>" <?= $canSelectThisRow ? ('data-select-url="' . e($rowSelectUrl) . '"') : '' ?>>
+<tr class="table-row-clickable <?= $itemId === $selectedInstallmentId ? 'row-selected' : '' ?>" data-select-url="<?= e($rowSelectUrl) ?>">
     <td><?= e($item['loan_number']) ?></td>
     <td><?= e($item['full_name']) ?></td>
     <td><?= e($item['phone']) ?></td>
     <td>#<?= e((string) $item['installment_no']) ?></td>
     <td><?= e(display_date((string) $item['due_date'])) ?></td>
     <td><?= e(money_label($pdo, $balance)) ?></td>
-    <td><span class="badge badge-<?= e(status_badge_class($displayStatus)) ?>"><?= e($displayStatus) ?></span></td>
+    <td><span class="badge badge-<?= e(status_badge_class($displayStatus)) ?>"><?= e($displayStatusLabel) ?></span></td>
 </tr>
 <?php
     endforeach;

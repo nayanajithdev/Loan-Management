@@ -528,6 +528,9 @@
     const frequencyInput = form.querySelector('[name="installment_frequency"]');
     const timeframeValueInput = form.querySelector('[name="timeframe_value"]');
     const timeframeUnitInput = form.querySelector('[name="timeframe_unit"]');
+    const roundedToggle = form.querySelector('[name="use_rounded_installment"]');
+    const roundedAmountInput = form.querySelector('[name="rounded_installment_amount"]');
+    const roundedHint = document.getElementById('rounded-installment-hint');
     const totalEl = document.getElementById('preview-total');
     const installmentEl = document.getElementById('preview-installment');
     const profitEl = document.getElementById('preview-profit');
@@ -587,20 +590,50 @@
         const timeframeValue = Math.max(toNumber(timeframeValueInput.value), 1);
         const timeframeUnit = timeframeUnitInput.value === 'months' ? 'months' : 'days';
         const frequency = frequencyInput.value;
-        const count = installmentCountFromTimeframe(frequency, timeframeValue, timeframeUnit);
+        const baseCount = installmentCountFromTimeframe(frequency, timeframeValue, timeframeUnit);
         const monthlyFactor = interestType === 'monthly' ? interestMonths : 1;
         const total = principal + ((principal * interestRate / 100) * monthlyFactor);
         const profit = total - principal;
-        const installment = total / count;
+        const roundedEnabled = Boolean(roundedToggle && roundedToggle.checked);
+        const roundedAmount = roundedAmountInput ? toNumber(roundedAmountInput.value) : 0;
+        let count = baseCount;
+        let installment = count > 0 ? total / count : 0;
+
+        if (roundedEnabled && roundedAmount > 0 && total > 0) {
+            count = Math.max(Math.ceil(total / roundedAmount), 1);
+            installment = roundedAmount;
+        }
 
         if (installmentCountEl) {
             installmentCountEl.textContent = String(count);
         }
         totalEl.textContent = formatMoney(total);
         installmentEl.textContent = formatMoney(installment);
+        if (roundedHint) {
+            if (roundedEnabled && roundedAmount > 0 && total > 0) {
+                const lastAmount = total - (roundedAmount * Math.max(count - 1, 0));
+                roundedHint.textContent = `Last installment will be ${formatMoney(lastAmount)}.`;
+            } else {
+                roundedHint.textContent = 'When enabled, the last installment will carry the remaining balance.';
+            }
+        }
         if (profitEl) {
             profitEl.textContent = formatMoney(profit);
         }
+    };
+
+    const syncRoundedInstallment = () => {
+        if (!roundedToggle || !roundedAmountInput) {
+            return;
+        }
+
+        const enabled = roundedToggle.checked;
+        roundedAmountInput.disabled = !enabled;
+        roundedAmountInput.required = enabled;
+        if (!enabled) {
+            roundedAmountInput.value = '';
+        }
+        updatePreview();
     };
 
     [principalInput, interestInput, interestTypeInput, frequencyInput, timeframeValueInput, timeframeUnitInput].forEach((el) => {
@@ -618,8 +651,16 @@
         interestTypeInput.addEventListener('change', toggleInterestMonthsField);
         interestTypeInput.addEventListener('input', toggleInterestMonthsField);
     }
+    if (roundedToggle) {
+        roundedToggle.addEventListener('change', syncRoundedInstallment);
+    }
+    if (roundedAmountInput) {
+        roundedAmountInput.addEventListener('input', updatePreview);
+        roundedAmountInput.addEventListener('change', updatePreview);
+    }
 
     toggleInterestMonthsField();
+    syncRoundedInstallment();
     updatePreview();
 })();
 

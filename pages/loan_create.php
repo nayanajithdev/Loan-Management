@@ -135,6 +135,17 @@ require __DIR__ . '/../includes/layout_start.php';
                 </div>
             <?php endif; ?>
             <div class="field full">
+                <label>Round Installment Amount</label>
+                <div class="loan-rounding-row">
+                    <label class="checkline loan-rounding-toggle">
+                        <input type="checkbox" name="use_rounded_installment" value="1" id="use-rounded-installment">
+                        <span>Make installment amount round</span>
+                    </label>
+                    <input type="number" step="0.01" min="0.01" name="rounded_installment_amount" id="rounded-installment-amount" placeholder="Installment amount" disabled>
+                </div>
+                <small id="rounded-installment-hint">When enabled, the last installment will carry the remaining balance.</small>
+            </div>
+            <div class="field full">
                 <label>Notes</label>
                 <textarea name="notes" placeholder="Optional"></textarea>
             </div>

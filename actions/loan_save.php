@@ -20,6 +20,8 @@ $interestRateMonths = normalize_interest_rate_months((int) ($_POST['interest_rat
 $frequency = trim((string) ($_POST['installment_frequency'] ?? 'daily'));
 $timeframeValue = (int) ($_POST['timeframe_value'] ?? 0);
 $timeframeUnit = trim((string) ($_POST['timeframe_unit'] ?? 'days'));
+$useRoundedInstallment = (int) ($_POST['use_rounded_installment'] ?? 0) === 1;
+$roundedInstallmentAmount = round((float) ($_POST['rounded_installment_amount'] ?? 0), 2);
 $canAssignLoan = can('loans.assign');
 $assignedUserId = $canAssignLoan
     ? assignable_collector_id_or_default($pdo, (int) ($_POST['assigned_user_id'] ?? 0))
@@ -66,7 +68,22 @@ if ($assignedUserId <= 0) {
 }
 
 $totalAmount = loan_total_amount($principal, $interestRate, $interestRateType, $interestRateMonths);
-$installmentAmount = round($totalAmount / $installmentCount, 2);
+if ($useRoundedInstallment) {
+    if ($roundedInstallmentAmount <= 0) {
+        set_flash('error', 'Rounded installment amount must be greater than zero.');
+        redirect('pages/loan_create.php');
+    }
+
+    if ($roundedInstallmentAmount > $totalAmount) {
+        set_flash('error', 'Rounded installment amount cannot be greater than total repayable amount.');
+        redirect('pages/loan_create.php');
+    }
+
+    $installmentCount = max((int) ceil($totalAmount / $roundedInstallmentAmount), 1);
+    $installmentAmount = $roundedInstallmentAmount;
+} else {
+    $installmentAmount = round($totalAmount / $installmentCount, 2);
+}
 
 $startDate = today();
 $firstDueDate = (new DateTimeImmutable($startDate))->add(new DateInterval('P1D'))->format('Y-m-d');
@@ -163,6 +180,8 @@ try {
         'interest_rate_months' => $interestRateType === 'monthly' ? $interestRateMonths : 1,
         'total_amount' => $totalAmount,
         'installment_count' => $installmentCount,
+        'use_rounded_installment' => $useRoundedInstallment ? 1 : 0,
+        'rounded_installment_amount' => $useRoundedInstallment ? $roundedInstallmentAmount : null,
         'installment_frequency' => $frequency,
     ]);
     set_flash('success', 'Loan created and installment schedule generated.');

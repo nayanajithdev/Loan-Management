@@ -1788,138 +1788,37 @@ textarea {
     cursor: not-allowed;
 }
 
-.loan-installments-panel {
-    margin-top: 0;
-}
-
-.loan-installments-grid {
+.loan-rounding-row {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
-    gap: 12px;
-}
-
-.loan-inst-card {
-    border: 1px solid rgba(148, 184, 213, 0.16);
-    border-radius: 10px;
-    background: rgba(20, 32, 42, 0.88);
-    padding: 12px;
-    display: grid;
+    grid-template-columns: minmax(220px, max-content) minmax(180px, 280px);
     gap: 10px;
-    min-height: 168px;
-}
-
-.loan-inst-current {
-    border-color: rgba(255, 122, 26, 0.55);
-    box-shadow: 0 0 0 1px rgba(255, 122, 26, 0.15);
-}
-
-.loan-inst-status-success {
-    border-color: rgba(43, 179, 108, 0.38);
-    background: linear-gradient(145deg, rgba(43, 179, 108, 0.2), rgba(43, 179, 108, 0.08) 38%, rgba(20, 32, 42, 0.92) 100%);
-}
-
-.loan-inst-top {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 8px;
-}
-
-.loan-inst-no {
-    font-size: 24px;
-    font-weight: 800;
-    letter-spacing: 0.3px;
-}
-
-.loan-inst-badges {
-    display: inline-flex;
-    flex-wrap: wrap;
-    justify-content: flex-end;
-    gap: 6px;
     align-items: center;
 }
 
-.loan-inst-undo-form {
-    margin: 0;
-}
-
-.loan-inst-undo-btn {
-    width: 34px;
-    height: 34px;
-    border-radius: 8px;
-    border: 1px solid var(--edge);
-    background: var(--surface-2);
-    color: #d8d8d8;
+.checkline {
     display: inline-flex;
     align-items: center;
-    justify-content: center;
-    padding: 0;
-    cursor: pointer;
+    gap: 10px;
 }
 
-.loan-inst-undo-btn svg {
+.checkline input[type="checkbox"] {
     width: 16px;
     height: 16px;
+    accent-color: var(--accent);
 }
 
-.loan-inst-undo-btn:hover {
-    border-color: rgba(255, 122, 26, 0.5);
-    color: #ffb27b;
+.loan-rounding-toggle {
+    min-height: 40px;
+    padding: 0 12px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface-2);
 }
 
-.loan-inst-money-row {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 8px;
-}
-
-.loan-inst-money-row.single {
-    grid-template-columns: 1fr;
-}
-
-.loan-inst-money-row p {
-    margin: 0;
-    color: var(--muted);
-    font-size: 12px;
-}
-
-.loan-inst-money-row strong {
-    display: block;
-    margin-top: 3px;
-    font-size: 18px;
-    line-height: 1.25;
-}
-
-.loan-inst-amount-empty::before {
-    content: '\00a0';
-}
-
-.loan-inst-collect-form {
-    display: grid;
-    grid-template-columns: 1fr auto;
-    gap: 8px;
-}
-
-.loan-inst-collect-form input[type="number"] {
-    width: 100%;
-}
-
-.loan-inst-meta {
-    margin-top: auto;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-    color: #cfcfcf;
-    font-size: 12px;
-}
-
-.loan-inst-meta span:last-child {
-    text-align: right;
-}
-
-.loan-inst-undo-hint {
-    margin-top: 10px;
+.loan-rounding-row input[type="number"]:disabled {
+    opacity: 0.65;
+    color: #9c9c9c;
+    cursor: not-allowed;
 }
 
 .calc-preview-grid {
@@ -2664,6 +2563,10 @@ textarea {
     .calc-preview-item h3 {
         font-size: 30px;
         white-space: normal;
+    }
+
+    .loan-rounding-row {
+        grid-template-columns: 1fr;
     }
 
     .settings-two-col {

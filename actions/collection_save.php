@@ -145,23 +145,6 @@ try {
     if (is_collector_role($currentRole) && $assignedUserId > 0 && $assignedUserId !== $currentUserId) {
         throw new RuntimeException('You can only collect payments for loans assigned to you.');
     }
-    $outstandingStmt = $pdo->prepare(
-        "SELECT COALESCE(SUM(due_amount - paid_amount), 0)
-         FROM loan_installments
-         WHERE loan_id = :loan_id
-           AND status IN ('pending', 'partial', 'overdue')"
-    );
-    $outstandingStmt->execute(['loan_id' => $loanId]);
-    $outstanding = round((float) $outstandingStmt->fetchColumn(), 2);
-
-    if ($outstanding <= 0) {
-        throw new RuntimeException('This loan has no pending installments to collect.');
-    }
-
-    if (!$allowOverpayment && $amount > $outstanding) {
-        throw new RuntimeException('Overpayment is disabled. Maximum allowed amount is ' . money_label($pdo, $outstanding) . '.');
-    }
-
     $oldestCollectibleStmt = $pdo->prepare(
         "SELECT *
          FROM loan_installments
@@ -195,104 +178,20 @@ try {
         throw new RuntimeException('Backdated entry is not allowed when collecting a future installment.');
     }
 
-    $pendingStmt = $pdo->prepare(
-        "SELECT *
-         FROM loan_installments
-         WHERE loan_id = :loan_id
-           AND status IN ('pending', 'partial', 'overdue')
-           AND due_date <= :today_date
-         ORDER BY due_date ASC, installment_no ASC
-         FOR UPDATE"
+    $collectionResult = record_loan_collection_payment(
+        $pdo,
+        $loan,
+        $oldestCollectibleId,
+        $amount,
+        $collectedOn,
+        $paidOnDate,
+        $method,
+        $note === '' ? null : $note,
+        $collectedByUserId > 0 ? $collectedByUserId : null,
+        $paymentRef,
+        $allowOverpayment
     );
-    $pendingStmt->execute([
-        'loan_id' => $loanId,
-        'today_date' => today(),
-    ]);
-    $pendingInstallments = $pendingStmt->fetchAll();
-    if ($pendingInstallments === []) {
-        throw new RuntimeException('No pending installments found.');
-    }
-
-    $updateInstallment = $pdo->prepare(
-        "UPDATE loan_installments
-         SET paid_amount = :paid_amount, paid_on = :paid_on, status = :status
-         WHERE id = :id"
-    );
-
-    $insertCollection = $pdo->prepare(
-        'INSERT INTO collections (loan_id, installment_id, amount, collected_on, method, note, collected_by_user_id, payment_ref)
-         VALUES (:loan_id, :installment_id, :amount, :collected_on, :method, :note, :collected_by_user_id, :payment_ref)'
-    );
-
-    $remaining = $amount;
-    foreach ($pendingInstallments as $inst) {
-        if ($remaining <= 0.009) {
-            break;
-        }
-
-        $balance = round((float) $inst['due_amount'] - (float) $inst['paid_amount'], 2);
-        if ($balance <= 0.009) {
-            continue;
-        }
-
-        $pay = min($remaining, $balance);
-        $newPaid = round((float) $inst['paid_amount'] + $pay, 2);
-
-        if ($newPaid + 0.009 >= (float) $inst['due_amount']) {
-            $status = 'paid';
-            $paidOnValue = $paidOnDate;
-        } elseif ($newPaid > 0.009) {
-            $status = 'partial';
-            $paidOnValue = null;
-        } else {
-            $status = (string) $inst['status'];
-            $paidOnValue = (string) ($inst['paid_on'] ?? '') !== '' ? (string) $inst['paid_on'] : null;
-        }
-
-        $updateInstallment->execute([
-            'paid_amount' => $newPaid,
-            'paid_on' => $paidOnValue,
-            'status' => $status,
-            'id' => $inst['id'],
-        ]);
-
-        $insertCollection->execute([
-            'loan_id' => $loanId,
-            'installment_id' => $inst['id'],
-            'amount' => $pay,
-            'collected_on' => $collectedOn,
-            'method' => $method,
-            'note' => $note === '' ? null : $note,
-            'collected_by_user_id' => $collectedByUserId > 0 ? $collectedByUserId : null,
-            'payment_ref' => $paymentRef,
-        ]);
-
-        $remaining = round($remaining - $pay, 2);
-    }
-
-    if ($remaining > 0) {
-        if (!$allowOverpayment) {
-            throw new RuntimeException('Overpayment is disabled for this system.');
-        }
-
-        $insertCollection->execute([
-            'loan_id' => $loanId,
-            'installment_id' => null,
-            'amount' => $remaining,
-            'collected_on' => $collectedOn,
-            'method' => $method,
-            'note' => trim(($note === '' ? 'Advance payment' : $note . ' | Advance payment')),
-            'collected_by_user_id' => $collectedByUserId > 0 ? $collectedByUserId : null,
-            'payment_ref' => $paymentRef,
-        ]);
-    }
-
-    $check = $pdo->prepare(
-        "SELECT COUNT(*) FROM loan_installments
-         WHERE loan_id = :loan_id AND status IN ('pending', 'partial', 'overdue')"
-    );
-    $check->execute(['loan_id' => $loanId]);
-    $pendingCount = (int) $check->fetchColumn();
+    $pendingCount = (int) ($collectionResult['pending_count'] ?? 0);
 
     $scheduledInstallment = null;
     $scheduleSkippedNoPending = false;
@@ -329,16 +228,16 @@ try {
         'loan_number' => $loanNumber,
         'amount' => $amount,
         'collected_on' => $collectedOn,
-            'method' => $method,
-            'payment_ref' => $paymentRef,
-            'backdated_entry' => $backdatedEntry ? 1 : 0,
-            'paid_on_date' => $paidOnDate,
-            'schedule_next_payment' => $scheduleNextPayment ? 1 : 0,
-            'scheduled_installment_id' => (int) ($scheduledInstallment['installment_id'] ?? 0),
-            'scheduled_to_date' => (string) ($scheduledInstallment['to_due_date'] ?? ''),
-            'schedule_skipped_no_pending' => $scheduleSkippedNoPending ? 1 : 0,
-            'assigned_user' => $assignedUser !== null ? (string) ($assignedUser['full_name'] ?? '') : 'Owner',
-        ]);
+        'method' => $method,
+        'payment_ref' => $paymentRef,
+        'backdated_entry' => $backdatedEntry ? 1 : 0,
+        'paid_on_date' => $paidOnDate,
+        'schedule_next_payment' => $scheduleNextPayment ? 1 : 0,
+        'scheduled_installment_id' => (int) ($scheduledInstallment['installment_id'] ?? 0),
+        'scheduled_to_date' => (string) ($scheduledInstallment['to_due_date'] ?? ''),
+        'schedule_skipped_no_pending' => $scheduleSkippedNoPending ? 1 : 0,
+        'assigned_user' => $assignedUser !== null ? (string) ($assignedUser['full_name'] ?? '') : 'Owner',
+    ]);
 
     if ($scheduleNextPayment && $scheduledInstallment !== null && (bool) ($scheduledInstallment['changed'] ?? false)) {
         set_flash('success', 'Collection recorded. Next payment scheduled for ' . display_date((string) $scheduledInstallment['to_due_date']) . '.');

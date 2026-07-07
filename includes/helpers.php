@@ -82,14 +82,13 @@ function permission_groups(): array
             ],
         ],
         'Loans' => [
-            'description' => 'Loan records, loan assignment, and repayment timeline collection.',
+            'description' => 'Loan records and loan assignment.',
             'permissions' => [
                 'loans.view' => ['label' => 'View Loans', 'description' => 'Open loan list and loan details.'],
                 'loans.create' => ['label' => 'Create Loans', 'description' => 'Create new and old loans.'],
                 'loans.edit' => ['label' => 'Edit Loans', 'description' => 'Update loan notes, status, and allowed editable fields.'],
                 'loans.delete' => ['label' => 'Delete Loans', 'description' => 'Delete loans and their schedules.'],
                 'loans.assign' => ['label' => 'Assign Loans', 'description' => 'Assign a loan to a collector.'],
-                'loans.collect_inline' => ['label' => 'Repayment Timeline Collection', 'description' => 'Collect and undo payments from the loan timeline.'],
                 'calculator.view' => ['label' => 'Loan Calculator', 'description' => 'Use the standalone loan calculator.'],
             ],
         ],
@@ -151,7 +150,6 @@ function role_default_permissions(string $role): array
             'loans.view',
             'loans.create',
             'loans.edit',
-            'loans.collect_inline',
             'calculator.view',
         ];
     }
@@ -916,10 +914,201 @@ function status_badge_class(string $status): string
     };
 }
 
+function installment_status_label(string $status, string $dueDate, ?string $todayDate = null): string
+{
+    $todayDate ??= today();
+
+    if ($status !== 'paid' && $dueDate !== '' && $dueDate < $todayDate) {
+        try {
+            $due = new DateTimeImmutable($dueDate);
+            $today = new DateTimeImmutable($todayDate);
+            $daysLate = max(1, (int) $due->diff($today)->format('%a'));
+
+            return $daysLate === 1 ? '1 day late' : $daysLate . ' days late';
+        } catch (Throwable) {
+            return 'Late';
+        }
+    }
+
+    return ucfirst($status);
+}
+
 function refresh_overdue_installments(PDO $pdo): void
 {
     $stmt = $pdo->prepare("UPDATE loan_installments SET status = 'overdue' WHERE status IN ('pending', 'partial') AND due_date < CURDATE() AND paid_amount < due_amount");
     $stmt->execute();
+}
+
+function oldest_due_installment_per_loan(array $installments): array
+{
+    $seenLoans = [];
+    $filtered = [];
+
+    foreach ($installments as $installment) {
+        $loanId = (int) ($installment['loan_id'] ?? 0);
+        if ($loanId <= 0 || isset($seenLoans[$loanId])) {
+            continue;
+        }
+
+        $seenLoans[$loanId] = true;
+        $filtered[] = $installment;
+    }
+
+    return $filtered;
+}
+
+function collection_date_offset_for_frequency(string $frequency, string $todayDate, string $selectedDate): ?int
+{
+    if ($selectedDate <= $todayDate) {
+        return 0;
+    }
+
+    try {
+        $today = new DateTimeImmutable($todayDate);
+        $selected = new DateTimeImmutable($selectedDate);
+    } catch (Throwable) {
+        return null;
+    }
+
+    $days = (int) $today->diff($selected)->format('%r%a');
+    if ($days < 1) {
+        return null;
+    }
+
+    return match ($frequency) {
+        'daily' => $days,
+        'weekly' => $days % 7 === 0 ? intdiv($days, 7) : null,
+        'monthly' => collection_month_offset($today, $selected),
+        default => $days,
+    };
+}
+
+function collection_month_offset(DateTimeImmutable $today, DateTimeImmutable $selected): ?int
+{
+    $cursor = $today;
+    for ($offset = 1; $offset <= 240; $offset++) {
+        $cursor = $cursor->add(new DateInterval('P1M'));
+        $cursorDate = $cursor->format('Y-m-d');
+
+        if ($cursorDate === $selected->format('Y-m-d')) {
+            return $offset;
+        }
+
+        if ($cursorDate > $selected->format('Y-m-d')) {
+            return null;
+        }
+    }
+
+    return null;
+}
+
+function collection_due_installments_for_date(PDO $pdo, string $selectedDate, string $todayDate, string $search, string $currentRole, int $currentUserId): array
+{
+    $isFutureDate = $selectedDate > $todayDate;
+    $sql = "SELECT
+                li.id,
+                li.loan_id,
+                li.installment_no,
+                li.due_date,
+                li.due_amount,
+                li.paid_amount,
+                li.status,
+                l.loan_number,
+                l.installment_frequency,
+                c.full_name,
+                c.phone
+            FROM loan_installments li
+            JOIN loans l ON l.id = li.loan_id
+            JOIN customers c ON c.id = l.customer_id
+            WHERE li.status IN ('pending', 'partial', 'overdue')
+              AND li.due_amount > li.paid_amount";
+
+    $params = [];
+    if (!$isFutureDate) {
+        $sql .= ' AND li.due_date <= :selected_date';
+        $params['selected_date'] = $selectedDate;
+    }
+
+    if (is_collector_role($currentRole)) {
+        $sql .= ' AND l.assigned_user_id = :assigned_user_id';
+        $params['assigned_user_id'] = $currentUserId;
+    }
+
+    if ($search !== '') {
+        $sql .= " AND (l.loan_number LIKE :q_loan OR c.full_name LIKE :q_name OR c.phone LIKE :q_phone)";
+        $searchLike = '%' . $search . '%';
+        $params['q_loan'] = $searchLike;
+        $params['q_name'] = $searchLike;
+        $params['q_phone'] = $searchLike;
+    }
+
+    $sql .= ' ORDER BY l.id ASC, li.installment_no ASC';
+
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($params);
+    $rows = $stmt->fetchAll();
+
+    if (!$isFutureDate) {
+        usort(
+            $rows,
+            static fn (array $a, array $b): int => [(string) $a['due_date'], (string) $a['full_name'], (int) $a['installment_no']]
+                <=> [(string) $b['due_date'], (string) $b['full_name'], (int) $b['installment_no']]
+        );
+
+        return oldest_due_installment_per_loan($rows);
+    }
+
+    $byLoan = [];
+    foreach ($rows as $row) {
+        $loanId = (int) ($row['loan_id'] ?? 0);
+        if ($loanId <= 0) {
+            continue;
+        }
+
+        $byLoan[$loanId][] = $row;
+    }
+
+    $futureRows = [];
+    foreach ($byLoan as $loanRows) {
+        usort(
+            $loanRows,
+            static fn (array $a, array $b): int => ((int) $a['installment_no']) <=> ((int) $b['installment_no'])
+        );
+
+        $firstUnpaid = $loanRows[0] ?? null;
+        if (!$firstUnpaid) {
+            continue;
+        }
+
+        $firstDueDate = (string) ($firstUnpaid['due_date'] ?? '');
+        if ($firstDueDate <= $todayDate) {
+            $offset = collection_date_offset_for_frequency((string) ($firstUnpaid['installment_frequency'] ?? 'daily'), $todayDate, $selectedDate);
+            if ($offset === null || !isset($loanRows[$offset])) {
+                continue;
+            }
+
+            $row = $loanRows[$offset];
+            $row['due_date'] = $selectedDate;
+            $row['status'] = 'pending';
+            $futureRows[] = $row;
+            continue;
+        }
+
+        foreach ($loanRows as $row) {
+            if ((string) ($row['due_date'] ?? '') === $selectedDate) {
+                $futureRows[] = $row;
+                break;
+            }
+        }
+    }
+
+    usort(
+        $futureRows,
+        static fn (array $a, array $b): int => [(string) $a['due_date'], (string) $a['full_name'], (int) $a['installment_no']]
+            <=> [(string) $b['due_date'], (string) $b['full_name'], (int) $b['installment_no']]
+    );
+
+    return $futureRows;
 }
 
 function schedule_next_installment_date(PDO $pdo, int $loanId, string $scheduledDate): array
@@ -1015,6 +1204,413 @@ function schedule_next_installment_date(PDO $pdo, int $loanId, string $scheduled
     ];
 }
 
+function installment_snapshot(array $row, bool $existsBefore = true): array
+{
+    return [
+        'id' => (int) ($row['id'] ?? 0),
+        'exists_before' => $existsBefore,
+        'row' => [
+            'id' => (int) ($row['id'] ?? 0),
+            'loan_id' => (int) ($row['loan_id'] ?? 0),
+            'installment_no' => (int) ($row['installment_no'] ?? 0),
+            'due_date' => (string) ($row['due_date'] ?? ''),
+            'due_amount' => round((float) ($row['due_amount'] ?? 0), 2),
+            'paid_amount' => round((float) ($row['paid_amount'] ?? 0), 2),
+            'paid_on' => isset($row['paid_on']) && (string) $row['paid_on'] !== '' ? (string) $row['paid_on'] : null,
+            'status' => (string) ($row['status'] ?? 'pending'),
+            'is_flexible_adjustment' => (int) ($row['is_flexible_adjustment'] ?? 0),
+            'source_payment_ref' => isset($row['source_payment_ref']) && (string) $row['source_payment_ref'] !== '' ? (string) $row['source_payment_ref'] : null,
+            'created_at' => isset($row['created_at']) && (string) $row['created_at'] !== '' ? (string) $row['created_at'] : null,
+        ],
+    ];
+}
+
+function sync_loan_installment_count(PDO $pdo, int $loanId): void
+{
+    $stmt = $pdo->prepare(
+        'UPDATE loans
+         SET installment_count = (
+             SELECT COUNT(*)
+             FROM loan_installments
+             WHERE loan_id = :loan_id_count
+         )
+         WHERE id = :loan_id'
+    );
+    $stmt->execute([
+        'loan_id_count' => $loanId,
+        'loan_id' => $loanId,
+    ]);
+}
+
+function record_loan_collection_payment(
+    PDO $pdo,
+    array $loan,
+    int $selectedInstallmentId,
+    float $amount,
+    string $collectedOn,
+    string $paidOnDate,
+    string $method,
+    ?string $note,
+    ?int $collectorId,
+    string $paymentRef,
+    bool $allowOverpayment
+): array {
+    $loanId = (int) ($loan['id'] ?? 0);
+    if ($loanId <= 0 || $selectedInstallmentId <= 0 || $amount <= 0) {
+        throw new RuntimeException('Invalid collection details.');
+    }
+
+    $amount = round($amount, 2);
+    $note = trim((string) $note);
+    $collectorId = $collectorId !== null && $collectorId > 0 ? $collectorId : null;
+
+    $outstandingStmt = $pdo->prepare(
+        "SELECT COALESCE(SUM(due_amount - paid_amount), 0)
+         FROM loan_installments
+         WHERE loan_id = :loan_id
+           AND status IN ('pending', 'partial', 'overdue')
+           AND due_amount > paid_amount"
+    );
+    $outstandingStmt->execute(['loan_id' => $loanId]);
+    $outstanding = round((float) $outstandingStmt->fetchColumn(), 2);
+
+    if ($outstanding <= 0.009) {
+        throw new RuntimeException('This loan has no pending installments to collect.');
+    }
+
+    if (!$allowOverpayment && $amount > $outstanding + 0.009) {
+        throw new RuntimeException('Overpayment is disabled. Maximum allowed amount is ' . money_label($pdo, $outstanding) . '.');
+    }
+
+    $pendingStmt = $pdo->prepare(
+        "SELECT *
+         FROM loan_installments
+         WHERE loan_id = :loan_id
+           AND status IN ('pending', 'partial', 'overdue')
+           AND due_amount > paid_amount
+         ORDER BY due_date ASC, installment_no ASC
+         FOR UPDATE"
+    );
+    $pendingStmt->execute(['loan_id' => $loanId]);
+    $pendingInstallments = $pendingStmt->fetchAll();
+
+    if ($pendingInstallments === []) {
+        throw new RuntimeException('No pending installments found.');
+    }
+
+    if ((int) $pendingInstallments[0]['id'] !== $selectedInstallmentId) {
+        throw new RuntimeException('Only the current installment can be collected.');
+    }
+
+    $selected = $pendingInstallments[0];
+    $selectedBalance = round((float) $selected['due_amount'] - (float) $selected['paid_amount'], 2);
+    if ($selectedBalance <= 0.009) {
+        throw new RuntimeException('Selected installment is already collected.');
+    }
+
+    $snapshots = [];
+    $collectionRowCount = 0;
+
+    $addSnapshot = static function (array $row, bool $existsBefore = true) use (&$snapshots): void {
+        $id = (int) ($row['id'] ?? 0);
+        if ($id <= 0 || isset($snapshots[$id])) {
+            return;
+        }
+
+        $snapshots[$id] = installment_snapshot($row, $existsBefore);
+    };
+
+    $insertCollection = $pdo->prepare(
+        'INSERT INTO collections (loan_id, installment_id, amount, collected_on, method, note, collected_by_user_id, payment_ref, meta_json)
+         VALUES (:loan_id, :installment_id, :amount, :collected_on, :method, :note, :collected_by_user_id, :payment_ref, NULL)'
+    );
+    $insertCollection->execute([
+        'loan_id' => $loanId,
+        'installment_id' => $selectedInstallmentId,
+        'amount' => $amount,
+        'collected_on' => $collectedOn,
+        'method' => $method,
+        'note' => $note === '' ? null : $note,
+        'collected_by_user_id' => $collectorId,
+        'payment_ref' => $paymentRef,
+    ]);
+    $collectionRowCount++;
+
+    $addSnapshot($selected, true);
+    $completeSelectedStmt = $pdo->prepare(
+        "UPDATE loan_installments
+         SET due_amount = :due_amount,
+             paid_amount = :paid_amount,
+             paid_on = :paid_on,
+             status = 'paid'
+         WHERE id = :id
+           AND loan_id = :loan_id"
+    );
+    $completeSelectedStmt->execute([
+        'due_amount' => $amount,
+        'paid_amount' => $amount,
+        'paid_on' => $paidOnDate,
+        'id' => $selectedInstallmentId,
+        'loan_id' => $loanId,
+    ]);
+
+    $reduceTail = function (float $amountToReduce) use ($pdo, $loanId, $selectedInstallmentId, $paidOnDate, $addSnapshot): float {
+        $remaining = round($amountToReduce, 2);
+        if ($remaining <= 0.009) {
+            return 0.0;
+        }
+
+        $tailStmt = $pdo->prepare(
+            "SELECT *
+             FROM loan_installments
+             WHERE loan_id = :loan_id
+               AND id <> :selected_id
+               AND status IN ('pending', 'partial', 'overdue')
+               AND due_amount > paid_amount
+             ORDER BY installment_no DESC
+             LIMIT 1
+             FOR UPDATE"
+        );
+        $collectionLinkStmt = $pdo->prepare('SELECT COUNT(*) FROM collections WHERE installment_id = :installment_id');
+        $deleteTailStmt = $pdo->prepare('DELETE FROM loan_installments WHERE id = :id AND loan_id = :loan_id');
+        $closeTailStmt = $pdo->prepare(
+            "UPDATE loan_installments
+             SET due_amount = paid_amount,
+                 paid_on = COALESCE(paid_on, :paid_on),
+                 status = 'paid'
+             WHERE id = :id
+               AND loan_id = :loan_id"
+        );
+        $shrinkTailStmt = $pdo->prepare(
+            'UPDATE loan_installments
+             SET due_amount = :due_amount,
+                 status = :status
+             WHERE id = :id
+               AND loan_id = :loan_id'
+        );
+
+        while ($remaining > 0.009) {
+            $tailStmt->execute([
+                'loan_id' => $loanId,
+                'selected_id' => $selectedInstallmentId,
+            ]);
+            $tail = $tailStmt->fetch();
+            if (!$tail) {
+                break;
+            }
+
+            $tailBalance = round((float) $tail['due_amount'] - (float) $tail['paid_amount'], 2);
+            if ($tailBalance <= 0.009) {
+                break;
+            }
+
+            $addSnapshot($tail, true);
+            if ($remaining + 0.009 >= $tailBalance) {
+                $collectionLinkStmt->execute(['installment_id' => (int) $tail['id']]);
+                $hasLinkedCollections = (int) $collectionLinkStmt->fetchColumn() > 0;
+
+                if ($hasLinkedCollections) {
+                    $closeTailStmt->execute([
+                        'paid_on' => $paidOnDate,
+                        'id' => (int) $tail['id'],
+                        'loan_id' => $loanId,
+                    ]);
+                } else {
+                    $deleteTailStmt->execute([
+                        'id' => (int) $tail['id'],
+                        'loan_id' => $loanId,
+                    ]);
+                }
+
+                $remaining = round($remaining - $tailBalance, 2);
+                continue;
+            }
+
+            $newDueAmount = round((float) $tail['due_amount'] - $remaining, 2);
+            $newStatus = (string) $tail['due_date'] < today() ? 'overdue' : 'pending';
+            $shrinkTailStmt->execute([
+                'due_amount' => $newDueAmount,
+                'status' => $newStatus,
+                'id' => (int) $tail['id'],
+                'loan_id' => $loanId,
+            ]);
+            $remaining = 0.0;
+        }
+
+        return $remaining;
+    };
+
+    $addShortfallToTail = function (float $shortfall) use ($pdo, $loan, $loanId, $selectedInstallmentId, $paymentRef, $collectedOn, $addSnapshot): void {
+        $shortfall = round($shortfall, 2);
+        if ($shortfall <= 0.009) {
+            return;
+        }
+
+        $tailStmt = $pdo->prepare(
+            "SELECT *
+             FROM loan_installments
+             WHERE loan_id = :loan_id
+               AND id <> :selected_id
+               AND status IN ('pending', 'partial', 'overdue')
+               AND due_amount > paid_amount
+             ORDER BY installment_no DESC
+             LIMIT 1
+             FOR UPDATE"
+        );
+        $tailStmt->execute([
+            'loan_id' => $loanId,
+            'selected_id' => $selectedInstallmentId,
+        ]);
+        $tail = $tailStmt->fetch();
+
+        if ($tail) {
+            $addSnapshot($tail, true);
+            $status = (string) $tail['due_date'] < today() ? 'overdue' : 'pending';
+            $updateTail = $pdo->prepare(
+                'UPDATE loan_installments
+                 SET due_amount = :due_amount,
+                     status = :status
+                 WHERE id = :id
+                   AND loan_id = :loan_id'
+            );
+            $updateTail->execute([
+                'due_amount' => round((float) $tail['due_amount'] + $shortfall, 2),
+                'status' => $status,
+                'id' => (int) $tail['id'],
+                'loan_id' => $loanId,
+            ]);
+            return;
+        }
+
+        $lastStmt = $pdo->prepare(
+            'SELECT installment_no, due_date
+             FROM loan_installments
+             WHERE loan_id = :loan_id
+             ORDER BY installment_no DESC
+             LIMIT 1
+             FOR UPDATE'
+        );
+        $lastStmt->execute(['loan_id' => $loanId]);
+        $last = $lastStmt->fetch();
+
+        $nextNo = ((int) ($last['installment_no'] ?? 0)) + 1;
+        $baseDate = DateTimeImmutable::createFromFormat('Y-m-d', $collectedOn) ?: new DateTimeImmutable(today());
+        $nextDueDate = $baseDate->add(frequency_interval((string) ($loan['installment_frequency'] ?? 'daily')))->format('Y-m-d');
+
+        $insertTail = $pdo->prepare(
+            'INSERT INTO loan_installments
+                (loan_id, installment_no, due_date, due_amount, paid_amount, status, is_flexible_adjustment, source_payment_ref)
+             VALUES
+                (:loan_id, :installment_no, :due_date, :due_amount, 0, :status, 1, :source_payment_ref)'
+        );
+        $insertTail->execute([
+            'loan_id' => $loanId,
+            'installment_no' => $nextNo,
+            'due_date' => $nextDueDate,
+            'due_amount' => $shortfall,
+            'status' => $nextDueDate < today() ? 'overdue' : 'pending',
+            'source_payment_ref' => $paymentRef,
+        ]);
+
+        $addSnapshot(['id' => (int) $pdo->lastInsertId()], false);
+    };
+
+    $delta = round($amount - $selectedBalance, 2);
+    if ($delta > 0.009) {
+        $unappliedExtra = $reduceTail($delta);
+        if ($unappliedExtra > 0.009 && !$allowOverpayment) {
+            throw new RuntimeException('Overpayment is disabled for this system.');
+        }
+    } elseif ($delta < -0.009) {
+        $addShortfallToTail(abs($delta));
+    }
+
+    $rescheduledCount = 0;
+    $remainingStmt = $pdo->prepare(
+        "SELECT *
+         FROM loan_installments
+         WHERE loan_id = :loan_id
+           AND status IN ('pending', 'partial', 'overdue')
+           AND due_amount > paid_amount
+         ORDER BY installment_no ASC
+         FOR UPDATE"
+    );
+    $remainingStmt->execute(['loan_id' => $loanId]);
+    $remainingInstallments = $remainingStmt->fetchAll();
+
+    if ($remainingInstallments !== []) {
+        $baseDate = DateTimeImmutable::createFromFormat('Y-m-d', $collectedOn);
+        if (!$baseDate || $baseDate->format('Y-m-d') !== $collectedOn) {
+            $baseDate = new DateTimeImmutable(today());
+        }
+
+        $interval = frequency_interval((string) ($loan['installment_frequency'] ?? 'daily'));
+        $nextDueDate = $baseDate->add($interval);
+        $updateScheduleStmt = $pdo->prepare(
+            'UPDATE loan_installments
+             SET due_date = :due_date,
+                 status = :status
+             WHERE id = :id'
+        );
+
+        foreach ($remainingInstallments as $installment) {
+            $newDueDate = $nextDueDate->format('Y-m-d');
+            $newStatus = $newDueDate < today() ? 'overdue' : 'pending';
+
+            if ((string) $installment['due_date'] !== $newDueDate || (string) $installment['status'] !== $newStatus) {
+                $addSnapshot($installment, true);
+                $updateScheduleStmt->execute([
+                    'due_date' => $newDueDate,
+                    'status' => $newStatus,
+                    'id' => (int) $installment['id'],
+                ]);
+                $rescheduledCount++;
+            }
+
+            $nextDueDate = $nextDueDate->add($interval);
+        }
+    }
+
+    $meta = [
+        'version' => 2,
+        'rule' => 'single_installment_tail_adjustment',
+        'selected_installment_id' => $selectedInstallmentId,
+        'entered_amount' => $amount,
+        'original_selected_balance' => $selectedBalance,
+        'rescheduled_remaining_count' => $rescheduledCount,
+        'installment_snapshots' => array_values($snapshots),
+    ];
+    $metaJson = json_encode($meta, JSON_UNESCAPED_UNICODE);
+    if ($metaJson !== false && $collectionRowCount > 0) {
+        $metaStmt = $pdo->prepare(
+            'UPDATE collections
+             SET meta_json = :meta_json
+             WHERE loan_id = :loan_id
+               AND payment_ref = :payment_ref'
+        );
+        $metaStmt->execute([
+            'meta_json' => $metaJson,
+            'loan_id' => $loanId,
+            'payment_ref' => $paymentRef,
+        ]);
+    }
+
+    sync_loan_installment_count($pdo, $loanId);
+
+    $pendingCountStmt = $pdo->prepare(
+        "SELECT COUNT(*)
+         FROM loan_installments
+         WHERE loan_id = :loan_id
+           AND status IN ('pending', 'partial', 'overdue')
+           AND due_amount > paid_amount"
+    );
+    $pendingCountStmt->execute(['loan_id' => $loanId]);
+
+    return [
+        'pending_count' => (int) $pendingCountStmt->fetchColumn(),
+        'payment_ref' => $paymentRef,
+    ];
+}
 function dashboard_stats(PDO $pdo, ?array $viewer = null): array
 {
     refresh_overdue_installments($pdo);
@@ -1291,6 +1887,35 @@ function ensure_collection_payment_ref_schema(PDO $pdo): void
     if (!$col) {
         $pdo->exec('ALTER TABLE collections ADD COLUMN payment_ref VARCHAR(50) NULL AFTER collected_by_user_id');
         $pdo->exec('ALTER TABLE collections ADD INDEX idx_collections_payment_ref (payment_ref)');
+    }
+}
+
+function ensure_flexible_collection_schema(PDO $pdo): void
+{
+    $metaColStmt = $pdo->query("SHOW COLUMNS FROM collections LIKE 'meta_json'");
+    if (!$metaColStmt->fetch()) {
+        $pdo->exec('ALTER TABLE collections ADD COLUMN meta_json LONGTEXT NULL AFTER payment_ref');
+    }
+
+    $flexColStmt = $pdo->query("SHOW COLUMNS FROM loan_installments LIKE 'is_flexible_adjustment'");
+    if (!$flexColStmt->fetch()) {
+        $pdo->exec('ALTER TABLE loan_installments ADD COLUMN is_flexible_adjustment TINYINT(1) NOT NULL DEFAULT 0 AFTER status');
+    }
+
+    $sourceColStmt = $pdo->query("SHOW COLUMNS FROM loan_installments LIKE 'source_payment_ref'");
+    if (!$sourceColStmt->fetch()) {
+        $pdo->exec('ALTER TABLE loan_installments ADD COLUMN source_payment_ref VARCHAR(50) NULL AFTER is_flexible_adjustment');
+    }
+
+    $indexStmt = $pdo->prepare(
+        "SELECT COUNT(*) FROM information_schema.statistics
+         WHERE table_schema = DATABASE()
+           AND table_name = 'loan_installments'
+           AND index_name = 'idx_loan_installments_flexible'"
+    );
+    $indexStmt->execute();
+    if ((int) $indexStmt->fetchColumn() === 0) {
+        $pdo->exec('ALTER TABLE loan_installments ADD INDEX idx_loan_installments_flexible (loan_id, is_flexible_adjustment, installment_no)');
     }
 }
 
@@ -2467,7 +3092,7 @@ function is_collector_role(?string $role): bool
 
 function can_manage_loans(): bool
 {
-    return can_any(['loans.view', 'loans.create', 'loans.edit', 'loans.delete', 'loans.assign', 'loans.collect_inline']);
+    return can_any(['loans.view', 'loans.create', 'loans.edit', 'loans.delete', 'loans.assign']);
 }
 
 function can_view_all_customers(?array $viewer = null): bool

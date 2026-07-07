@@ -81,8 +81,11 @@ CREATE TABLE IF NOT EXISTS loan_installments (
     paid_amount DECIMAL(12,2) NOT NULL DEFAULT 0,
     paid_on DATE DEFAULT NULL,
     status ENUM('pending', 'partial', 'paid', 'overdue') NOT NULL DEFAULT 'pending',
+    is_flexible_adjustment TINYINT(1) NOT NULL DEFAULT 0,
+    source_payment_ref VARCHAR(50) DEFAULT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE KEY unique_loan_installment (loan_id, installment_no),
+    INDEX idx_loan_installments_flexible (loan_id, is_flexible_adjustment, installment_no),
     FOREIGN KEY (loan_id) REFERENCES loans(id)
 );
 
@@ -96,6 +99,7 @@ CREATE TABLE IF NOT EXISTS collections (
     note VARCHAR(255) DEFAULT NULL,
     collected_by_user_id INT DEFAULT NULL,
     payment_ref VARCHAR(50) DEFAULT NULL,
+    meta_json LONGTEXT DEFAULT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     INDEX idx_collections_collected_by_user (collected_by_user_id),
     INDEX idx_collections_payment_ref (payment_ref),
