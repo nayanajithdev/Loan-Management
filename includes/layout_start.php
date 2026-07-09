@@ -22,9 +22,10 @@ $faviconPath = business_icon_path($pdo);
     <?php require __DIR__ . '/sidebar.php'; ?>
     <div class="sidebar-overlay" data-sidebar-overlay aria-hidden="true"></div>
 
-    <main class="main-content">
+    <div class="content-shell">
         <?php require __DIR__ . '/topbar.php'; ?>
 
+        <main class="main-content">
         <?php if ($flash): ?>
             <div class="flash flash-<?= e($flash['type']) ?>"><?= e($flash['message']) ?></div>
         <?php endif; ?>

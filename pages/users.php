@@ -42,10 +42,12 @@ require __DIR__ . '/../includes/layout_start.php';
 
         <div class="users-directory-actions">
             <form class="users-search-form" method="get" action="<?= e(url('pages/users.php')) ?>">
-                <input type="search" name="q" value="<?= e($search) ?>" placeholder="Name, email, username" autocomplete="off">
-                <button class="btn btn-icon-only" type="submit" aria-label="Search users">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg>
-                </button>
+                <div class="search-control">
+                    <input type="search" name="q" value="<?= e($search) ?>" placeholder="Search..." autocomplete="off" aria-label="Search users">
+                    <button class="btn search-submit" type="submit" aria-label="Search users">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg>
+                    </button>
+                </div>
                 <?php if ($search !== ''): ?>
                     <a class="btn" href="<?= e(url('pages/users.php')) ?>">Reset</a>
                 <?php endif; ?>

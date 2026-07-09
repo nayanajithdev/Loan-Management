@@ -107,10 +107,14 @@ require __DIR__ . '/../includes/layout_start.php';
                     </select>
                 </div>
                 <div class="field" style="min-width:260px; margin:0;">
-                    <label>Search Customer</label>
-                    <input type="text" name="q" value="<?= e($search) ?>" placeholder="Type customer name or ID no">
+                    <label class="sr-only">Search loans</label>
+                    <div class="search-control">
+                        <input type="text" name="q" value="<?= e($search) ?>" placeholder="Search..." aria-label="Search by customer name or ID number">
+                        <button type="submit" class="btn search-submit" aria-label="Search loans">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg>
+                        </button>
+                    </div>
                 </div>
-                <button type="submit" class="btn btn-primary">Apply</button>
                 <a class="btn" href="<?= e(url('pages/loans.php')) ?>">Reset</a>
             </form>
         </div>

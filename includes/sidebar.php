@@ -87,7 +87,6 @@ $brandHref = can('business_settings.manage') ? 'pages/settings.php' : 'pages/abo
             <?php endif; ?>
         </div>
         <div>
-            <div class="brand-sub">Business Profile</div>
             <div class="brand-name"><?= e($businessName) ?></div>
         </div>
     </a>

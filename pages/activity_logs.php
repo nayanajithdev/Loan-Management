@@ -82,8 +82,13 @@ require __DIR__ . '/../includes/layout_start.php';
             <input type="date" name="to" value="<?= e($toDate) ?>" required>
         </div>
         <div class="field">
-            <label>Search</label>
-            <input type="text" name="q" value="<?= e($search) ?>" placeholder="Action / User / Text / IP">
+            <label class="sr-only">Search activity logs</label>
+            <div class="search-control">
+                <input type="text" name="q" value="<?= e($search) ?>" placeholder="Search..." aria-label="Search by action, user, text, or IP">
+                <button type="submit" class="btn search-submit" aria-label="Search activity logs">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg>
+                </button>
+            </div>
         </div>
         <div class="field full reports-filter-actions">
             <a class="btn" href="<?= e(url('pages/activity_logs.php')) ?>">Reset</a>

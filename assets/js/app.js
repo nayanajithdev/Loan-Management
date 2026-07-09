@@ -386,7 +386,7 @@
 
     const toggleCustomDateField = () => {
         const isCustom = dateModeSelect.value === 'custom';
-        customDateField.style.display = isCustom ? '' : 'none';
+        customDateField.style.display = isCustom ? 'flex' : 'none';
         customDateInput.disabled = !isCustom;
         customDateInput.required = isCustom;
     };

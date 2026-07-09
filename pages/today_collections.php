@@ -115,8 +115,8 @@ require __DIR__ . '/../includes/layout_start.php';
             <h2 class="panel-title">Due Installments</h2>
         </div>
 
-        <form method="get" action="<?= e(url('pages/today_collections.php')) ?>" class="form-grid">
-            <div class="field">
+        <form method="get" action="<?= e(url('pages/today_collections.php')) ?>" class="form-grid collection-filter-grid">
+            <div class="field collection-date-field">
                 <label>Select Date</label>
                 <select name="date_mode" id="date-mode-select">
                     <option value="today" <?= $selectedDateMode === 'today' ? 'selected' : '' ?>>Today</option>
@@ -125,16 +125,18 @@ require __DIR__ . '/../includes/layout_start.php';
                     <option value="custom" <?= $selectedDateMode === 'custom' ? 'selected' : '' ?>>Custom Date</option>
                 </select>
             </div>
-            <div class="field" id="custom-date-field">
+            <div class="field collection-search-field">
+                <label class="sr-only">Search due installments</label>
+                <div class="search-control">
+                    <input type="text" name="q" value="<?= e($search) ?>" placeholder="Search..." aria-label="Search by loan number, customer name, or phone">
+                    <button type="submit" class="btn search-submit" aria-label="Search due installments">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg>
+                    </button>
+                </div>
+            </div>
+            <div class="field" id="custom-date-field"<?= $selectedDateMode === 'custom' ? ' style="display: flex;"' : '' ?>>
                 <label>Calendar</label>
                 <input type="date" name="date" id="custom-date-input" value="<?= e($selectedDateMode === 'custom' ? $selectedDate : $customDate) ?>">
-            </div>
-            <div class="field collection-search-field">
-                <label>Search (Loan No / Customer Name / Phone)</label>
-                <div class="combo-field combo-field-search">
-                    <input type="text" name="q" value="<?= e($search) ?>" placeholder="Type and search">
-                    <button type="submit" class="btn">Search</button>
-                </div>
             </div>
         </form>
 
