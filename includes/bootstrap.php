@@ -34,6 +34,7 @@ ensure_customer_documents_schema($pdo);
 ensure_customer_docs_guard_file(customer_documents_upload_dir_abs());
 ensure_customer_note_schema($pdo);
 ensure_system_settings_schema($pdo);
+ensure_holidays_schema($pdo);
 ensure_activity_logs_schema($pdo);
 
 $configuredTimezone = trim(system_setting($pdo, 'timezone', ''));

@@ -110,6 +110,7 @@ $startDate = $issuedDate;
 $firstDueDate = $collectedIncludingToday
     ? (new DateTimeImmutable(today()))->add(new DateInterval('P1D'))->format('Y-m-d')
     : today();
+$firstDueDate = next_collectible_date($pdo, $firstDueDate);
 
 try {
     $pdo->beginTransaction();
@@ -180,6 +181,7 @@ try {
 
         $allocated = 0.0;
         for ($i = 1; $i <= $remainingInstallmentCount; $i++) {
+            $currentDueDate = next_collectible_date($pdo, $dueDate->format('Y-m-d'));
             $installmentNo = $startingInstallmentNo + ($i - 1);
             $amount = $installmentAmount;
             if ($i === $remainingInstallmentCount) {
@@ -191,12 +193,12 @@ try {
             $insertInstallment->execute([
                 'loan_id' => $loanId,
                 'installment_no' => $installmentNo,
-                'due_date' => $dueDate->format('Y-m-d'),
+                'due_date' => $currentDueDate,
                 'due_amount' => $amount,
             ]);
 
             $allocated = round($allocated + $amount, 2);
-            $dueDate = $dueDate->add($interval);
+            $dueDate = (new DateTimeImmutable($currentDueDate))->add($interval);
         }
     }
 

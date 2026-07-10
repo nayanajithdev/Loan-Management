@@ -104,6 +104,7 @@ try {
     if ($firstDueDate === '') {
         $firstDueDate = (new DateTimeImmutable(today()))->add(new DateInterval('P1D'))->format('Y-m-d');
     }
+    $firstDueDate = next_collectible_date($pdo, $firstDueDate);
 
     $countStmt = $pdo->prepare('SELECT COUNT(*) FROM collections WHERE loan_id = :loan_id');
     $countStmt->execute(['loan_id' => $loanId]);
@@ -114,6 +115,29 @@ try {
     $currentOutstanding = (float) $outstandingStmt->fetchColumn();
     $hasLegacyPreCollected = $collectionsCount === 0 && ($currentOutstanding + 0.009) < (float) $loan['total_amount'];
     $repaymentLocked = $collectionsCount > 0 || $hasLegacyPreCollected;
+
+    $loanInterestRateType = normalize_interest_rate_type((string) ($loan['interest_rate_type'] ?? 'amount_based'));
+    $loanInterestRateMonths = normalize_interest_rate_months((int) ($loan['interest_rate_months'] ?? 1));
+    $loanTimeframeValue = match ((string) $loan['installment_frequency']) {
+        'weekly' => (int) $loan['installment_count'] * 7,
+        'monthly' => (int) $loan['installment_count'],
+        default => (int) $loan['installment_count'],
+    };
+    $loanTimeframeUnit = (string) $loan['installment_frequency'] === 'monthly' ? 'months' : 'days';
+    $structureUnchanged =
+        abs((float) $loan['principal_amount'] - $principal) < 0.005
+        && abs((float) $loan['interest_rate'] - $interestRate) < 0.005
+        && $loanInterestRateType === $interestRateType
+        && ($loanInterestRateType !== 'monthly' || $loanInterestRateMonths === $interestRateMonths)
+        && (string) $loan['installment_frequency'] === $frequency
+        && $loanTimeframeValue === $timeframeValue
+        && $loanTimeframeUnit === $timeframeUnit;
+
+    if (!$repaymentLocked && $structureUnchanged) {
+        $totalAmount = (float) $loan['total_amount'];
+        $installmentCount = (int) $loan['installment_count'];
+        $installmentAmount = (float) $loan['installment_amount'];
+    }
 
     if ($repaymentLocked) {
         $updateLocked = $pdo->prepare(
@@ -170,6 +194,7 @@ try {
 
         $allocated = 0.0;
         for ($i = 1; $i <= $installmentCount; $i++) {
+            $currentDueDate = next_collectible_date($pdo, $dueDate->format('Y-m-d'));
             $amount = $installmentAmount;
             if ($i === $installmentCount) {
                 $amount = round($totalAmount - $allocated, 2);
@@ -178,12 +203,12 @@ try {
             $insertInstallment->execute([
                 'loan_id' => $loanId,
                 'installment_no' => $i,
-                'due_date' => $dueDate->format('Y-m-d'),
+                'due_date' => $currentDueDate,
                 'due_amount' => $amount,
             ]);
 
             $allocated += $amount;
-            $dueDate = $dueDate->add($interval);
+            $dueDate = (new DateTimeImmutable($currentDueDate))->add($interval);
         }
     }
 

@@ -535,6 +535,7 @@
     const installmentEl = document.getElementById('preview-installment');
     const profitEl = document.getElementById('preview-profit');
     const installmentCountEl = document.getElementById('preview-installment-count');
+    const isEditLoanForm = Boolean(form.querySelector('[name="loan_id"]'));
 
     const toNumber = (value) => {
         const n = Number(value);
@@ -660,8 +661,11 @@
     }
 
     toggleInterestMonthsField();
-    syncRoundedInstallment();
-    updatePreview();
+    if (roundedToggle) {
+        syncRoundedInstallment();
+    } else if (!isEditLoanForm) {
+        updatePreview();
+    }
 })();
 
 (function () {

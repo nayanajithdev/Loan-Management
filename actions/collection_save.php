@@ -48,12 +48,19 @@ if (is_array($parsedReturn) && isset($parsedReturn['path']) && preg_match('/^(in
         if (!empty($queryValues['selected_installment'])) {
             $allowedQuery['selected_installment'] = (int) $queryValues['selected_installment'];
         }
+        if ($returnTo === 'pages/loan_edit.php' && !empty($queryValues['loan_id'])) {
+            $loanIdQuery = (int) $queryValues['loan_id'];
+            if ($loanIdQuery > 0) {
+                $allowedQuery['loan_id'] = $loanIdQuery;
+            }
+        }
     }
 
     if (!empty($allowedQuery)) {
         $returnTo .= '?' . http_build_query($allowedQuery);
     }
 }
+$allowNextPendingCollection = str_starts_with($returnTo, 'pages/loan_edit.php?loan_id=');
 
 if ($loanId <= 0 || $amount <= 0 || $collectedOn === '') {
     set_flash('error', 'Loan, amount and collection date are required.');
@@ -145,24 +152,29 @@ try {
     if (is_collector_role($currentRole) && $assignedUserId > 0 && $assignedUserId !== $currentUserId) {
         throw new RuntimeException('You can only collect payments for loans assigned to you.');
     }
-    $oldestCollectibleStmt = $pdo->prepare(
-        "SELECT *
+    $oldestCollectibleSql = "SELECT *
          FROM loan_installments
          WHERE loan_id = :loan_id
            AND status IN ('pending', 'partial', 'overdue')
-           AND due_date <= :today_date
+           AND due_amount > paid_amount";
+    $oldestCollectibleParams = ['loan_id' => $loanId];
+    if (!$allowNextPendingCollection) {
+        $oldestCollectibleSql .= ' AND due_date <= :today_date';
+        $oldestCollectibleParams['today_date'] = today();
+    }
+    $oldestCollectibleSql .= '
          ORDER BY due_date ASC, installment_no ASC
          LIMIT 1
-         FOR UPDATE"
-    );
-    $oldestCollectibleStmt->execute([
-        'loan_id' => $loanId,
-        'today_date' => today(),
-    ]);
+         FOR UPDATE';
+    $oldestCollectibleStmt = $pdo->prepare($oldestCollectibleSql);
+    $oldestCollectibleStmt->execute($oldestCollectibleParams);
     $oldestCollectible = $oldestCollectibleStmt->fetch();
 
     if (!$oldestCollectible) {
-        throw new RuntimeException('No due installments available for collection today.');
+        throw new RuntimeException($allowNextPendingCollection
+            ? 'No pending installments available for this loan.'
+            : 'No due installments available for collection today.'
+        );
     }
 
     $oldestCollectibleId = (int) $oldestCollectible['id'];
@@ -170,7 +182,7 @@ try {
         throw new RuntimeException('Only the oldest due installment can be collected.');
     }
 
-    if ((string) $oldestCollectible['due_date'] > today()) {
+    if (!$allowNextPendingCollection && (string) $oldestCollectible['due_date'] > today()) {
         throw new RuntimeException('Cannot collect a future installment from this panel.');
     }
 

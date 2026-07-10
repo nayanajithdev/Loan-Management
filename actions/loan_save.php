@@ -86,7 +86,7 @@ if ($useRoundedInstallment) {
 }
 
 $startDate = today();
-$firstDueDate = (new DateTimeImmutable($startDate))->add(new DateInterval('P1D'))->format('Y-m-d');
+$firstDueDate = next_collectible_date($pdo, (new DateTimeImmutable($startDate))->add(new DateInterval('P1D'))->format('Y-m-d'));
 
 try {
     $pdo->beginTransaction();
@@ -154,6 +154,7 @@ try {
 
     $allocated = 0.0;
     for ($i = 1; $i <= $installmentCount; $i++) {
+        $currentDueDate = next_collectible_date($pdo, $dueDate->format('Y-m-d'));
         $amount = $installmentAmount;
         if ($i === $installmentCount) {
             $amount = round($totalAmount - $allocated, 2);
@@ -162,12 +163,12 @@ try {
         $insertInstallment->execute([
             'loan_id' => $loanId,
             'installment_no' => $i,
-            'due_date' => $dueDate->format('Y-m-d'),
+            'due_date' => $currentDueDate,
             'due_amount' => $amount,
         ]);
 
         $allocated += $amount;
-        $dueDate = $dueDate->add($interval);
+        $dueDate = (new DateTimeImmutable($currentDueDate))->add($interval);
     }
 
     $pdo->commit();

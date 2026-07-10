@@ -133,6 +133,17 @@ CREATE TABLE IF NOT EXISTS system_settings (
     FOREIGN KEY (updated_by_user_id) REFERENCES users(id) ON DELETE SET NULL
 );
 
+CREATE TABLE IF NOT EXISTS holidays (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    holiday_date DATE NOT NULL,
+    note VARCHAR(255) NULL,
+    created_by_user_id INT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_holidays_holiday_date (holiday_date),
+    INDEX idx_holidays_created_by (created_by_user_id),
+    FOREIGN KEY (created_by_user_id) REFERENCES users(id) ON DELETE SET NULL
+);
+
 CREATE TABLE IF NOT EXISTS activity_logs (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     actor_user_id INT NULL,

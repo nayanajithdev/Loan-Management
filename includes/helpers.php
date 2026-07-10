@@ -98,6 +98,7 @@ function permission_groups(): array
                 'users.manage' => ['label' => 'Users', 'description' => 'Create, edit, deactivate, and delete users.'],
                 'reports.view' => ['label' => 'Reports', 'description' => 'View business and collection reports.'],
                 'backup.manage' => ['label' => 'Backup / Restore', 'description' => 'Download and restore database/full backups.'],
+                'holidays.manage' => ['label' => 'Holiday Mode', 'description' => 'Mark holidays and shift unpaid collection schedules.'],
                 'activity_logs.view' => ['label' => 'Activity Logs', 'description' => 'Review audit history and user actions.'],
                 'business_settings.manage' => ['label' => 'Business Settings', 'description' => 'Update business profile and business icon.'],
                 'system_settings.view' => ['label' => 'View System Settings', 'description' => 'View system defaults and configuration.'],
@@ -935,8 +936,19 @@ function installment_status_label(string $status, string $dueDate, ?string $toda
 
 function refresh_overdue_installments(PDO $pdo): void
 {
-    $stmt = $pdo->prepare("UPDATE loan_installments SET status = 'overdue' WHERE status IN ('pending', 'partial') AND due_date < CURDATE() AND paid_amount < due_amount");
-    $stmt->execute();
+    $stmt = $pdo->prepare(
+        "UPDATE loan_installments li
+         SET li.status = 'overdue'
+         WHERE li.status IN ('pending', 'partial')
+           AND li.due_date < :today
+           AND li.paid_amount < li.due_amount
+           AND NOT EXISTS (
+               SELECT 1
+               FROM holidays h
+               WHERE h.holiday_date = li.due_date
+           )"
+    );
+    $stmt->execute(['today' => today()]);
 }
 
 function oldest_due_installment_per_loan(array $installments): array
@@ -1015,6 +1027,7 @@ function collection_due_installments_for_date(PDO $pdo, string $selectedDate, st
                 li.status,
                 l.loan_number,
                 l.installment_frequency,
+                c.id AS customer_id,
                 c.full_name,
                 c.phone
             FROM loan_installments li
@@ -1127,6 +1140,9 @@ function schedule_next_installment_date(PDO $pdo, int $loanId, string $scheduled
         throw new RuntimeException('Next payment date must be after today.');
     }
 
+    $scheduledDate = next_collectible_date($pdo, $scheduledDate);
+    $scheduledDateObj = new DateTimeImmutable($scheduledDate);
+
     $pendingStmt = $pdo->prepare(
         "SELECT id, installment_no, due_date, due_amount, paid_amount, status
          FROM loan_installments
@@ -1179,7 +1195,7 @@ function schedule_next_installment_date(PDO $pdo, int $loanId, string $scheduled
 
         $newDueDate = $index === 0
             ? $scheduledDate
-            : $installmentDueObj->modify(sprintf('%+d days', $deltaDays))->format('Y-m-d');
+            : next_collectible_date($pdo, $installmentDueObj->modify(sprintf('%+d days', $deltaDays))->format('Y-m-d'));
 
         $installmentPaid = round((float) $installment['paid_amount'], 2);
         $installmentDueAmount = round((float) $installment['due_amount'], 2);
@@ -1495,7 +1511,7 @@ function record_loan_collection_payment(
 
         $nextNo = ((int) ($last['installment_no'] ?? 0)) + 1;
         $baseDate = DateTimeImmutable::createFromFormat('Y-m-d', $collectedOn) ?: new DateTimeImmutable(today());
-        $nextDueDate = $baseDate->add(frequency_interval((string) ($loan['installment_frequency'] ?? 'daily')))->format('Y-m-d');
+        $nextDueDate = next_collectible_date($pdo, $baseDate->add(frequency_interval((string) ($loan['installment_frequency'] ?? 'daily')))->format('Y-m-d'));
 
         $insertTail = $pdo->prepare(
             'INSERT INTO loan_installments
@@ -1554,7 +1570,7 @@ function record_loan_collection_payment(
         );
 
         foreach ($remainingInstallments as $installment) {
-            $newDueDate = $nextDueDate->format('Y-m-d');
+            $newDueDate = next_collectible_date($pdo, $nextDueDate->format('Y-m-d'));
             $newStatus = $newDueDate < today() ? 'overdue' : 'pending';
 
             if ((string) $installment['due_date'] !== $newDueDate || (string) $installment['status'] !== $newStatus) {
@@ -1567,7 +1583,7 @@ function record_loan_collection_payment(
                 $rescheduledCount++;
             }
 
-            $nextDueDate = $nextDueDate->add($interval);
+            $nextDueDate = (new DateTimeImmutable($newDueDate))->add($interval);
         }
     }
 
@@ -1643,12 +1659,6 @@ function dashboard_stats(PDO $pdo, ?array $viewer = null): array
         $totals['total_disbursed'] = (float) $pdo->query('SELECT COALESCE(SUM(principal_amount), 0) FROM loans')->fetchColumn();
         $totals['total_collected'] = (float) $pdo->query('SELECT COALESCE(SUM(amount), 0) FROM collections')->fetchColumn();
 
-        $todayPendingOnly = (float) $pdo->query("SELECT COALESCE(SUM(due_amount - paid_amount), 0) FROM loan_installments WHERE due_date = CURDATE() AND status IN ('pending', 'partial', 'overdue')")->fetchColumn();
-        $totals['today_pending_count'] = (int) $pdo->query("SELECT COUNT(*) FROM loan_installments WHERE due_date = CURDATE() AND status IN ('pending', 'partial', 'overdue')")->fetchColumn();
-
-        $totals['overdue_amount'] = (float) $pdo->query("SELECT COALESCE(SUM(due_amount - paid_amount), 0) FROM loan_installments WHERE status = 'overdue'")->fetchColumn();
-        $totals['overdue_count'] = (int) $pdo->query("SELECT COUNT(*) FROM loan_installments WHERE status = 'overdue'")->fetchColumn();
-        $totals['overdue_customers'] = (int) $pdo->query("SELECT COUNT(DISTINCT l.customer_id) FROM loan_installments li JOIN loans l ON l.id = li.loan_id WHERE li.status = 'overdue'")->fetchColumn();
     } else {
         $scope = 'l.assigned_user_id = :viewer_user_id';
 
@@ -1680,28 +1690,34 @@ function dashboard_stats(PDO $pdo, ?array $viewer = null): array
         $stmt->execute(['viewer_user_id' => $viewerId]);
         $totals['total_collected'] = (float) $stmt->fetchColumn();
 
-        $stmt = $pdo->prepare("SELECT COALESCE(SUM(li.due_amount - li.paid_amount), 0) FROM loan_installments li JOIN loans l ON l.id = li.loan_id WHERE li.due_date = CURDATE() AND li.status IN ('pending', 'partial', 'overdue') AND {$scope}");
-        $stmt->execute(['viewer_user_id' => $viewerId]);
-        $todayPendingOnly = (float) $stmt->fetchColumn();
-
-        $stmt = $pdo->prepare("SELECT COUNT(*) FROM loan_installments li JOIN loans l ON l.id = li.loan_id WHERE li.due_date = CURDATE() AND li.status IN ('pending', 'partial', 'overdue') AND {$scope}");
-        $stmt->execute(['viewer_user_id' => $viewerId]);
-        $totals['today_pending_count'] = (int) $stmt->fetchColumn();
-
-        $stmt = $pdo->prepare("SELECT COALESCE(SUM(li.due_amount - li.paid_amount), 0) FROM loan_installments li JOIN loans l ON l.id = li.loan_id WHERE li.status = 'overdue' AND {$scope}");
-        $stmt->execute(['viewer_user_id' => $viewerId]);
-        $totals['overdue_amount'] = (float) $stmt->fetchColumn();
-
-        $stmt = $pdo->prepare("SELECT COUNT(*) FROM loan_installments li JOIN loans l ON l.id = li.loan_id WHERE li.status = 'overdue' AND {$scope}");
-        $stmt->execute(['viewer_user_id' => $viewerId]);
-        $totals['overdue_count'] = (int) $stmt->fetchColumn();
-
-        $stmt = $pdo->prepare("SELECT COUNT(DISTINCT l.customer_id) FROM loan_installments li JOIN loans l ON l.id = li.loan_id WHERE li.status = 'overdue' AND {$scope}");
-        $stmt->execute(['viewer_user_id' => $viewerId]);
-        $totals['overdue_customers'] = (int) $stmt->fetchColumn();
     }
 
-    $totals['today_pending_amount'] = $todayPendingOnly + $totals['overdue_amount'];
+    $todayDueRows = collection_due_installments_for_date($pdo, today(), today(), '', $viewerRole, $viewerId);
+    $todayDueAmount = 0.0;
+    $todayOverdueAmount = 0.0;
+    $todayOverdueCustomers = [];
+
+    foreach ($todayDueRows as $row) {
+        $balance = max(0.0, (float) ($row['due_amount'] ?? 0) - (float) ($row['paid_amount'] ?? 0));
+        $todayDueAmount += $balance;
+
+        if ((string) ($row['due_date'] ?? '') < today() || (string) ($row['status'] ?? '') === 'overdue') {
+            $todayOverdueAmount += $balance;
+            $customerId = (int) ($row['customer_id'] ?? 0);
+            if ($customerId > 0) {
+                $todayOverdueCustomers[$customerId] = true;
+            }
+        }
+    }
+
+    $totals['today_pending_amount'] = $todayDueAmount;
+    $totals['today_pending_count'] = count($todayDueRows);
+    $totals['overdue_amount'] = $todayOverdueAmount;
+    $totals['overdue_count'] = count(array_filter(
+        $todayDueRows,
+        static fn (array $row): bool => (string) ($row['due_date'] ?? '') < today() || (string) ($row['status'] ?? '') === 'overdue'
+    ));
+    $totals['overdue_customers'] = count($todayOverdueCustomers);
 
     return $totals;
 }
@@ -2001,6 +2017,206 @@ function ensure_system_settings_schema(PDO $pdo): void
             CONSTRAINT fk_system_settings_updated_by FOREIGN KEY (updated_by_user_id) REFERENCES users(id) ON DELETE SET NULL
         )"
     );
+}
+
+function ensure_holidays_schema(PDO $pdo): void
+{
+    $pdo->exec(
+        "CREATE TABLE IF NOT EXISTS holidays (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            holiday_date DATE NOT NULL,
+            note VARCHAR(255) NULL,
+            created_by_user_id INT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE KEY uq_holidays_holiday_date (holiday_date),
+            INDEX idx_holidays_created_by (created_by_user_id),
+            CONSTRAINT fk_holidays_created_by FOREIGN KEY (created_by_user_id) REFERENCES users(id) ON DELETE SET NULL
+        )"
+    );
+}
+
+function holiday_exists(PDO $pdo, string $date): bool
+{
+    $stmt = $pdo->prepare('SELECT 1 FROM holidays WHERE holiday_date = :holiday_date LIMIT 1');
+    $stmt->execute(['holiday_date' => $date]);
+
+    return (bool) $stmt->fetchColumn();
+}
+
+function next_collectible_date(PDO $pdo, string $date): string
+{
+    $dateObj = DateTimeImmutable::createFromFormat('Y-m-d', $date);
+    if (!$dateObj || $dateObj->format('Y-m-d') !== $date) {
+        return $date;
+    }
+
+    for ($guard = 0; $guard < 366; $guard++) {
+        $candidate = $dateObj->format('Y-m-d');
+        if (!holiday_exists($pdo, $candidate)) {
+            return $candidate;
+        }
+
+        $dateObj = $dateObj->add(new DateInterval('P1D'));
+    }
+
+    throw new RuntimeException('Could not find the next available collection date.');
+}
+
+function holiday_marking_validation(PDO $pdo, string $date): array
+{
+    $dateObj = DateTimeImmutable::createFromFormat('Y-m-d', $date);
+    if (!$dateObj || $dateObj->format('Y-m-d') !== $date) {
+        return ['allowed' => false, 'message' => 'Invalid holiday date.'];
+    }
+
+    if (holiday_exists($pdo, $date)) {
+        return ['allowed' => false, 'message' => 'Holiday mode is already enabled for this date.'];
+    }
+
+    $todayDate = today();
+    if ($date > $todayDate) {
+        return ['allowed' => true, 'message' => ''];
+    }
+
+    $endDate = $date;
+    if ($date < $todayDate) {
+        $endDate = (new DateTimeImmutable($todayDate))->sub(new DateInterval('P1D'))->format('Y-m-d');
+    }
+
+    $stmt = $pdo->prepare(
+        'SELECT COUNT(*)
+         FROM collections
+         WHERE collected_on BETWEEN :start_date AND :end_date'
+    );
+    $stmt->execute([
+        'start_date' => $date,
+        'end_date' => $endDate,
+    ]);
+
+    if ((int) $stmt->fetchColumn() > 0) {
+        if ($date === $todayDate) {
+            return ['allowed' => false, 'message' => 'Cannot mark today as a holiday because collections already exist today.'];
+        }
+
+        return ['allowed' => false, 'message' => 'Cannot mark this past date as a holiday because collections exist between that date and today.'];
+    }
+
+    return ['allowed' => true, 'message' => ''];
+}
+
+function installment_status_for_due_date(string $dueDate, float $dueAmount, float $paidAmount): string
+{
+    if ($paidAmount >= $dueAmount && $dueAmount > 0) {
+        return 'paid';
+    }
+
+    if ($paidAmount > 0 && $paidAmount < $dueAmount) {
+        return 'partial';
+    }
+
+    return $dueDate < today() ? 'overdue' : 'pending';
+}
+
+function shift_installments_for_holiday(PDO $pdo, string $holidayDate): int
+{
+    $stmt = $pdo->prepare(
+        "SELECT li.*
+         FROM loan_installments li
+         JOIN loans l ON l.id = li.loan_id
+         WHERE l.status = 'active'
+           AND li.status IN ('pending', 'partial', 'overdue')
+           AND li.due_amount > li.paid_amount
+           AND li.due_date >= :holiday_date
+         ORDER BY li.loan_id ASC, li.due_date ASC, li.installment_no ASC
+         FOR UPDATE"
+    );
+    $stmt->execute(['holiday_date' => $holidayDate]);
+    $rows = $stmt->fetchAll();
+
+    if ($rows === []) {
+        return 0;
+    }
+
+    $updateStmt = $pdo->prepare(
+        'UPDATE loan_installments
+         SET due_date = :due_date,
+             status = :status
+         WHERE id = :id'
+    );
+
+    $shifted = 0;
+    foreach ($rows as $row) {
+        $currentDue = (string) ($row['due_date'] ?? '');
+        $currentDueObj = DateTimeImmutable::createFromFormat('Y-m-d', $currentDue);
+        if (!$currentDueObj || $currentDueObj->format('Y-m-d') !== $currentDue) {
+            continue;
+        }
+
+        $newDueDate = next_collectible_date($pdo, $currentDueObj->add(new DateInterval('P1D'))->format('Y-m-d'));
+        $dueAmount = round((float) ($row['due_amount'] ?? 0), 2);
+        $paidAmount = round((float) ($row['paid_amount'] ?? 0), 2);
+
+        $updateStmt->execute([
+            'due_date' => $newDueDate,
+            'status' => installment_status_for_due_date($newDueDate, $dueAmount, $paidAmount),
+            'id' => (int) $row['id'],
+        ]);
+        $shifted++;
+    }
+
+    return $shifted;
+}
+
+function mark_holiday_date(PDO $pdo, string $date, ?string $note, int $userId): array
+{
+    $date = trim($date);
+    $note = trim((string) $note);
+    $validation = holiday_marking_validation($pdo, $date);
+    if (!($validation['allowed'] ?? false)) {
+        throw new RuntimeException((string) ($validation['message'] ?? 'Holiday date is not allowed.'));
+    }
+
+    $pdo->beginTransaction();
+    try {
+        $insertStmt = $pdo->prepare(
+            'INSERT INTO holidays (holiday_date, note, created_by_user_id)
+             VALUES (:holiday_date, :note, :created_by_user_id)'
+        );
+        $insertStmt->execute([
+            'holiday_date' => $date,
+            'note' => $note === '' ? null : $note,
+            'created_by_user_id' => $userId > 0 ? $userId : null,
+        ]);
+
+        $shiftedCount = shift_installments_for_holiday($pdo, $date);
+        $pdo->commit();
+
+        return [
+            'holiday_date' => $date,
+            'shifted_count' => $shiftedCount,
+        ];
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+
+        throw $e;
+    }
+}
+
+function holiday_history(PDO $pdo, int $limit = 100): array
+{
+    $limit = max(1, min($limit, 500));
+    $stmt = $pdo->prepare(
+        "SELECT h.*, u.full_name AS created_by_name
+         FROM holidays h
+         LEFT JOIN users u ON u.id = h.created_by_user_id
+         ORDER BY h.holiday_date DESC
+         LIMIT {$limit}"
+    );
+    $stmt->execute();
+
+    return $stmt->fetchAll();
 }
 
 function ensure_activity_logs_schema(PDO $pdo): void
@@ -3173,43 +3389,13 @@ function today_collection_goal(PDO $pdo, ?array $viewer = null): array
     $viewerId = (int) ($viewer['id'] ?? 0);
     $isCollectorScope = is_collector_role($viewerRole) && $viewerId > 0;
 
-    if (!$isCollectorScope) {
-        $remainingStmt = $pdo->query("SELECT COALESCE(SUM(due_amount - paid_amount), 0) FROM loan_installments WHERE due_date <= CURDATE() AND status IN ('pending', 'partial', 'overdue')");
-        $remainingNow = (float) $remainingStmt->fetchColumn();
-
-        $collectedStmt = $pdo->query(
-            "SELECT COALESCE(SUM(c.amount), 0)
-             FROM collections c
-             JOIN loan_installments li ON li.id = c.installment_id
-             WHERE c.collected_on = CURDATE() AND li.due_date <= CURDATE()"
-        );
-        $collectedTowardGoalToday = (float) $collectedStmt->fetchColumn();
-    } else {
-        $scope = 'l.assigned_user_id = :viewer_user_id';
-
-        $remainingStmt = $pdo->prepare(
-            "SELECT COALESCE(SUM(li.due_amount - li.paid_amount), 0)
-             FROM loan_installments li
-             JOIN loans l ON l.id = li.loan_id
-             WHERE li.due_date <= CURDATE()
-               AND li.status IN ('pending', 'partial', 'overdue')
-               AND {$scope}"
-        );
-        $remainingStmt->execute(['viewer_user_id' => $viewerId]);
-        $remainingNow = (float) $remainingStmt->fetchColumn();
-
-        $collectedStmt = $pdo->prepare(
-            "SELECT COALESCE(SUM(c.amount), 0)
-             FROM collections c
-             JOIN loan_installments li ON li.id = c.installment_id
-             JOIN loans l ON l.id = c.loan_id
-             WHERE c.collected_on = CURDATE()
-               AND li.due_date <= CURDATE()
-               AND {$scope}"
-        );
-        $collectedStmt->execute(['viewer_user_id' => $viewerId]);
-        $collectedTowardGoalToday = (float) $collectedStmt->fetchColumn();
+    $remainingRows = collection_due_installments_for_date($pdo, today(), today(), '', $viewerRole, $viewerId);
+    $remainingNow = 0.0;
+    foreach ($remainingRows as $row) {
+        $remainingNow += max(0.0, (float) ($row['due_amount'] ?? 0) - (float) ($row['paid_amount'] ?? 0));
     }
+
+    $collectedTowardGoalToday = today_collected_total($pdo, $viewer);
 
     // Goal baseline = what was due at start of day = still remaining + collected today toward due/overdue.
     $target = $remainingNow + $collectedTowardGoalToday;

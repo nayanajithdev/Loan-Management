@@ -43,6 +43,7 @@ $canScheduleNextPayment = can('collections.schedule');
 $canDeleteLoan = can('loans.delete');
 $canViewCustomer = can('customers.view');
 $canViewCollectionHistory = can('collections.history');
+$canRecordCollection = can('collections.record');
 
 $collectionCountStmt = $pdo->prepare('SELECT COUNT(*) FROM collections WHERE loan_id = :loan_id');
 $collectionCountStmt->execute(['loan_id' => $loanId]);
@@ -63,6 +64,45 @@ $defaultTimeframeUnit = (string) $loan['installment_frequency'] === 'monthly' ? 
 $defaultInterestRateType = normalize_interest_rate_type((string) ($loan['interest_rate_type'] ?? 'amount_based'));
 $defaultInterestRateMonths = normalize_interest_rate_months((int) ($loan['interest_rate_months'] ?? 1));
 $tomorrowDate = (new DateTimeImmutable(today()))->add(new DateInterval('P1D'))->format('Y-m-d');
+$loanDisplayNumber = (string) ($loan['loan_number'] ?? ('#' . $loanId));
+
+$collectionHistoryStmt = $pdo->prepare(
+    "SELECT
+        COALESCE(col.payment_ref, CONCAT('legacy-', col.id)) AS payment_ref,
+        MAX(col.id) AS latest_id,
+        MAX(col.collected_on) AS collected_on,
+        MAX(col.method) AS method,
+        MAX(col.note) AS note,
+        SUM(col.amount) AS amount,
+        GROUP_CONCAT(DISTINCT CONCAT('#', li.installment_no) ORDER BY li.installment_no SEPARATOR ', ') AS installments,
+        COALESCE(MAX(u.full_name), 'Unknown') AS collected_by_name,
+        MAX(CASE WHEN col.installment_id IS NULL THEN 1 ELSE 0 END) AS has_advance
+     FROM collections col
+     LEFT JOIN loan_installments li ON li.id = col.installment_id
+     LEFT JOIN users u ON u.id = col.collected_by_user_id
+     WHERE col.loan_id = :loan_id
+     GROUP BY COALESCE(col.payment_ref, CONCAT('legacy-', col.id))
+     ORDER BY latest_id DESC
+     LIMIT 50"
+);
+$collectionHistoryStmt->execute(['loan_id' => $loanId]);
+$loanCollectionHistory = $collectionHistoryStmt->fetchAll();
+
+$nextInstallmentStmt = $pdo->prepare(
+    "SELECT *
+     FROM loan_installments
+     WHERE loan_id = :loan_id
+       AND status IN ('pending', 'partial', 'overdue')
+       AND due_amount > paid_amount
+     ORDER BY due_date ASC, installment_no ASC
+     LIMIT 1"
+);
+$nextInstallmentStmt->execute(['loan_id' => $loanId]);
+$nextInstallment = $nextInstallmentStmt->fetch() ?: null;
+$currentCollectible = $nextInstallment;
+$collectibleBalance = $currentCollectible
+    ? max(0.0, (float) $currentCollectible['due_amount'] - (float) $currentCollectible['paid_amount'])
+    : 0.0;
 
 require __DIR__ . '/../includes/layout_start.php';
 ?>
@@ -245,6 +285,116 @@ require __DIR__ . '/../includes/layout_start.php';
             <button type="submit" class="btn btn-primary">Update Loan</button>
         </div>
     </form>
+</section>
+
+<section class="loan-payment-layout">
+    <div class="panel loan-history-panel">
+        <div class="panel-head">
+            <h2 class="panel-title">Collection History</h2>
+        </div>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Inst.</th>
+                        <th>Collected By</th>
+                        <th>Method</th>
+                        <th>Note</th>
+                        <th class="text-right">Amount</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php if (!$loanCollectionHistory): ?>
+                        <tr>
+                            <td colspan="6">No collections recorded for this loan.</td>
+                        </tr>
+                    <?php else: ?>
+                        <?php foreach ($loanCollectionHistory as $history): ?>
+                            <?php
+                            $noteParts = collection_note_split((string) ($history['note'] ?? ''));
+                            $noteText = trim((string) ($noteParts['public'] ?? ''));
+                            $installments = trim((string) ($history['installments'] ?? ''));
+                            if ($installments === '') {
+                                $installments = (int) ($history['has_advance'] ?? 0) === 1 ? 'Advance' : '-';
+                            }
+                            $collectedAt = (string) ($history['collected_on'] ?? '');
+                            $collectedDisplay = $collectedAt !== '' ? date('d M Y H:i', strtotime($collectedAt)) : '-';
+                            ?>
+                            <tr>
+                                <td><?= e($collectedDisplay) ?></td>
+                                <td><?= e($installments) ?></td>
+                                <td><?= e((string) ($history['collected_by_name'] ?? 'Unknown')) ?></td>
+                                <td><?= e(ucfirst((string) ($history['method'] ?? 'cash'))) ?></td>
+                                <td><?= e($noteText === '' ? '-' : $noteText) ?></td>
+                                <td class="text-right"><?= e(money_label($pdo, (float) $history['amount'])) ?></td>
+                            </tr>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <aside class="panel loan-collect-panel">
+        <div class="panel-head">
+            <h2 class="panel-title">Collect Payment</h2>
+        </div>
+
+        <?php if (!$canRecordCollection): ?>
+            <p class="loan-collect-empty">You do not have permission to record collections.</p>
+        <?php elseif ((string) $loan['status'] === 'closed'): ?>
+            <p class="loan-collect-empty">This loan is closed.</p>
+        <?php elseif (!$currentCollectible): ?>
+            <p class="loan-collect-empty">No pending installments available for this loan.</p>
+        <?php else: ?>
+            <p class="loan-collect-empty">Record any payment amount for the next installment.</p>
+            <div class="loan-collect-summary">
+                <div class="loan-collect-item">
+                    <span>Loan</span>
+                    <strong><?= e($loanDisplayNumber) ?></strong>
+                </div>
+                <div class="loan-collect-item">
+                    <span>Customer</span>
+                    <strong><?= e((string) $loan['full_name']) ?></strong>
+                </div>
+                <div class="loan-collect-item">
+                    <span>Installment</span>
+                    <strong>#<?= e((string) $currentCollectible['installment_no']) ?> | <?= e(display_date((string) $currentCollectible['due_date'])) ?></strong>
+                </div>
+                <div class="loan-collect-item">
+                    <span>Due Amount</span>
+                    <strong><?= e(money_label($pdo, $collectibleBalance)) ?></strong>
+                </div>
+            </div>
+
+            <form class="loan-collect-form" method="post" action="<?= e(url('actions/collection_save.php')) ?>" data-confirm="Confirm this collection payment?">
+                <?= csrf_input() ?>
+                <input type="hidden" name="loan_id" value="<?= e((string) $loanId) ?>">
+                <input type="hidden" name="installment_id" value="<?= e((string) $currentCollectible['id']) ?>">
+                <input type="hidden" name="collected_on" value="<?= e(today()) ?>">
+                <input type="hidden" name="return_to" value="<?= e('pages/loan_edit.php?loan_id=' . $loanId) ?>">
+
+                <div class="field">
+                    <label>Amount Received</label>
+                    <input type="number" step="0.01" min="0.01" name="amount" value="<?= e(number_format($collectibleBalance, 2, '.', '')) ?>" required>
+                </div>
+                <div class="field">
+                    <label>Method</label>
+                    <select name="method">
+                        <option value="cash">Cash</option>
+                        <option value="bank">Bank</option>
+                        <option value="online">Online</option>
+                    </select>
+                </div>
+                <div class="field">
+                    <label>Note</label>
+                    <textarea name="note" placeholder="Optional"></textarea>
+                </div>
+                <button class="btn btn-primary" type="submit">Save Collection</button>
+            </form>
+        <?php endif; ?>
+    </aside>
 </section>
 
 <script>
