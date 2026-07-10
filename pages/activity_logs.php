@@ -72,7 +72,7 @@ require __DIR__ . '/../includes/layout_start.php';
         <h2 class="panel-title">Activity Logs</h2>
     </div>
 
-    <form method="get" class="form-grid">
+    <form method="get" class="form-grid activity-log-filter-form">
         <div class="field">
             <label>From Date</label>
             <input type="date" name="from" value="<?= e($fromDate) ?>" required>
@@ -81,7 +81,7 @@ require __DIR__ . '/../includes/layout_start.php';
             <label>To Date</label>
             <input type="date" name="to" value="<?= e($toDate) ?>" required>
         </div>
-        <div class="field">
+        <div class="field activity-log-search-field">
             <label class="sr-only">Search activity logs</label>
             <div class="search-control">
                 <input type="text" name="q" value="<?= e($search) ?>" placeholder="Search..." aria-label="Search by action, user, text, or IP">
