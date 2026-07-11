@@ -818,6 +818,32 @@ button {
     height: 18px;
 }
 
+.loan-filter-form {
+    display: flex;
+    gap: 8px;
+    align-items: flex-end;
+    flex-wrap: wrap;
+}
+
+.loan-filter-form .field {
+    margin: 0;
+}
+
+.loan-status-field {
+    min-width: 170px;
+}
+
+.loan-search-field {
+    min-width: 300px;
+}
+
+.loan-filter-reset {
+    min-height: 40px;
+    padding-block: 0;
+    display: inline-flex;
+    align-items: center;
+}
+
 .date-chip {
     background: var(--surface-2);
     border: none;
@@ -1763,24 +1789,6 @@ textarea {
     opacity: 0.65;
 }
 
-.legacy-collected-row {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    gap: 8px;
-    align-items: center;
-}
-
-.legacy-collected-toggle {
-    min-height: 42px;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    background: var(--surface-2);
-    padding: 10px 14px;
-    width: 100%;
-    justify-content: flex-start;
-    margin: 0;
-}
-
 .backup-restore-btn {
     background: var(--accent);
     color: #121212;
@@ -2018,6 +2026,123 @@ textarea {
     min-width: 0;
 }
 
+.today-collections-record-panel .panel-head-compact {
+    margin-bottom: 0;
+}
+
+.due-installment-cards {
+    display: none;
+}
+
+.due-installment-empty {
+    color: var(--muted);
+    padding: 14px 0;
+}
+
+.due-installment-card {
+    border-radius: 10px;
+    padding: 14px;
+    background:
+        radial-gradient(circle at top right, rgba(40, 104, 165, 0.18), transparent 38%),
+        rgba(12, 23, 33, 0.66);
+    box-shadow: inset 0 0 0 1px var(--edge);
+}
+
+.due-installment-card-top,
+.due-installment-customer,
+.due-installment-card-meta {
+    display: flex;
+    align-items: center;
+}
+
+.due-installment-card-top {
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.due-installment-card-top h3 {
+    margin: 0;
+    font-size: 24px;
+    line-height: 1.1;
+}
+
+.due-installment-customer {
+    gap: 12px;
+    margin-top: 10px;
+    color: var(--muted);
+    justify-content: space-between;
+}
+
+.due-installment-customer strong {
+    color: var(--text);
+    font-size: 16px;
+    min-width: 0;
+}
+
+.due-installment-customer a::before {
+    content: "";
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    margin-right: 6px;
+    vertical-align: -2px;
+    background: currentColor;
+    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M13.832 16.568a1 1 0 0 0 1.213-.303l.355-.465A2 2 0 0 1 17 15h3a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2A18 18 0 0 1 2 4a2 2 0 0 1 2-2h3a2 2 0 0 1 2 2v3a2 2 0 0 1-.8 1.6l-.468.351a1 1 0 0 0-.292 1.233 14 14 0 0 0 6.392 6.384'/%3E%3C/svg%3E") center / contain no-repeat;
+    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M13.832 16.568a1 1 0 0 0 1.213-.303l.355-.465A2 2 0 0 1 17 15h3a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2A18 18 0 0 1 2 4a2 2 0 0 1 2-2h3a2 2 0 0 1 2 2v3a2 2 0 0 1-.8 1.6l-.468.351a1 1 0 0 0-.292 1.233 14 14 0 0 0 6.392 6.384'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+
+.due-installment-customer a {
+    flex: 0 0 auto;
+    text-align: right;
+    white-space: nowrap;
+    color: var(--muted);
+    text-decoration: none;
+}
+
+.due-installment-card-meta {
+    justify-content: space-between;
+    gap: 10px;
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px solid var(--edge);
+}
+
+.due-installment-card-meta div {
+    min-width: 0;
+}
+
+.due-installment-card-meta span {
+    display: block;
+    color: var(--muted);
+    font-size: 12px;
+    margin-bottom: 4px;
+}
+
+.due-installment-card-meta strong {
+    display: block;
+    font-size: 15px;
+    white-space: nowrap;
+}
+
+.due-installment-card-action {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin-top: 12px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    color: #f7f7f7;
+    font-weight: 700;
+    background: linear-gradient(135deg, #254f86, #2f68ad);
+    text-decoration: none;
+}
+
+.due-installment-card-action svg {
+    width: 18px;
+    height: 18px;
+}
+
 .reports-split-layout {
     grid-template-columns: minmax(420px, 0.9fr) minmax(560px, 1.1fr);
 }
@@ -2131,30 +2256,16 @@ textarea {
 
 .collection-filter-grid {
     align-items: end;
+    grid-template-columns: minmax(180px, 240px) minmax(240px, 390px) repeat(6, 1fr);
+    gap: 12px;
 }
 
-.collection-date-field,
-.collection-search-field,
-#custom-date-field {
-    grid-column: span 4;
+.collection-date-field {
+    grid-column: span 1;
 }
 
-#custom-date-field {
-    display: none;
-}
-
-.collection-search-field .sr-only {
-    position: static;
-    display: block;
-    width: auto;
-    height: auto;
-    margin: 0 0 6px;
-    padding: 0;
-    overflow: hidden;
-    clip: auto;
-    white-space: nowrap;
-    border: 0;
-    visibility: hidden;
+.collection-search-field {
+    grid-column: span 1;
 }
 
 .collection-search-field .search-control {
@@ -2603,6 +2714,20 @@ textarea {
         display: block;
     }
 
+    .today-collections-layout.mobile-record-mode .due-installment-cards {
+        display: none;
+    }
+
+    .today-collections-list-panel .table-wrap {
+        display: none;
+    }
+
+    .due-installment-cards {
+        display: grid;
+        gap: 10px;
+        margin-top: -2px;
+    }
+
     .dashboard-stat-grid {
         grid-template-columns: repeat(2, minmax(220px, 1fr));
     }
@@ -2773,9 +2898,22 @@ textarea {
     }
 
     .collection-date-field,
-    .collection-search-field,
-    #custom-date-field {
+    .collection-search-field {
         grid-column: span 12;
+    }
+
+    .collection-filter-grid {
+        grid-template-columns: 1fr;
+        gap: 14px;
+    }
+
+    .collection-search-field .search-control {
+        width: 100%;
+    }
+
+    .due-installment-card-meta {
+        display: grid;
+        grid-template-columns: 0.62fr 1.2fr 1.25fr;
     }
 
     .dashboard-stat-grid {

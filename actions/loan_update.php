@@ -260,7 +260,7 @@ try {
         set_flash('success', 'Loan updated. No pending installments available to schedule.');
     } elseif ($repaymentLocked) {
         $lockedReason = $hasLegacyPreCollected
-            ? 'Loan updated (repayment structure locked because this old loan has pre-collected value).'
+            ? 'Loan updated (repayment structure locked because collected value exists).'
             : 'Loan updated (repayment structure locked because collections exist).';
         set_flash('success', $lockedReason);
     } else {

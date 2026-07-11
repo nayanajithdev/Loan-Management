@@ -27,6 +27,7 @@ ensure_password_reset_tokens_schema($pdo);
 ensure_collection_user_schema($pdo);
 ensure_collection_payment_ref_schema($pdo);
 ensure_flexible_collection_schema($pdo);
+repair_loan_installment_counts_from_history($pdo);
 ensure_loan_assignment_schema($pdo);
 ensure_loan_interest_rate_type_schema($pdo);
 ensure_loan_interest_rate_months_schema($pdo);

@@ -38,12 +38,6 @@ require __DIR__ . '/../includes/layout_start.php';
     <div class="panel-head">
         <h2 class="panel-title">Create Loan</h2>
         <div style="display:flex; gap:8px;">
-            <a class="btn" href="<?= e(url('pages/loan_legacy_create.php')) ?>">
-                <span class="btn-icon-inline" aria-hidden="true">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-plus-icon lucide-plus"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
-                </span>
-                Add Old Loan
-            </a>
             <?php if ($canCreateCustomer): ?>
                 <a class="btn" href="<?= e(url('pages/customer_create.php')) ?>">
                     <span class="btn-icon-inline" aria-hidden="true">

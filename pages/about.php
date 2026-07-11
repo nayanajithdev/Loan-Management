@@ -23,7 +23,7 @@ require __DIR__ . '/../includes/layout_start.php';
     <h4>Core Modules</h4>
     <ul class="about-list">
         <li><strong>Customer Management:</strong> customer profiles, notes, and documents.</li>
-        <li><strong>Loan Management:</strong> new loans, old loan onboarding, and repayment schedules.</li>
+        <li><strong>Loan Management:</strong> loan records, manual loan numbers, and repayment schedules.</li>
         <li><strong>Collections:</strong> today collection flow, collection history, and overdue tracking.</li>
         <li><strong>Reports:</strong> portfolio and operational performance summaries.</li>
         <li><strong>Operations:</strong> role-based access, activity logs, backup, and restore.</li>

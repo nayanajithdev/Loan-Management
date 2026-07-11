@@ -377,41 +377,17 @@
 
 (function () {
     const dateModeSelect = document.getElementById('date-mode-select');
-    const customDateField = document.getElementById('custom-date-field');
-    const customDateInput = document.getElementById('custom-date-input');
 
-    if (!dateModeSelect || !customDateField || !customDateInput) {
+    if (!dateModeSelect) {
         return;
     }
 
-    const toggleCustomDateField = () => {
-        const isCustom = dateModeSelect.value === 'custom';
-        customDateField.style.display = isCustom ? 'flex' : 'none';
-        customDateInput.disabled = !isCustom;
-        customDateInput.required = isCustom;
-    };
-
-    const submitFilterForm = () => {
+    dateModeSelect.addEventListener('change', () => {
         const form = dateModeSelect.closest('form');
         if (form instanceof HTMLFormElement) {
             form.submit();
         }
-    };
-
-    dateModeSelect.addEventListener('change', () => {
-        toggleCustomDateField();
-        if (dateModeSelect.value !== 'custom') {
-            submitFilterForm();
-        }
     });
-
-    customDateInput.addEventListener('change', () => {
-        if (dateModeSelect.value === 'custom') {
-            submitFilterForm();
-        }
-    });
-
-    toggleCustomDateField();
 })();
 
 (function () {
@@ -666,136 +642,4 @@
     } else if (!isEditLoanForm) {
         updatePreview();
     }
-})();
-
-(function () {
-    const form = document.getElementById('legacy-loan-form');
-    if (!form) {
-        return;
-    }
-
-    const principalInput = form.querySelector('[name="principal_amount"]');
-    const interestInput = form.querySelector('[name="interest_rate"]');
-    const interestTypeInput = form.querySelector('[name="interest_rate_type"]');
-    const interestMonthsInput = form.querySelector('[name="interest_rate_months"]');
-    const interestMonthsField = form.querySelector('[data-legacy-interest-months-field]');
-    const frequencyInput = form.querySelector('[name="installment_frequency"]');
-    const timeframeValueInput = form.querySelector('[name="timeframe_value"]');
-    const timeframeUnitInput = form.querySelector('[name="timeframe_unit"]');
-    const collectedInput = form.querySelector('[name="collected_amount"]');
-    const collectedIncludingTodayInput = form.querySelector('[name="collected_including_today"]');
-    const nextCollectionHint = document.getElementById('legacy-next-collection-hint');
-    const totalEl = document.getElementById('legacy-preview-total');
-    const collectedEl = document.getElementById('legacy-preview-collected');
-    const remainingEl = document.getElementById('legacy-preview-remaining');
-    const installmentEl = document.getElementById('legacy-preview-installment');
-    const installmentCountEl = document.getElementById('legacy-preview-installment-count');
-
-    const toNumber = (value) => {
-        const n = Number(value);
-        return Number.isFinite(n) ? n : 0;
-    };
-
-    const formatMoney = (value) => {
-        return new Intl.NumberFormat('en-US', {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2,
-        }).format(value);
-    };
-
-    const installmentCountFromTimeframe = (frequency, timeframeValue, timeframeUnit) => {
-        const safeTimeframe = Math.max(timeframeValue, 1);
-        const totalDays = timeframeUnit === 'months' ? safeTimeframe * 30 : safeTimeframe;
-
-        if (frequency === 'weekly') {
-            return Math.max(Math.ceil(totalDays / 7), 1);
-        }
-
-        if (frequency === 'monthly') {
-            if (timeframeUnit === 'months') {
-                return safeTimeframe;
-            }
-            return Math.max(Math.ceil(totalDays / 30), 1);
-        }
-
-        return Math.max(totalDays, 1);
-    };
-
-    const toggleInterestMonthsField = () => {
-        if (!interestTypeInput || !interestMonthsField || !interestMonthsInput) {
-            return;
-        }
-
-        const isMonthly = interestTypeInput.value === 'monthly';
-        interestMonthsField.style.display = isMonthly ? '' : 'none';
-        interestMonthsInput.disabled = !isMonthly;
-        interestMonthsInput.required = isMonthly;
-        if (isMonthly && toNumber(interestMonthsInput.value) < 1) {
-            interestMonthsInput.value = '1';
-        }
-    };
-
-    const updateNextCollectionHint = () => {
-        if (!nextCollectionHint || !collectedIncludingTodayInput) {
-            return;
-        }
-
-        nextCollectionHint.textContent = collectedIncludingTodayInput.checked
-            ? 'Next collection schedule starts from tomorrow.'
-            : 'Next collection schedule starts from today.';
-    };
-
-    const updatePreview = () => {
-        const principal = Math.max(toNumber(principalInput.value), 0);
-        const interestRate = Math.max(toNumber(interestInput.value), 0);
-        const interestType = interestTypeInput && interestTypeInput.value === 'monthly'
-            ? 'monthly'
-            : 'amount_based';
-        const interestMonths = Math.max(toNumber(interestMonthsInput ? interestMonthsInput.value : 1), 1);
-        const timeframeValue = Math.max(toNumber(timeframeValueInput.value), 1);
-        const timeframeUnit = timeframeUnitInput.value === 'months' ? 'months' : 'days';
-        const frequency = frequencyInput.value;
-        const originalCount = installmentCountFromTimeframe(frequency, timeframeValue, timeframeUnit);
-        const monthlyFactor = interestType === 'monthly' ? interestMonths : 1;
-        const total = principal + ((principal * interestRate / 100) * monthlyFactor);
-
-        const safeCollectedRaw = Math.max(toNumber(collectedInput.value), 0);
-        const collected = Math.min(safeCollectedRaw, total);
-        const remaining = Math.max(total - collected, 0);
-
-        const originalInstallment = originalCount > 0 ? total / originalCount : 0;
-        const remainingCount = remaining > 0
-            ? Math.max(Math.ceil(remaining / Math.max(originalInstallment, 0.01)), 1)
-            : 0;
-        const remainingInstallment = remainingCount > 0 ? remaining / remainingCount : 0;
-
-        totalEl.textContent = formatMoney(total);
-        collectedEl.textContent = formatMoney(collected);
-        remainingEl.textContent = formatMoney(remaining);
-        installmentEl.textContent = formatMoney(remainingInstallment);
-        installmentCountEl.textContent = String(remainingCount);
-    };
-
-    [principalInput, interestInput, interestTypeInput, frequencyInput, timeframeValueInput, timeframeUnitInput, collectedInput].forEach((el) => {
-        if (!el) {
-            return;
-        }
-        el.addEventListener('input', updatePreview);
-        el.addEventListener('change', updatePreview);
-    });
-    if (interestMonthsInput) {
-        interestMonthsInput.addEventListener('input', updatePreview);
-        interestMonthsInput.addEventListener('change', updatePreview);
-    }
-    if (interestTypeInput) {
-        interestTypeInput.addEventListener('change', toggleInterestMonthsField);
-        interestTypeInput.addEventListener('input', toggleInterestMonthsField);
-    }
-    if (collectedIncludingTodayInput) {
-        collectedIncludingTodayInput.addEventListener('change', updateNextCollectionHint);
-    }
-
-    toggleInterestMonthsField();
-    updateNextCollectionHint();
-    updatePreview();
 })();

@@ -85,7 +85,7 @@ function permission_groups(): array
             'description' => 'Loan records and loan assignment.',
             'permissions' => [
                 'loans.view' => ['label' => 'View Loans', 'description' => 'Open loan list and loan details.'],
-                'loans.create' => ['label' => 'Create Loans', 'description' => 'Create new and old loans.'],
+                'loans.create' => ['label' => 'Create Loans', 'description' => 'Create loan records and repayment schedules.'],
                 'loans.edit' => ['label' => 'Edit Loans', 'description' => 'Update loan notes, status, and allowed editable fields.'],
                 'loans.delete' => ['label' => 'Delete Loans', 'description' => 'Delete loans and their schedules.'],
                 'loans.assign' => ['label' => 'Assign Loans', 'description' => 'Assign a loan to a collector.'],
@@ -1241,23 +1241,6 @@ function installment_snapshot(array $row, bool $existsBefore = true): array
     ];
 }
 
-function sync_loan_installment_count(PDO $pdo, int $loanId): void
-{
-    $stmt = $pdo->prepare(
-        'UPDATE loans
-         SET installment_count = (
-             SELECT COUNT(*)
-             FROM loan_installments
-             WHERE loan_id = :loan_id_count
-         )
-         WHERE id = :loan_id'
-    );
-    $stmt->execute([
-        'loan_id_count' => $loanId,
-        'loan_id' => $loanId,
-    ]);
-}
-
 function record_loan_collection_payment(
     PDO $pdo,
     array $loan,
@@ -1611,8 +1594,6 @@ function record_loan_collection_payment(
         ]);
     }
 
-    sync_loan_installment_count($pdo, $loanId);
-
     $pendingCountStmt = $pdo->prepare(
         "SELECT COUNT(*)
          FROM loan_installments
@@ -1932,6 +1913,75 @@ function ensure_flexible_collection_schema(PDO $pdo): void
     $indexStmt->execute();
     if ((int) $indexStmt->fetchColumn() === 0) {
         $pdo->exec('ALTER TABLE loan_installments ADD INDEX idx_loan_installments_flexible (loan_id, is_flexible_adjustment, installment_no)');
+    }
+}
+
+function repair_loan_installment_counts_from_history(PDO $pdo): void
+{
+    $maxByLoan = [];
+
+    $currentRows = $pdo->query(
+        'SELECT loan_id, MAX(installment_no) AS max_installment_no
+         FROM loan_installments
+         GROUP BY loan_id'
+    )->fetchAll();
+
+    foreach ($currentRows as $row) {
+        $loanId = (int) ($row['loan_id'] ?? 0);
+        $maxNo = (int) ($row['max_installment_no'] ?? 0);
+        if ($loanId > 0 && $maxNo > 0) {
+            $maxByLoan[$loanId] = max($maxByLoan[$loanId] ?? 0, $maxNo);
+        }
+    }
+
+    $metaRows = $pdo->query(
+        "SELECT loan_id, meta_json
+         FROM collections
+         WHERE meta_json IS NOT NULL
+           AND meta_json <> ''"
+    )->fetchAll();
+
+    foreach ($metaRows as $row) {
+        $loanId = (int) ($row['loan_id'] ?? 0);
+        if ($loanId <= 0) {
+            continue;
+        }
+
+        $meta = json_decode((string) ($row['meta_json'] ?? ''), true);
+        if (!is_array($meta) || !isset($meta['installment_snapshots']) || !is_array($meta['installment_snapshots'])) {
+            continue;
+        }
+
+        foreach ($meta['installment_snapshots'] as $snapshot) {
+            if (!is_array($snapshot)) {
+                continue;
+            }
+
+            $data = isset($snapshot['data']) && is_array($snapshot['data']) ? $snapshot['data'] : $snapshot;
+            $installmentNo = (int) ($data['installment_no'] ?? 0);
+            if ($installmentNo > 0) {
+                $maxByLoan[$loanId] = max($maxByLoan[$loanId] ?? 0, $installmentNo);
+            }
+        }
+    }
+
+    if ($maxByLoan === []) {
+        return;
+    }
+
+    $updateStmt = $pdo->prepare(
+        'UPDATE loans
+         SET installment_count = :installment_count
+         WHERE id = :loan_id
+           AND installment_count < :installment_count_check'
+    );
+
+    foreach ($maxByLoan as $loanId => $maxNo) {
+        $updateStmt->execute([
+            'installment_count' => $maxNo,
+            'installment_count_check' => $maxNo,
+            'loan_id' => $loanId,
+        ]);
     }
 }
 

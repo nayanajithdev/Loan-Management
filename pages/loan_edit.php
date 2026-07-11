@@ -149,7 +149,7 @@ require __DIR__ . '/../includes/layout_start.php';
             <?php if ($hasCollections): ?>
                 This loan already has collections. Repayment structure fields are locked. You can still update assignment, notes and status.
             <?php else: ?>
-                This old loan has pre-collected value. Repayment structure fields are locked to protect collected totals. You can still update assignment, notes and status.
+                This loan has collected value. Repayment structure fields are locked to protect collected totals. You can still update assignment, notes and status.
             <?php endif; ?>
         </div>
     <?php endif; ?>

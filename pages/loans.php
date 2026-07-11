@@ -97,16 +97,16 @@ require __DIR__ . '/../includes/layout_start.php';
 
 <section class="panel">
     <div class="panel-head">
-        <div style="display:flex; gap:8px; align-items:flex-end; flex-wrap:wrap;">
-            <form id="loan-filter-form" method="get" style="display:flex; gap:8px; align-items:flex-end; flex-wrap:wrap;">
-                <div class="field" style="min-width:170px; margin:0;">
+        <div>
+            <form id="loan-filter-form" class="loan-filter-form" method="get">
+                <div class="field loan-status-field">
                     <label>Status</label>
                     <select name="status" id="loan-status-filter">
                         <option value="active" <?= $status === 'active' ? 'selected' : '' ?>>Active</option>
                         <option value="closed" <?= $status === 'closed' ? 'selected' : '' ?>>Closed</option>
                     </select>
                 </div>
-                <div class="field" style="min-width:260px; margin:0;">
+                <div class="field loan-search-field">
                     <label class="sr-only">Search loans</label>
                     <div class="search-control">
                         <input type="text" name="q" value="<?= e($search) ?>" placeholder="Search..." aria-label="Search by customer name or ID number">
@@ -115,17 +115,11 @@ require __DIR__ . '/../includes/layout_start.php';
                         </button>
                     </div>
                 </div>
-                <a class="btn" href="<?= e(url('pages/loans.php')) ?>">Reset</a>
+                <a class="btn loan-filter-reset" href="<?= e(url('pages/loans.php')) ?>">Reset</a>
             </form>
         </div>
         <?php if ($canCreateLoan): ?>
             <div style="display:flex; gap:8px; align-items:flex-end; flex-wrap:wrap;">
-                <a class="btn" href="<?= e(url('pages/loan_legacy_create.php')) ?>">
-                    <span class="btn-icon-inline" aria-hidden="true">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-plus-icon lucide-plus"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
-                    </span>
-                    Add Old Loan
-                </a>
                 <a class="btn btn-primary" href="<?= e(url('pages/loan_create.php')) ?>">New Loan</a>
             </div>
         <?php endif; ?>

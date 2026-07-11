@@ -12,31 +12,20 @@ refresh_overdue_installments($pdo);
 
 $search = trim((string) ($_GET['q'] ?? ''));
 $selectedDateMode = trim((string) ($_GET['date_mode'] ?? ''));
-$customDateInput = trim((string) ($_GET['date'] ?? today()));
-$customDateObj = DateTime::createFromFormat('Y-m-d', $customDateInput);
-$customDate = ($customDateObj && $customDateObj->format('Y-m-d') === $customDateInput) ? $customDateInput : today();
 
 $todayDate = today();
 $tomorrowDate = (new DateTimeImmutable($todayDate))->add(new DateInterval('P1D'))->format('Y-m-d');
 $dayAfterTomorrowDate = (new DateTimeImmutable($todayDate))->add(new DateInterval('P2D'))->format('Y-m-d');
 
-if (!in_array($selectedDateMode, ['today', 'tomorrow', 'day_after_tomorrow', 'custom'], true)) {
-    if ($customDate === $todayDate) {
-        $selectedDateMode = 'today';
-    } elseif ($customDate === $tomorrowDate) {
-        $selectedDateMode = 'tomorrow';
-    } elseif ($customDate === $dayAfterTomorrowDate) {
-        $selectedDateMode = 'day_after_tomorrow';
-    } else {
-        $selectedDateMode = 'custom';
-    }
+if (!in_array($selectedDateMode, ['today', 'tomorrow', 'day_after_tomorrow'], true)) {
+    $selectedDateMode = 'today';
 }
 
 $selectedDate = match ($selectedDateMode) {
     'today' => $todayDate,
     'tomorrow' => $tomorrowDate,
     'day_after_tomorrow' => $dayAfterTomorrowDate,
-    default => $customDate,
+    default => $todayDate,
 };
 $isFutureDate = $selectedDate > $todayDate;
 $selectedInstallmentId = (int) ($_GET['selected_installment'] ?? 0);
@@ -111,18 +100,13 @@ require __DIR__ . '/../includes/layout_start.php';
 
 <div class="split-layout today-collections-layout <?= $mobileRecordMode ? 'mobile-record-mode' : '' ?>">
     <section class="panel today-collections-list-panel">
-        <div class="panel-head">
-            <h2 class="panel-title">Due Installments</h2>
-        </div>
-
         <form method="get" action="<?= e(url('pages/today_collections.php')) ?>" class="form-grid collection-filter-grid">
             <div class="field collection-date-field">
-                <label>Select Date</label>
+                <label class="sr-only">Select Date</label>
                 <select name="date_mode" id="date-mode-select">
                     <option value="today" <?= $selectedDateMode === 'today' ? 'selected' : '' ?>>Today</option>
                     <option value="tomorrow" <?= $selectedDateMode === 'tomorrow' ? 'selected' : '' ?>>Tomorrow</option>
                     <option value="day_after_tomorrow" <?= $selectedDateMode === 'day_after_tomorrow' ? 'selected' : '' ?>>Day After Tomorrow</option>
-                    <option value="custom" <?= $selectedDateMode === 'custom' ? 'selected' : '' ?>>Custom Date</option>
                 </select>
             </div>
             <div class="field collection-search-field">
@@ -133,10 +117,6 @@ require __DIR__ . '/../includes/layout_start.php';
                         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg>
                     </button>
                 </div>
-            </div>
-            <div class="field" id="custom-date-field"<?= $selectedDateMode === 'custom' ? ' style="display: flex;"' : '' ?>>
-                <label>Calendar</label>
-                <input type="date" name="date" id="custom-date-input" value="<?= e($selectedDateMode === 'custom' ? $selectedDate : $customDate) ?>">
             </div>
         </form>
 
@@ -180,8 +160,9 @@ require __DIR__ . '/../includes/layout_start.php';
                         <?php
                         $itemId = (int) $item['id'];
                         $rowSelectUrl = url('pages/today_collections.php?' . http_build_query(['date_mode' => $selectedDateMode, 'date' => $selectedDate, 'q' => $search, 'selected_installment' => $itemId]));
+                        $mobileSelectUrl = url('pages/today_collections.php?' . http_build_query(['date_mode' => $selectedDateMode, 'date' => $selectedDate, 'q' => $search, 'selected_installment' => $itemId, 'mobile_record' => 1]));
                         ?>
-                        <tr class="table-row-clickable <?= $itemId === $selectedInstallmentId ? 'row-selected' : '' ?>" data-select-url="<?= e($rowSelectUrl) ?>">
+                        <tr class="table-row-clickable <?= $itemId === $selectedInstallmentId ? 'row-selected' : '' ?>" data-select-url="<?= e($rowSelectUrl) ?>" data-mobile-select-url="<?= e($mobileSelectUrl) ?>">
                             <td><?= e($item['loan_number']) ?></td>
                             <td><?= e($item['full_name']) ?></td>
                             <td><?= e($item['phone']) ?></td>
@@ -195,11 +176,59 @@ require __DIR__ . '/../includes/layout_start.php';
                 </tbody>
             </table>
         </div>
+
     </section>
 
+    <div class="due-installment-cards">
+        <?php if (!$dueInstallments): ?>
+            <div class="due-installment-empty">No due installments for selected date.</div>
+        <?php else: ?>
+            <?php foreach ($dueInstallments as $item): ?>
+                <?php
+                $balance = round((float) $item['due_amount'] - (float) $item['paid_amount'], 2);
+                $displayStatus = $item['status'];
+                if ($item['status'] !== 'paid' && $item['due_date'] < $todayDate) {
+                    $displayStatus = 'overdue';
+                }
+                $displayStatusLabel = installment_status_label($displayStatus, (string) $item['due_date'], $todayDate);
+                $itemId = (int) $item['id'];
+                $mobileSelectUrl = url('pages/today_collections.php?' . http_build_query(['date_mode' => $selectedDateMode, 'date' => $selectedDate, 'q' => $search, 'selected_installment' => $itemId, 'mobile_record' => 1]));
+                ?>
+                <article class="due-installment-card <?= $itemId === $selectedInstallmentId ? 'is-selected' : '' ?>">
+                    <div class="due-installment-card-top">
+                        <h3><?= e($item['loan_number']) ?></h3>
+                        <span class="badge badge-<?= e(status_badge_class($displayStatus)) ?>"><?= e($displayStatusLabel) ?></span>
+                    </div>
+                    <div class="due-installment-customer">
+                        <strong><?= e($item['full_name']) ?></strong>
+                        <a href="tel:<?= e(preg_replace('/\D+/', '', (string) $item['phone'])) ?>"><?= e($item['phone']) ?></a>
+                    </div>
+                    <div class="due-installment-card-meta">
+                        <div>
+                            <span>Inst.</span>
+                            <strong>#<?= e((string) $item['installment_no']) ?></strong>
+                        </div>
+                        <div>
+                            <span>Due Date</span>
+                            <strong><?= e(display_date((string) $item['due_date'])) ?></strong>
+                        </div>
+                        <div>
+                            <span>Due</span>
+                            <strong><?= e(money_label($pdo, $balance)) ?></strong>
+                        </div>
+                    </div>
+                    <a class="due-installment-card-action" href="<?= e($mobileSelectUrl) ?>">
+                        <span>Collect Payment</span>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
+                    </a>
+                </article>
+            <?php endforeach; ?>
+        <?php endif; ?>
+    </div>
+
     <section class="panel today-collections-record-panel">
-        <div class="panel-head">
-            <h2 class="panel-title">Record Collection</h2>
+        <div class="panel-head panel-head-compact">
+            <h2 class="panel-title sr-only">Record Collection</h2>
             <?php if ($mobileRecordMode): ?>
                 <div class="panel-head-actions">
                     <a class="btn" href="<?= e($listViewUrl) ?>">
@@ -218,17 +247,17 @@ require __DIR__ . '/../includes/layout_start.php';
             : 0.0;
         ?>
 
-        <p>
-            <?php
-            if ($hasSelectedInstallment && $isFutureInstallmentSelected) {
-                echo 'Future installment selected. Collection is disabled for future dues.';
-            } elseif ($hasSelectedInstallment && !$canRecordCollection) {
-                echo 'You can view this installment, but you do not have permission to record collections.';
-            } else {
-                echo $hasSelectedInstallment ? 'Selected installment is ready for collection.' : 'Select an installment to continue.';
-            }
-            ?>
-        </p>
+        <?php if ($hasSelectedInstallment && ($isFutureInstallmentSelected || !$canRecordCollection)): ?>
+            <p>
+                <?php
+                if ($isFutureInstallmentSelected) {
+                    echo 'Future installment selected. Collection is disabled for future dues.';
+                } else {
+                    echo 'You can view this installment, but you do not have permission to record collections.';
+                }
+                ?>
+            </p>
+        <?php endif; ?>
 
         <div class="metric-row" style="margin-bottom: 12px;">
             <div class="metric-box">
