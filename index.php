@@ -12,15 +12,13 @@ $viewer = current_user();
 $viewerRole = (string) ($viewer['role'] ?? '');
 $viewerId = (int) ($viewer['id'] ?? 0);
 $isCollectorScope = is_collector_role($viewerRole) && $viewerId > 0;
+$chartMode = (string) ($_GET['chart'] ?? 'monthly');
+$chartMode = $chartMode === 'weekly' ? 'weekly' : 'monthly';
 $stats = dashboard_stats($pdo, $viewer);
 $todayGoal = today_collection_goal($pdo, $viewer);
 $todayCollectedTotal = today_collected_total($pdo, $viewer);
-$collectionsTrend = collections_30day_trend($pdo, $viewer);
+$collectionsTrend = collections_total_chart($pdo, $viewer, $chartMode);
 $userGoals = dashboard_user_goals($pdo, $viewer);
-$chartWidth = 920;
-$chartHeight = 280;
-$targetPoints = sparkline_points_scaled($collectionsTrend['target'], 0, (float) $collectionsTrend['max_value'], $chartWidth, $chartHeight, 12);
-$collectedPoints = sparkline_points_scaled($collectionsTrend['collected'], 0, (float) $collectionsTrend['max_value'], $chartWidth, $chartHeight, 12);
 $closedProfitValue = (float) $stats['closed_loans_profit'];
 $openProjectedProfitValue = (float) $stats['expected_open_profit'];
 $profitTotal = $closedProfitValue + $openProjectedProfitValue;
@@ -101,23 +99,7 @@ require __DIR__ . '/includes/layout_start.php';
 
 <section class="dashboard-two-col">
     <article class="panel dashboard-trend-panel" id="dashboard-trend-panel">
-        <div class="panel-head">
-            <h2 class="panel-title">Collections vs Target (30 Days)</h2>
-            <div class="chart-legend">
-                <span><i class="legend-dot legend-dot-collected"></i>Collected</span>
-                <span><i class="legend-dot legend-dot-target"></i>Target</span>
-            </div>
-        </div>
-        <div class="chart-meta-row">
-            <p>Collected: <strong><?= e(money_label($pdo, (float) $collectionsTrend['collected_total'])) ?></strong></p>
-            <p>Target: <strong><?= e(money_label($pdo, (float) $collectionsTrend['target_total'])) ?></strong></p>
-        </div>
-        <div class="big-line-chart">
-            <svg viewBox="0 0 <?= e((string) $chartWidth) ?> <?= e((string) $chartHeight) ?>" aria-hidden="true">
-                <polyline class="line-target" points="<?= e($targetPoints) ?>"></polyline>
-                <polyline class="line-collected" points="<?= e($collectedPoints) ?>"></polyline>
-            </svg>
-        </div>
+        <?= dashboard_collection_chart_html($pdo, $collectionsTrend, $chartMode) ?>
     </article>
 
     <article class="panel user-goals-panel" id="dashboard-user-goals-panel">
@@ -191,6 +173,7 @@ require __DIR__ . '/includes/layout_start.php';
 
 <div id="poll-config"
      data-poll-endpoint="<?= e(url('api/dashboard_poll.php')) ?>"
+     data-poll-include-query="1"
      data-poll-interval="<?= e((string) poll_interval_ms($pdo)) ?>"></div>
 
 <?php require __DIR__ . '/includes/layout_end.php';

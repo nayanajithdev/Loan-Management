@@ -2395,73 +2395,123 @@ textarea {
     min-height: 340px;
 }
 
-.chart-legend {
-    display: flex;
-    align-items: center;
-    gap: 14px;
-    color: var(--muted);
-    font-size: 12px;
-}
-
-.chart-legend span {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-}
-
-.legend-dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 999px;
-    display: inline-block;
-}
-
-.legend-dot-collected {
-    background: #ff9a3c;
-}
-
-.legend-dot-target {
-    background: #6c8eff;
-}
-
-.chart-meta-row {
+.collections-chart-head {
     display: flex;
     align-items: center;
     justify-content: space-between;
+    gap: 14px;
+    margin-bottom: 18px;
+}
+
+.chart-kicker {
+    margin: 0;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+}
+
+.chart-subtitle {
+    margin: 8px 0 0;
     color: var(--muted);
     font-size: 13px;
-    margin-bottom: 10px;
 }
 
-.chart-meta-row p {
-    margin: 0;
+.collections-chart-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
 }
 
-.big-line-chart {
-    padding: 0;
+.chart-total-pill {
+    display: inline-flex;
+    align-items: center;
+    min-height: 34px;
+    padding: 0 14px;
+    border-radius: 999px;
+    background: rgba(0, 154, 255, 0.12);
+    color: #37b8ff;
+    box-shadow: inset 0 0 0 1px rgba(55, 184, 255, 0.28);
+    font-size: 12px;
+    font-weight: 700;
 }
 
-.big-line-chart svg {
-    width: 100%;
-    height: 260px;
-    display: block;
+.chart-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px;
+    border-radius: 999px;
+    background: rgba(4, 10, 16, 0.78);
 }
 
-.big-line-chart polyline {
-    fill: none;
-    stroke-width: 3;
-    stroke-linecap: round;
-    stroke-linejoin: round;
+.chart-toggle a {
+    min-width: 76px;
+    padding: 8px 14px;
+    border-radius: 999px;
+    color: var(--muted);
+    text-align: center;
+    font-size: 13px;
+    font-weight: 800;
 }
 
-.big-line-chart .line-collected {
-    stroke: #ff922e;
+.chart-toggle a.active {
+    color: var(--text);
+    background: rgba(255, 255, 255, 0.09);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
 }
 
-.big-line-chart .line-target {
-    stroke: #7ca0ff;
-    stroke-dasharray: 7 6;
-    opacity: 0.9;
+.collection-bar-chart {
+    min-height: 300px;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(58px, 1fr));
+    align-items: stretch;
+    gap: 10px;
+    padding: 18px 18px 14px;
+    border-radius: 10px;
+    background:
+        linear-gradient(rgba(255, 255, 255, 0.045) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+    background-size: 100% 68px, 34px 100%;
+    box-shadow: inset 0 0 0 1px var(--edge);
+}
+
+.collection-bar-item {
+    min-width: 0;
+    display: grid;
+    grid-template-rows: 1fr auto auto;
+    align-items: end;
+    gap: 8px;
+    text-align: center;
+}
+
+.collection-bar-track {
+    height: 210px;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+}
+
+.collection-bar-track span {
+    width: min(84px, 78%);
+    min-height: 3px;
+    border-radius: 6px 6px 0 0;
+    background: linear-gradient(180deg, #38bdf8 0%, #1687b8 100%);
+    box-shadow: 0 12px 30px rgba(20, 160, 220, 0.18);
+}
+
+.collection-bar-item strong {
+    color: var(--text);
+    font-size: 12px;
+}
+
+.collection-bar-item small {
+    color: #9fb6c8;
+    font-size: 11px;
+    white-space: nowrap;
 }
 
 .user-goals-list {
@@ -2920,10 +2970,28 @@ textarea {
         grid-template-columns: 1fr;
     }
 
-    .chart-meta-row {
-        flex-direction: column;
+    .collections-chart-head {
         align-items: flex-start;
-        gap: 4px;
+        flex-direction: column;
+    }
+
+    .collections-chart-actions {
+        width: 100%;
+        justify-content: flex-start;
+    }
+
+    .collection-bar-chart-monthly {
+        overflow-x: auto;
+        grid-template-columns: repeat(12, minmax(64px, 1fr));
+    }
+
+    .collection-bar-chart-weekly {
+        overflow-x: auto;
+        grid-template-columns: repeat(7, minmax(64px, 1fr));
+    }
+
+    .collection-bar-track {
+        height: 180px;
     }
 
     .calc-preview-grid {

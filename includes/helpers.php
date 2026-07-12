@@ -3438,17 +3438,61 @@ function today_collection_goal(PDO $pdo, ?array $viewer = null): array
     $viewerRole = (string) ($viewer['role'] ?? '');
     $viewerId = (int) ($viewer['id'] ?? 0);
     $isCollectorScope = is_collector_role($viewerRole) && $viewerId > 0;
+    $todayDate = today();
 
-    $remainingRows = collection_due_installments_for_date($pdo, today(), today(), '', $viewerRole, $viewerId);
+    $remainingRows = collection_due_installments_for_date($pdo, $todayDate, $todayDate, '', $viewerRole, $viewerId);
     $remainingNow = 0.0;
     foreach ($remainingRows as $row) {
         $remainingNow += max(0.0, (float) ($row['due_amount'] ?? 0) - (float) ($row['paid_amount'] ?? 0));
     }
 
     $collectedTowardGoalToday = today_collected_total($pdo, $viewer);
+    $scheduledTargetPaidToday = 0.0;
 
-    // Goal baseline = what was due at start of day = still remaining + collected today toward due/overdue.
-    $target = $remainingNow + $collectedTowardGoalToday;
+    $paidTargetSql = "SELECT
+                c.id AS collection_id,
+                c.installment_id,
+                c.meta_json,
+                li.due_amount,
+                li.due_date
+            FROM collections c
+            LEFT JOIN loan_installments li ON li.id = c.installment_id
+            JOIN loans l ON l.id = c.loan_id
+            WHERE c.collected_on = :today
+              AND li.due_date <= :today_due_date";
+    $paidTargetParams = [
+        'today' => $todayDate,
+        'today_due_date' => $todayDate,
+    ];
+
+    if ($isCollectorScope) {
+        $paidTargetSql .= ' AND l.assigned_user_id = :viewer_user_id';
+        $paidTargetParams['viewer_user_id'] = $viewerId;
+    }
+
+    $paidTargetStmt = $pdo->prepare($paidTargetSql);
+    $paidTargetStmt->execute($paidTargetParams);
+    $seenInstallments = [];
+    foreach ($paidTargetStmt->fetchAll() as $row) {
+        $installmentId = (int) ($row['installment_id'] ?? 0);
+        $key = $installmentId > 0 ? 'i_' . $installmentId : 'c_' . (int) ($row['collection_id'] ?? 0);
+        if (isset($seenInstallments[$key])) {
+            continue;
+        }
+
+        $meta = json_decode((string) ($row['meta_json'] ?? ''), true);
+        $scheduledAmount = is_array($meta) ? (float) ($meta['original_selected_balance'] ?? 0) : 0.0;
+        if ($scheduledAmount <= 0.009) {
+            $scheduledAmount = (float) ($row['due_amount'] ?? 0);
+        }
+
+        $scheduledTargetPaidToday += max(0.0, $scheduledAmount);
+        $seenInstallments[$key] = true;
+    }
+
+    // Target is the scheduled due amount for today, not the raw collected amount.
+    // Overpayments increase collected total, but must not inflate the target.
+    $target = $remainingNow + $scheduledTargetPaidToday;
     $collected = $collectedTowardGoalToday;
     $remaining = $remainingNow;
     $percentage = $target > 0 ? min(100, ($collected / $target) * 100) : 0;
@@ -3466,9 +3510,11 @@ function today_collected_total(PDO $pdo, ?array $viewer = null): float
     $viewerRole = (string) ($viewer['role'] ?? '');
     $viewerId = (int) ($viewer['id'] ?? 0);
     $isCollectorScope = is_collector_role($viewerRole) && $viewerId > 0;
+    $todayDate = today();
 
     if (!$isCollectorScope) {
-        $stmt = $pdo->query('SELECT COALESCE(SUM(amount), 0) FROM collections WHERE collected_on = CURDATE()');
+        $stmt = $pdo->prepare('SELECT COALESCE(SUM(amount), 0) FROM collections WHERE collected_on = :today');
+        $stmt->execute(['today' => $todayDate]);
         return (float) $stmt->fetchColumn();
     }
 
@@ -3476,10 +3522,13 @@ function today_collected_total(PDO $pdo, ?array $viewer = null): float
         "SELECT COALESCE(SUM(c.amount), 0)
          FROM collections c
          JOIN loans l ON l.id = c.loan_id
-         WHERE c.collected_on = CURDATE()
+         WHERE c.collected_on = :today
            AND l.assigned_user_id = :viewer_user_id"
     );
-    $stmt->execute(['viewer_user_id' => $viewerId]);
+    $stmt->execute([
+        'today' => $todayDate,
+        'viewer_user_id' => $viewerId,
+    ]);
     return (float) $stmt->fetchColumn();
 }
 
@@ -3571,6 +3620,134 @@ function collections_30day_trend(PDO $pdo, ?array $viewer = null): array
         'target_total' => array_sum($target),
         'max_value' => max([1.0, ...$collected, ...$target]),
     ];
+}
+
+function collections_total_chart(PDO $pdo, ?array $viewer = null, string $mode = 'monthly'): array
+{
+    $mode = $mode === 'weekly' ? 'weekly' : 'monthly';
+    $today = new DateTimeImmutable(today());
+    $viewerRole = (string) ($viewer['role'] ?? '');
+    $viewerId = (int) ($viewer['id'] ?? 0);
+    $isCollectorScope = is_collector_role($viewerRole) && $viewerId > 0;
+
+    if ($mode === 'weekly') {
+        $startDate = $today->modify('monday this week');
+        $endDate = $startDate->modify('+6 days');
+        $labels = [];
+        $keys = [];
+
+        for ($i = 0; $i < 7; $i++) {
+            $date = $startDate->modify('+' . $i . ' days');
+            $keys[] = $date->format('Y-m-d');
+            $labels[] = $date->format('D');
+        }
+
+        $groupExpression = 'c.collected_on';
+        $title = 'Weekly Collections';
+        $subtitle = $startDate->format('M j') . ' - ' . $endDate->format('M j, Y');
+        $pillSuffix = 'selected week';
+    } else {
+        $startDate = $today->setDate((int) $today->format('Y'), 1, 1);
+        $endDate = $today->setDate((int) $today->format('Y'), 12, 31);
+        $labels = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        $keys = range(1, 12);
+        $groupExpression = 'MONTH(c.collected_on)';
+        $title = $today->format('Y') . ' Collections';
+        $subtitle = 'Actual collection totals';
+        $pillSuffix = 'collected this year';
+    }
+
+    $joins = '';
+    $scope = '';
+    $params = [
+        'start_date' => $startDate->format('Y-m-d'),
+        'end_date' => $endDate->format('Y-m-d'),
+    ];
+
+    if ($isCollectorScope) {
+        $joins = ' JOIN loans l ON l.id = c.loan_id';
+        $scope = ' AND l.assigned_user_id = :viewer_user_id';
+        $params['viewer_user_id'] = $viewerId;
+    }
+
+    $stmt = $pdo->prepare(
+        "SELECT {$groupExpression} AS period_key, COALESCE(SUM(c.amount), 0) AS total
+         FROM collections c
+         {$joins}
+         WHERE c.collected_on BETWEEN :start_date AND :end_date
+         {$scope}
+         GROUP BY period_key"
+    );
+    $stmt->execute($params);
+
+    $totalsByKey = [];
+    foreach ($stmt->fetchAll() as $row) {
+        $key = $mode === 'weekly' ? (string) $row['period_key'] : (int) $row['period_key'];
+        $totalsByKey[$key] = (float) $row['total'];
+    }
+
+    $values = [];
+    foreach ($keys as $key) {
+        $values[] = $totalsByKey[$key] ?? 0.0;
+    }
+
+    $maxValue = max([1.0, ...$values]);
+    $bars = [];
+    foreach ($values as $index => $value) {
+        $bars[] = [
+            'label' => $labels[$index],
+            'value' => $value,
+            'height' => $value > 0 ? max(8.0, ($value / $maxValue) * 100) : 2.0,
+        ];
+    }
+
+    return [
+        'mode' => $mode,
+        'title' => $title,
+        'subtitle' => $subtitle,
+        'pill_suffix' => $pillSuffix,
+        'bars' => $bars,
+        'total' => array_sum($values),
+        'max_value' => $maxValue,
+    ];
+}
+
+function dashboard_collection_chart_html(PDO $pdo, array $chart, string $mode): string
+{
+    $mode = $mode === 'weekly' ? 'weekly' : 'monthly';
+    $monthlyClass = $mode === 'monthly' ? 'active' : '';
+    $weeklyClass = $mode === 'weekly' ? 'active' : '';
+
+    ob_start();
+    ?>
+    <div class="panel-head collections-chart-head">
+        <div>
+            <p class="chart-kicker">Collections Trend</p>
+            <h2 class="panel-title"><?= e((string) $chart['title']) ?></h2>
+            <p class="chart-subtitle"><?= e((string) $chart['subtitle']) ?></p>
+        </div>
+        <div class="collections-chart-actions">
+            <span class="chart-total-pill"><?= e(money_label($pdo, (float) $chart['total'])) ?> <?= e((string) $chart['pill_suffix']) ?></span>
+            <div class="chart-toggle" aria-label="Collection chart range">
+                <a class="<?= e($monthlyClass) ?>" href="<?= e(url('index.php?chart=monthly')) ?>">Monthly</a>
+                <a class="<?= e($weeklyClass) ?>" href="<?= e(url('index.php?chart=weekly')) ?>">Weekly</a>
+            </div>
+        </div>
+    </div>
+    <div class="collection-bar-chart collection-bar-chart-<?= e($mode) ?>">
+        <?php foreach (($chart['bars'] ?? []) as $bar): ?>
+            <div class="collection-bar-item">
+                <div class="collection-bar-track" aria-hidden="true">
+                    <span style="height: <?= e(number_format((float) $bar['height'], 2, '.', '')) ?>%"></span>
+                </div>
+                <strong><?= e((string) $bar['label']) ?></strong>
+                <small><?= e(money_label($pdo, (float) $bar['value'])) ?></small>
+            </div>
+        <?php endforeach; ?>
+    </div>
+    <?php
+
+    return trim((string) ob_get_clean());
 }
 
 function dashboard_user_goals(PDO $pdo, ?array $viewer = null): array
