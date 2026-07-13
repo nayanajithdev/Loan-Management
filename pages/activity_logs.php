@@ -24,16 +24,80 @@ if ($fromObj > $toObj) {
 $fromDate = $fromObj->format('Y-m-d');
 $toDate = $toObj->format('Y-m-d');
 
+function activity_action_label(string $actionKey): string
+{
+    $labels = [
+        'auth.login' => 'Signed in',
+        'auth.logout' => 'Signed out',
+        'auth.login_failed' => 'Sign-in failed',
+        'auth.login_throttled' => 'Sign-in locked',
+        'auth.login_blocked' => 'Sign-in blocked',
+        'auth.login_blocked_inactive' => 'Inactive user blocked',
+        'auth.owner_created' => 'Owner created',
+        'auth.owner_setup_blocked' => 'Owner setup blocked',
+        'auth.password_reset_requested' => 'Password reset requested',
+        'auth.password_reset_completed' => 'Password reset completed',
+        'auth.password_reset_throttled' => 'Password reset limited',
+        'profile.updated' => 'Profile updated',
+        'profile.password_changed' => 'Password changed',
+        'user.created' => 'User created',
+        'user.updated' => 'User updated',
+        'user.deleted' => 'User deleted',
+        'customer.created' => 'Customer created',
+        'customer.updated' => 'Customer updated',
+        'customer.deleted' => 'Customer deleted',
+        'customer.document_view' => 'Document viewed',
+        'customer.document_download' => 'Document downloaded',
+        'loan.created' => 'Loan created',
+        'loan.updated' => 'Loan updated',
+        'loan.deleted' => 'Loan deleted',
+        'collection.recorded' => 'Payment collected',
+        'collection.failed' => 'Payment failed',
+        'backup.download' => 'Backup downloaded',
+        'backup.restore' => 'Backup restored',
+        'backup.restore_failed' => 'Backup restore failed',
+        'settings.business_updated' => 'Business settings updated',
+        'settings.system_updated' => 'System settings updated',
+        'holiday.enabled' => 'Holiday mode enabled',
+        'holiday.enable_failed' => 'Holiday mode failed',
+    ];
+
+    if (isset($labels[$actionKey])) {
+        return $labels[$actionKey];
+    }
+
+    $label = str_replace(['.', '_', '-'], ' ', $actionKey);
+    return ucwords($label);
+}
+
+function activity_description_for_user(string $actionKey, string $description): string
+{
+    $failedDescriptions = [
+        'loan.create_failed' => 'Loan could not be created.',
+        'loan.update_failed' => 'Loan could not be updated.',
+        'loan.delete_failed' => 'Loan could not be deleted.',
+        'customer.create_failed' => 'Customer could not be created.',
+        'customer.update_failed' => 'Customer could not be updated.',
+        'customer.delete_failed' => 'Customer could not be deleted.',
+        'collection.failed' => 'Payment could not be saved.',
+        'backup.restore_failed' => 'Backup could not be restored.',
+        'holiday.enable_failed' => 'Holiday mode could not be enabled.',
+    ];
+
+    if (isset($failedDescriptions[$actionKey])) {
+        return $failedDescriptions[$actionKey];
+    }
+
+    return $description;
+}
+
 $sql = "SELECT
             al.id,
             al.created_at,
             al.action_key,
             al.description,
-            al.meta_json,
-            al.ip_address,
             COALESCE(u.full_name, 'System') AS actor_name,
-            COALESCE(u.username, '-') AS actor_username,
-            COALESCE(u.role, al.actor_role, '-') AS actor_role
+            COALESCE(u.username, '-') AS actor_username
         FROM activity_logs al
         LEFT JOIN users u ON u.id = al.actor_user_id
         WHERE DATE(al.created_at) BETWEEN :from_date AND :to_date";
@@ -48,14 +112,12 @@ if ($search !== '') {
         OR al.description LIKE :q_desc
         OR COALESCE(u.full_name, '') LIKE :q_name
         OR COALESCE(u.username, '') LIKE :q_username
-        OR COALESCE(al.ip_address, '') LIKE :q_ip
     )";
     $searchLike = '%' . $search . '%';
     $params['q_action'] = $searchLike;
     $params['q_desc'] = $searchLike;
     $params['q_name'] = $searchLike;
     $params['q_username'] = $searchLike;
-    $params['q_ip'] = $searchLike;
 }
 
 $sql .= ' ORDER BY al.id DESC LIMIT 600';
@@ -84,7 +146,7 @@ require __DIR__ . '/../includes/layout_start.php';
         <div class="field activity-log-search-field">
             <label class="sr-only">Search activity logs</label>
             <div class="search-control">
-                <input type="text" name="q" value="<?= e($search) ?>" placeholder="Search..." aria-label="Search by action, user, text, or IP">
+                <input type="text" name="q" value="<?= e($search) ?>" placeholder="Search..." aria-label="Search by action, user, or description">
                 <button type="submit" class="btn search-submit" aria-label="Search activity logs">
                     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg>
                 </button>
@@ -108,44 +170,24 @@ require __DIR__ . '/../includes/layout_start.php';
             <tr>
                 <th>Time</th>
                 <th>User</th>
-                <th>Role</th>
                 <th>Action</th>
                 <th>Description</th>
-                <th>IP</th>
             </tr>
             </thead>
             <tbody>
             <?php if (empty($logs)): ?>
-                <tr><td colspan="6">No activity logs found for selected filter.</td></tr>
+                <tr><td colspan="4">No activity logs found for selected filter.</td></tr>
             <?php else: ?>
                 <?php foreach ($logs as $row): ?>
                     <?php
-                    $metaText = '';
-                    if (!empty($row['meta_json'])) {
-                        $decoded = json_decode((string) $row['meta_json'], true);
-                        if (is_array($decoded) && $decoded !== []) {
-                            $pairs = [];
-                            foreach ($decoded as $k => $v) {
-                                if (is_scalar($v) || $v === null) {
-                                    $pairs[] = (string) $k . ': ' . (string) ($v ?? '-');
-                                }
-                            }
-                            $metaText = implode(' | ', $pairs);
-                        }
-                    }
+                    $actionKey = (string) $row['action_key'];
+                    $description = activity_description_for_user($actionKey, (string) $row['description']);
                     ?>
                     <tr>
                         <td><?= e(display_datetime((string) $row['created_at'])) ?></td>
-                        <td><?= e((string) $row['actor_name']) ?><br><small style="color: var(--muted);">@<?= e((string) $row['actor_username']) ?></small></td>
-                        <td><?= e(role_display_name((string) $row['actor_role'])) ?></td>
-                        <td><?= e((string) $row['action_key']) ?></td>
-                        <td>
-                            <?= e((string) $row['description']) ?>
-                            <?php if ($metaText !== ''): ?>
-                                <br><small style="color: var(--muted);"><?= e($metaText) ?></small>
-                            <?php endif; ?>
-                        </td>
-                        <td><?= e((string) $row['ip_address']) ?></td>
+                        <td><?= e((string) $row['actor_name']) ?></td>
+                        <td><?= e(activity_action_label($actionKey)) ?></td>
+                        <td><?= e($description) ?></td>
                     </tr>
                 <?php endforeach; ?>
             <?php endif; ?>

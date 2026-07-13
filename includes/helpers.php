@@ -2002,6 +2002,72 @@ function ensure_loan_assignment_schema(PDO $pdo): void
     }
 }
 
+function ensure_loan_issued_date_schema(PDO $pdo): void
+{
+    $colStmt = $pdo->query("SHOW COLUMNS FROM loans LIKE 'issued_date'");
+    $col = $colStmt->fetch();
+
+    if (!$col) {
+        $pdo->exec('ALTER TABLE loans ADD COLUMN issued_date DATE NULL AFTER assigned_user_id');
+        $pdo->exec('UPDATE loans SET issued_date = COALESCE(start_date, DATE(created_at)) WHERE issued_date IS NULL');
+    }
+}
+
+function loan_original_schedule_end_date(PDO $pdo, int $loanId): ?string
+{
+    if ($loanId <= 0) {
+        return null;
+    }
+
+    $stmt = $pdo->prepare(
+        'SELECT MAX(due_date)
+         FROM loan_installments
+         WHERE loan_id = :loan_id
+           AND COALESCE(is_flexible_adjustment, 0) = 0'
+    );
+    $stmt->execute(['loan_id' => $loanId]);
+    $endDate = $stmt->fetchColumn();
+
+    return is_string($endDate) && $endDate !== '' ? $endDate : null;
+}
+
+function sync_loan_planned_end_date(PDO $pdo, int $loanId): ?string
+{
+    $endDate = loan_original_schedule_end_date($pdo, $loanId);
+    if ($endDate === null) {
+        return null;
+    }
+
+    $stmt = $pdo->prepare('UPDATE loans SET end_date = :end_date WHERE id = :loan_id');
+    $stmt->execute([
+        'end_date' => $endDate,
+        'loan_id' => $loanId,
+    ]);
+
+    return $endDate;
+}
+
+function ensure_loan_end_date_schema(PDO $pdo): void
+{
+    $colStmt = $pdo->query("SHOW COLUMNS FROM loans LIKE 'end_date'");
+    $col = $colStmt->fetch();
+
+    if (!$col) {
+        $pdo->exec('ALTER TABLE loans ADD COLUMN end_date DATE NULL AFTER first_due_date');
+    }
+
+    $stmt = $pdo->query(
+        'SELECT id
+         FROM loans
+         WHERE end_date IS NULL'
+    );
+    $loanIds = $stmt->fetchAll(PDO::FETCH_COLUMN);
+
+    foreach ($loanIds as $loanId) {
+        sync_loan_planned_end_date($pdo, (int) $loanId);
+    }
+}
+
 function ensure_loan_interest_rate_type_schema(PDO $pdo): void
 {
     $colStmt = $pdo->query("SHOW COLUMNS FROM loans LIKE 'interest_rate_type'");
@@ -2091,6 +2157,14 @@ function holiday_exists(PDO $pdo, string $date): bool
     $stmt->execute(['holiday_date' => $date]);
 
     return (bool) $stmt->fetchColumn();
+}
+
+function holiday_date_list(PDO $pdo): array
+{
+    $stmt = $pdo->query('SELECT holiday_date FROM holidays ORDER BY holiday_date ASC');
+    $dates = $stmt->fetchAll(PDO::FETCH_COLUMN);
+
+    return array_values(array_filter(array_map('strval', $dates)));
 }
 
 function next_collectible_date(PDO $pdo, string $date): string
@@ -2195,6 +2269,7 @@ function shift_installments_for_holiday(PDO $pdo, string $holidayDate): int
     );
 
     $shifted = 0;
+    $affectedLoanIds = [];
     foreach ($rows as $row) {
         $currentDue = (string) ($row['due_date'] ?? '');
         $currentDueObj = DateTimeImmutable::createFromFormat('Y-m-d', $currentDue);
@@ -2211,7 +2286,12 @@ function shift_installments_for_holiday(PDO $pdo, string $holidayDate): int
             'status' => installment_status_for_due_date($newDueDate, $dueAmount, $paidAmount),
             'id' => (int) $row['id'],
         ]);
+        $affectedLoanIds[(int) $row['loan_id']] = true;
         $shifted++;
+    }
+
+    foreach (array_keys($affectedLoanIds) as $loanId) {
+        sync_loan_planned_end_date($pdo, (int) $loanId);
     }
 
     return $shifted;

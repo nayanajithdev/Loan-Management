@@ -63,14 +63,27 @@ $defaultTimeframeValue = match ((string) $loan['installment_frequency']) {
 $defaultTimeframeUnit = (string) $loan['installment_frequency'] === 'monthly' ? 'months' : 'days';
 $defaultInterestRateType = normalize_interest_rate_type((string) ($loan['interest_rate_type'] ?? 'amount_based'));
 $defaultInterestRateMonths = normalize_interest_rate_months((int) ($loan['interest_rate_months'] ?? 1));
+$issuedDate = (string) ($loan['issued_date'] ?? '');
+if ($issuedDate === '') {
+    $issuedDate = (string) ($loan['start_date'] ?? '');
+}
+if ($issuedDate === '') {
+    $issuedDate = substr((string) ($loan['created_at'] ?? today()), 0, 10);
+}
 $tomorrowDate = (new DateTimeImmutable(today()))->add(new DateInterval('P1D'))->format('Y-m-d');
 $loanDisplayNumber = (string) ($loan['loan_number'] ?? ('#' . $loanId));
+$loanEndDate = (string) ($loan['end_date'] ?? '');
+if ($loanEndDate === '') {
+    $loanEndDate = loan_original_schedule_end_date($pdo, $loanId) ?? '';
+}
+$holidayDates = holiday_date_list($pdo);
 
 $collectionHistoryStmt = $pdo->prepare(
     "SELECT
         COALESCE(col.payment_ref, CONCAT('legacy-', col.id)) AS payment_ref,
         MAX(col.id) AS latest_id,
         MAX(col.collected_on) AS collected_on,
+        MAX(col.created_at) AS collected_at,
         MAX(col.method) AS method,
         MAX(col.note) AS note,
         SUM(col.amount) AS amount,
@@ -154,7 +167,16 @@ require __DIR__ . '/../includes/layout_start.php';
         </div>
     <?php endif; ?>
 
-    <form id="loan-form" class="form-grid" method="post" action="<?= e(url('actions/loan_update.php')) ?>">
+    <form
+        id="loan-form"
+        class="form-grid"
+        method="post"
+        action="<?= e(url('actions/loan_update.php')) ?>"
+        data-start-date="<?= e($issuedDate) ?>"
+        data-first-due-date="<?= e((string) ($loan['first_due_date'] ?? '')) ?>"
+        data-repayment-locked="<?= $repaymentLocked ? '1' : '0' ?>"
+        data-holiday-dates="<?= e((string) json_encode($holidayDates, JSON_UNESCAPED_SLASHES)) ?>"
+    >
         <?= csrf_input() ?>
         <input type="hidden" name="loan_id" value="<?= e((string) $loan['id']) ?>">
 
@@ -176,6 +198,11 @@ require __DIR__ . '/../includes/layout_start.php';
         <div class="field">
             <label>Principal Amount</label>
             <input type="number" step="0.01" name="principal_amount" value="<?= e((string) $loan['principal_amount']) ?>" required <?= $repaymentLocked ? 'readonly' : '' ?>>
+        </div>
+
+        <div class="field">
+            <label>Loan Issued Date</label>
+            <input type="date" name="issued_date" value="<?= e($issuedDate) ?>" required>
         </div>
 
         <div class="field">
@@ -265,7 +292,7 @@ require __DIR__ . '/../includes/layout_start.php';
 
         <div class="field full loan-preview-field">
             <label>Repayment Preview</label>
-            <div class="calc-preview-grid calc-preview-grid-three">
+            <div class="calc-preview-grid calc-preview-grid-four">
                 <div class="calc-preview-item">
                     <p>Total Repayable</p>
                     <h3><?= e(currency_label($pdo)) ?> <span id="preview-total"><?= e(money((float) $loan['total_amount'])) ?></span></h3>
@@ -277,6 +304,10 @@ require __DIR__ . '/../includes/layout_start.php';
                 <div class="calc-preview-item">
                     <p>No. of Installments</p>
                     <h3><span id="preview-installment-count"><?= e((string) $loan['installment_count']) ?></span></h3>
+                </div>
+                <div class="calc-preview-item">
+                    <p>Loan End Date</p>
+                    <h3><span id="preview-end-date"><?= e($loanEndDate !== '' ? display_date($loanEndDate) : '-') ?></span></h3>
                 </div>
             </div>
         </div>
@@ -318,8 +349,8 @@ require __DIR__ . '/../includes/layout_start.php';
                             if ($installments === '') {
                                 $installments = (int) ($history['has_advance'] ?? 0) === 1 ? 'Advance' : '-';
                             }
-                            $collectedAt = (string) ($history['collected_on'] ?? '');
-                            $collectedDisplay = $collectedAt !== '' ? date('d M Y H:i', strtotime($collectedAt)) : '-';
+                            $collectedAt = (string) ($history['collected_at'] ?? '');
+                            $collectedDisplay = $collectedAt !== '' ? display_datetime($collectedAt) : '-';
                             ?>
                             <tr>
                                 <td><?= e($collectedDisplay) ?></td>

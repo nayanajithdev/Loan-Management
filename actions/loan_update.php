@@ -13,6 +13,7 @@ require_permission('loans.edit', 'pages/loans.php');
 
 $loanId = (int) ($_POST['loan_id'] ?? 0);
 $customerId = (int) ($_POST['customer_id'] ?? 0);
+$issuedDate = trim((string) ($_POST['issued_date'] ?? today()));
 $principal = (float) ($_POST['principal_amount'] ?? 0);
 $interestRate = (float) ($_POST['interest_rate'] ?? 0);
 $interestRateType = normalize_interest_rate_type(trim((string) ($_POST['interest_rate_type'] ?? 'amount_based')));
@@ -39,6 +40,13 @@ if ($customerId <= 0 || $principal <= 0 || $timeframeValue <= 0) {
     set_flash('error', 'Please fill all required loan fields correctly.');
     redirect('pages/loan_edit.php?loan_id=' . $loanId);
 }
+
+$issuedDateObj = DateTimeImmutable::createFromFormat('Y-m-d', $issuedDate);
+if (!$issuedDateObj || $issuedDateObj->format('Y-m-d') !== $issuedDate) {
+    set_flash('error', 'Invalid loan issued date.');
+    redirect('pages/loan_edit.php?loan_id=' . $loanId);
+}
+$issuedDate = $issuedDateObj->format('Y-m-d');
 
 if (!in_array($frequency, ['daily', 'weekly', 'monthly'], true)) {
     set_flash('error', 'Invalid installment frequency.');
@@ -102,7 +110,9 @@ try {
 
     $firstDueDate = (string) ($loan['first_due_date'] ?? '');
     if ($firstDueDate === '') {
-        $firstDueDate = (new DateTimeImmutable(today()))->add(new DateInterval('P1D'))->format('Y-m-d');
+        $storedIssuedDate = (string) ($loan['issued_date'] ?? '');
+        $fallbackStartDate = $storedIssuedDate !== '' ? $storedIssuedDate : (string) ($loan['start_date'] ?? today());
+        $firstDueDate = (new DateTimeImmutable($fallbackStartDate))->add(new DateInterval('P1D'))->format('Y-m-d');
     }
     $firstDueDate = next_collectible_date($pdo, $firstDueDate);
 
@@ -124,9 +134,14 @@ try {
         default => (int) $loan['installment_count'],
     };
     $loanTimeframeUnit = (string) $loan['installment_frequency'] === 'monthly' ? 'months' : 'days';
+    $loanIssuedDate = (string) ($loan['issued_date'] ?? '');
+    if ($loanIssuedDate === '') {
+        $loanIssuedDate = (string) ($loan['start_date'] ?? '');
+    }
     $structureUnchanged =
         abs((float) $loan['principal_amount'] - $principal) < 0.005
         && abs((float) $loan['interest_rate'] - $interestRate) < 0.005
+        && $loanIssuedDate === $issuedDate
         && $loanInterestRateType === $interestRateType
         && ($loanInterestRateType !== 'monthly' || $loanInterestRateMonths === $interestRateMonths)
         && (string) $loan['installment_frequency'] === $frequency
@@ -142,18 +157,23 @@ try {
     if ($repaymentLocked) {
         $updateLocked = $pdo->prepare(
             'UPDATE loans SET
+                issued_date = :issued_date,
                 status = :status,
                 notes = :notes
              WHERE id = :id'
         );
+        $updateLocked->bindValue(':issued_date', $issuedDate, PDO::PARAM_STR);
         $updateLocked->bindValue(':status', $status, PDO::PARAM_STR);
         $updateLocked->bindValue(':notes', $notes === '' ? null : $notes, $notes === '' ? PDO::PARAM_NULL : PDO::PARAM_STR);
         $updateLocked->bindValue(':id', $loanId, PDO::PARAM_INT);
         $updateLocked->execute();
     } else {
+        $firstDueDate = next_collectible_date($pdo, $issuedDateObj->add(new DateInterval('P1D'))->format('Y-m-d'));
+
         $updateLoan = $pdo->prepare(
             'UPDATE loans SET
                 customer_id = :customer_id,
+                issued_date = :issued_date,
                 principal_amount = :principal_amount,
                 interest_rate = :interest_rate,
                 interest_rate_type = :interest_rate_type,
@@ -168,6 +188,7 @@ try {
              WHERE id = :id'
         );
         $updateLoan->bindValue(':customer_id', $customerId, PDO::PARAM_INT);
+        $updateLoan->bindValue(':issued_date', $issuedDate, PDO::PARAM_STR);
         $updateLoan->bindValue(':principal_amount', $principal);
         $updateLoan->bindValue(':interest_rate', $interestRate);
         $updateLoan->bindValue(':interest_rate_type', $interestRateType, PDO::PARAM_STR);
@@ -193,8 +214,10 @@ try {
         );
 
         $allocated = 0.0;
+        $loanEndDate = $firstDueDate;
         for ($i = 1; $i <= $installmentCount; $i++) {
             $currentDueDate = next_collectible_date($pdo, $dueDate->format('Y-m-d'));
+            $loanEndDate = $currentDueDate;
             $amount = $installmentAmount;
             if ($i === $installmentCount) {
                 $amount = round($totalAmount - $allocated, 2);
@@ -210,6 +233,12 @@ try {
             $allocated += $amount;
             $dueDate = (new DateTimeImmutable($currentDueDate))->add($interval);
         }
+
+        $updateEndDate = $pdo->prepare('UPDATE loans SET end_date = :end_date WHERE id = :loan_id');
+        $updateEndDate->execute([
+            'end_date' => $loanEndDate,
+            'loan_id' => $loanId,
+        ]);
     }
 
     if ($canEditAssignment) {
@@ -243,6 +272,7 @@ try {
     log_activity($pdo, 'loan.updated', 'Loan updated: ' . $loanNumber . '.', [
         'loan_id' => $loanId,
         'customer_id' => $customerId,
+        'issued_date' => $issuedDate,
         'assigned_user_id' => $canEditAssignment ? $assignedUserId : (int) ($loan['assigned_user_id'] ?? 0),
         'interest_rate_type' => $interestRateType,
         'interest_rate_months' => $interestRateType === 'monthly' ? $interestRateMonths : 1,

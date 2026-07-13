@@ -1978,6 +1978,10 @@ textarea {
     grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+.calc-preview-grid-four {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
 .calc-preview-grid-three .calc-preview-item:nth-child(1) h3 {
     color: #ff9a3c;
 }
@@ -1988,6 +1992,22 @@ textarea {
 
 .calc-preview-grid-three .calc-preview-item:nth-child(3) h3 {
     color: #2bb36c;
+}
+
+.calc-preview-grid-four .calc-preview-item:nth-child(1) h3 {
+    color: #ff9a3c;
+}
+
+.calc-preview-grid-four .calc-preview-item:nth-child(2) h3 {
+    color: #3b82f6;
+}
+
+.calc-preview-grid-four .calc-preview-item:nth-child(3) h3 {
+    color: #2bb36c;
+}
+
+.calc-preview-grid-four .calc-preview-item:nth-child(4) h3 {
+    color: #f8fafc;
 }
 
 .calc-preview-item {

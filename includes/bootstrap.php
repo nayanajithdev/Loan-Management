@@ -30,6 +30,8 @@ try {
     ensure_flexible_collection_schema($pdo);
     repair_loan_installment_counts_from_history($pdo);
     ensure_loan_assignment_schema($pdo);
+    ensure_loan_issued_date_schema($pdo);
+    ensure_loan_end_date_schema($pdo);
     ensure_loan_interest_rate_type_schema($pdo);
     ensure_loan_interest_rate_months_schema($pdo);
     ensure_customer_documents_schema($pdo);

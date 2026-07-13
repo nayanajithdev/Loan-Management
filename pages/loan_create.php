@@ -21,6 +21,9 @@ $defaultFrequency = system_setting($pdo, 'default_installment_frequency', 'daily
 $defaultTimeframeValue = (int) system_setting($pdo, 'default_timeframe_value', '30');
 $defaultTimeframeUnit = system_setting($pdo, 'default_timeframe_unit', 'days');
 $suggestedLoanNumber = next_loan_number($pdo);
+$defaultIssuedDate = today();
+$scheduleStartDate = $defaultIssuedDate;
+$holidayDates = holiday_date_list($pdo);
 
 if (!in_array($defaultFrequency, ['daily', 'weekly', 'monthly'], true)) {
     $defaultFrequency = 'daily';
@@ -58,7 +61,14 @@ require __DIR__ . '/../includes/layout_start.php';
     <?php if (!$customers): ?>
         <p>Please add an active customer first.</p>
     <?php else: ?>
-        <form id="loan-form" class="form-grid" method="post" action="<?= e(url('actions/loan_save.php')) ?>">
+        <form
+            id="loan-form"
+            class="form-grid"
+            method="post"
+            action="<?= e(url('actions/loan_save.php')) ?>"
+            data-start-date="<?= e($scheduleStartDate) ?>"
+            data-holiday-dates="<?= e((string) json_encode($holidayDates, JSON_UNESCAPED_SLASHES)) ?>"
+        >
             <?= csrf_input() ?>
             <div class="field">
                 <label>Loan No</label>
@@ -78,6 +88,10 @@ require __DIR__ . '/../includes/layout_start.php';
                     </div>
                     <small class="searchable-select-empty" data-select-empty hidden>No matching customers.</small>
                 </div>
+            </div>
+            <div class="field">
+                <label>Loan Issued Date</label>
+                <input type="date" name="issued_date" value="<?= e($defaultIssuedDate) ?>" required>
             </div>
             <div class="field">
                 <label>Principal Amount</label>
@@ -145,7 +159,7 @@ require __DIR__ . '/../includes/layout_start.php';
             </div>
             <div class="field full loan-preview-field">
                 <label>Repayment Preview</label>
-                <div class="calc-preview-grid calc-preview-grid-three">
+                <div class="calc-preview-grid calc-preview-grid-four">
                     <div class="calc-preview-item">
                         <p>Total Repayable</p>
                         <h3><?= e(currency_label($pdo)) ?> <span id="preview-total">0.00</span></h3>
@@ -157,6 +171,10 @@ require __DIR__ . '/../includes/layout_start.php';
                     <div class="calc-preview-item">
                         <p>No. of Installments</p>
                         <h3><span id="preview-installment-count"><?= e((string) $defaultInstallmentCount) ?></span></h3>
+                    </div>
+                    <div class="calc-preview-item">
+                        <p>Loan End Date</p>
+                        <h3><span id="preview-end-date">-</span></h3>
                     </div>
                 </div>
             </div>

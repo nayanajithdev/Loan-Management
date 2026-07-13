@@ -501,6 +501,7 @@
     const interestTypeInput = form.querySelector('[name="interest_rate_type"]');
     const interestMonthsInput = form.querySelector('[name="interest_rate_months"]');
     const interestMonthsField = form.querySelector('[data-interest-months-field]');
+    const issuedDateInput = form.querySelector('[name="issued_date"]');
     const frequencyInput = form.querySelector('[name="installment_frequency"]');
     const timeframeValueInput = form.querySelector('[name="timeframe_value"]');
     const timeframeUnitInput = form.querySelector('[name="timeframe_unit"]');
@@ -511,7 +512,16 @@
     const installmentEl = document.getElementById('preview-installment');
     const profitEl = document.getElementById('preview-profit');
     const installmentCountEl = document.getElementById('preview-installment-count');
+    const endDateEl = document.getElementById('preview-end-date');
     const isEditLoanForm = Boolean(form.querySelector('[name="loan_id"]'));
+    const repaymentLocked = form.getAttribute('data-repayment-locked') === '1';
+    let holidayDates = [];
+    try {
+        holidayDates = JSON.parse(form.getAttribute('data-holiday-dates') || '[]');
+    } catch (_error) {
+        holidayDates = [];
+    }
+    const holidaySet = new Set(Array.isArray(holidayDates) ? holidayDates : []);
 
     const toNumber = (value) => {
         const n = Number(value);
@@ -523,6 +533,87 @@
             minimumFractionDigits: 2,
             maximumFractionDigits: 2,
         }).format(value);
+    };
+
+    const validIsoDate = (value) => /^\d{4}-\d{2}-\d{2}$/.test(String(value || ''));
+
+    const addToIsoDate = (isoDate, amount, unit) => {
+        if (!validIsoDate(isoDate)) {
+            return '';
+        }
+
+        const [year, month, day] = isoDate.split('-').map(Number);
+        const date = new Date(Date.UTC(year, month - 1, day));
+        if (unit === 'months') {
+            date.setUTCMonth(date.getUTCMonth() + amount);
+        } else {
+            date.setUTCDate(date.getUTCDate() + amount);
+        }
+
+        return [
+            date.getUTCFullYear(),
+            String(date.getUTCMonth() + 1).padStart(2, '0'),
+            String(date.getUTCDate()).padStart(2, '0'),
+        ].join('-');
+    };
+
+    const formatDisplayDate = (isoDate) => {
+        if (!validIsoDate(isoDate)) {
+            return '-';
+        }
+
+        const [year, month, day] = isoDate.split('-').map(Number);
+        const date = new Date(Date.UTC(year, month - 1, day));
+
+        return new Intl.DateTimeFormat('en-GB', {
+            day: '2-digit',
+            month: 'short',
+            year: 'numeric',
+            timeZone: 'UTC',
+        }).format(date);
+    };
+
+    const nextCollectibleDate = (isoDate) => {
+        let candidate = isoDate;
+        for (let guard = 0; guard < 366; guard += 1) {
+            if (!holidaySet.has(candidate)) {
+                return candidate;
+            }
+            candidate = addToIsoDate(candidate, 1, 'days');
+        }
+
+        return isoDate;
+    };
+
+    const nextFrequencyDate = (isoDate, frequency) => {
+        if (frequency === 'weekly') {
+            return addToIsoDate(isoDate, 7, 'days');
+        }
+        if (frequency === 'monthly') {
+            return addToIsoDate(isoDate, 1, 'months');
+        }
+        return addToIsoDate(isoDate, 1, 'days');
+    };
+
+    const calculateEndDate = (installmentCount, frequency) => {
+        const firstDueDate = form.getAttribute('data-first-due-date') || '';
+        const issuedDate = issuedDateInput ? issuedDateInput.value : '';
+        const startDate = issuedDate || form.getAttribute('data-start-date') || '';
+        let dueDate = repaymentLocked && validIsoDate(firstDueDate)
+            ? firstDueDate
+            : addToIsoDate(startDate, 1, 'days');
+
+        if (!validIsoDate(dueDate) || installmentCount <= 0) {
+            return '';
+        }
+
+        let endDate = nextCollectibleDate(dueDate);
+        for (let i = 1; i <= installmentCount; i += 1) {
+            endDate = nextCollectibleDate(dueDate);
+            dueDate = nextFrequencyDate(endDate, frequency);
+        }
+
+        return endDate;
     };
 
     const installmentCountFromTimeframe = (frequency, timeframeValue, timeframeUnit) => {
@@ -584,6 +675,9 @@
         if (installmentCountEl) {
             installmentCountEl.textContent = String(count);
         }
+        if (endDateEl) {
+            endDateEl.textContent = formatDisplayDate(calculateEndDate(count, frequency));
+        }
         totalEl.textContent = formatMoney(total);
         installmentEl.textContent = formatMoney(installment);
         if (roundedHint) {
@@ -613,7 +707,7 @@
         updatePreview();
     };
 
-    [principalInput, interestInput, interestTypeInput, frequencyInput, timeframeValueInput, timeframeUnitInput].forEach((el) => {
+    [principalInput, interestInput, interestTypeInput, issuedDateInput, frequencyInput, timeframeValueInput, timeframeUnitInput].forEach((el) => {
         if (!el) {
             return;
         }

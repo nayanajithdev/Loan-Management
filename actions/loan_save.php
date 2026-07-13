@@ -13,6 +13,7 @@ require_csrf('pages/loan_create.php');
 $loanNumberInput = trim((string) ($_POST['loan_number'] ?? ''));
 $loanNumber = normalize_loan_number_input($loanNumberInput);
 $customerId = (int) ($_POST['customer_id'] ?? 0);
+$issuedDate = trim((string) ($_POST['issued_date'] ?? today()));
 $principal = (float) ($_POST['principal_amount'] ?? 0);
 $interestRate = (float) ($_POST['interest_rate'] ?? 0);
 $interestRateType = normalize_interest_rate_type(trim((string) ($_POST['interest_rate_type'] ?? 'amount_based')));
@@ -42,6 +43,13 @@ if ($customerId <= 0 || $principal <= 0 || $timeframeValue <= 0) {
     set_flash('error', 'Please fill all required loan fields correctly.');
     redirect('pages/loan_create.php');
 }
+
+$issuedDateObj = DateTimeImmutable::createFromFormat('Y-m-d', $issuedDate);
+if (!$issuedDateObj || $issuedDateObj->format('Y-m-d') !== $issuedDate) {
+    set_flash('error', 'Invalid loan issued date.');
+    redirect('pages/loan_create.php');
+}
+$issuedDate = $issuedDateObj->format('Y-m-d');
 
 if (!in_array($frequency, ['daily', 'weekly', 'monthly'], true)) {
     set_flash('error', 'Invalid installment frequency.');
@@ -85,8 +93,8 @@ if ($useRoundedInstallment) {
     $installmentAmount = round($totalAmount / $installmentCount, 2);
 }
 
-$startDate = today();
-$firstDueDate = next_collectible_date($pdo, (new DateTimeImmutable($startDate))->add(new DateInterval('P1D'))->format('Y-m-d'));
+$startDate = $issuedDate;
+$firstDueDate = next_collectible_date($pdo, $issuedDateObj->add(new DateInterval('P1D'))->format('Y-m-d'));
 
 try {
     $pdo->beginTransaction();
@@ -96,6 +104,7 @@ try {
             loan_number,
             customer_id,
             assigned_user_id,
+            issued_date,
             principal_amount,
             interest_rate,
             interest_rate_type,
@@ -111,6 +120,7 @@ try {
             :loan_number,
             :customer_id,
             :assigned_user_id,
+            :issued_date,
             :principal_amount,
             :interest_rate,
             :interest_rate_type,
@@ -129,6 +139,7 @@ try {
         'loan_number' => $loanNumber,
         'customer_id' => $customerId,
         'assigned_user_id' => $assignedUserId,
+        'issued_date' => $issuedDate,
         'principal_amount' => $principal,
         'interest_rate' => $interestRate,
         'interest_rate_type' => $interestRateType,
@@ -153,8 +164,10 @@ try {
     );
 
     $allocated = 0.0;
+    $loanEndDate = $firstDueDate;
     for ($i = 1; $i <= $installmentCount; $i++) {
         $currentDueDate = next_collectible_date($pdo, $dueDate->format('Y-m-d'));
+        $loanEndDate = $currentDueDate;
         $amount = $installmentAmount;
         if ($i === $installmentCount) {
             $amount = round($totalAmount - $allocated, 2);
@@ -171,16 +184,24 @@ try {
         $dueDate = (new DateTimeImmutable($currentDueDate))->add($interval);
     }
 
+    $updateEndDate = $pdo->prepare('UPDATE loans SET end_date = :end_date WHERE id = :loan_id');
+    $updateEndDate->execute([
+        'end_date' => $loanEndDate,
+        'loan_id' => $loanId,
+    ]);
+
     $pdo->commit();
     log_activity($pdo, 'loan.created', 'Loan created: ' . $loanNumber . '.', [
         'loan_id' => $loanId,
         'customer_id' => $customerId,
         'assigned_user_id' => $assignedUserId,
+        'issued_date' => $issuedDate,
         'principal_amount' => $principal,
         'interest_rate_type' => $interestRateType,
         'interest_rate_months' => $interestRateType === 'monthly' ? $interestRateMonths : 1,
         'total_amount' => $totalAmount,
         'installment_count' => $installmentCount,
+        'end_date' => $loanEndDate,
         'use_rounded_installment' => $useRoundedInstallment ? 1 : 0,
         'rounded_installment_amount' => $useRoundedInstallment ? $roundedInstallmentAmount : null,
         'installment_frequency' => $frequency,
