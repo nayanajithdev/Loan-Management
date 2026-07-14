@@ -59,6 +59,13 @@ if (is_array($parsedReturn) && isset($parsedReturn['path']) && preg_match('/^(in
     if (!empty($allowedQuery)) {
         $returnTo .= '?' . http_build_query($allowedQuery);
     }
+
+    if ($returnTo === 'pages/loan_edit.php' || str_starts_with($returnTo, 'pages/loan_edit.php?')) {
+        $fragment = (string) ($parsedReturn['fragment'] ?? '');
+        if ($fragment === 'collections') {
+            $returnTo .= '#collections';
+        }
+    }
 }
 $allowNextPendingCollection = str_starts_with($returnTo, 'pages/loan_edit.php?loan_id=');
 

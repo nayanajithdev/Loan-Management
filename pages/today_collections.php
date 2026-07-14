@@ -37,6 +37,7 @@ $canRecordCollection = can('collections.record');
 $canBackdatePaid = can('collections.backdate');
 $canScheduleNextPayment = can('collections.schedule');
 $dueInstallments = collection_due_installments_for_date($pdo, $selectedDate, $todayDate, $search, $currentRole, $currentUserId);
+$autoFillAmountReceived = system_setting($pdo, 'auto_fill_amount_received', '1') !== '0';
 
 $selectedInstallment = null;
 foreach ($dueInstallments as $item) {
@@ -227,16 +228,23 @@ require __DIR__ . '/../includes/layout_start.php';
     </div>
 
     <section class="panel today-collections-record-panel">
-        <div class="panel-head panel-head-compact">
+        <div class="panel-head panel-head-compact <?= ($hasSelectedInstallment || $mobileRecordMode) ? 'has-actions' : '' ?>">
             <h2 class="panel-title sr-only">Record Collection</h2>
-            <?php if ($mobileRecordMode): ?>
+            <?php if ($hasSelectedInstallment || $mobileRecordMode): ?>
                 <div class="panel-head-actions">
-                    <a class="btn" href="<?= e($listViewUrl) ?>">
-                        <span class="btn-icon-inline" aria-hidden="true">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-arrow-left-icon lucide-arrow-left"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>
-                        </span>
-                        Back to List
-                    </a>
+                    <?php if ($hasSelectedInstallment): ?>
+                        <a class="btn record-history-link" href="<?= e(url('pages/loan_edit.php?loan_id=' . (int) $selectedInstallment['loan_id'] . '#collections')) ?>">
+                            Collection History
+                        </a>
+                    <?php endif; ?>
+                    <?php if ($mobileRecordMode): ?>
+                        <a class="btn record-back-link" href="<?= e($listViewUrl) ?>">
+                            <span class="btn-icon-inline" aria-hidden="true">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-arrow-left-icon lucide-arrow-left"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>
+                            </span>
+                            Back to List
+                        </a>
+                    <?php endif; ?>
                 </div>
             <?php endif; ?>
         </div>
@@ -287,7 +295,7 @@ require __DIR__ . '/../includes/layout_start.php';
             </div>
             <div class="field">
                 <label>Amount Received</label>
-                <input type="number" name="amount" step="0.01" min="0.01" value="<?= e($hasSelectedInstallment ? (string) $selectedBalance : '') ?>" <?= $canCollectSelectedInstallment ? 'required' : 'disabled' ?>>
+                <input type="number" name="amount" step="0.01" min="0.01" value="<?= e(($hasSelectedInstallment && $autoFillAmountReceived) ? (string) $selectedBalance : '') ?>" <?= $canCollectSelectedInstallment ? 'required' : 'disabled' ?>>
             </div>
             <div class="field">
                 <label>Method</label>

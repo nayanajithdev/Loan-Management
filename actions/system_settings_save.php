@@ -18,6 +18,7 @@ $defaultFrequency = (string) ($_POST['default_installment_frequency'] ?? 'daily'
 $defaultTimeframeValue = max(1, (int) ($_POST['default_timeframe_value'] ?? 30));
 $defaultTimeframeUnit = (string) ($_POST['default_timeframe_unit'] ?? 'days');
 $allowOverpayment = (string) ($_POST['allow_overpayment'] ?? '1') === '0' ? '0' : '1';
+$autoFillAmountReceived = (string) ($_POST['auto_fill_amount_received'] ?? '1') === '0' ? '0' : '1';
 $pollIntervalSeconds = max(3, min(60, (int) ($_POST['poll_interval_seconds'] ?? 10)));
 
 if (!in_array($defaultFrequency, ['daily', 'weekly', 'monthly'], true)) {
@@ -37,6 +38,7 @@ $settingsToSave = [
     'default_timeframe_value' => (string) $defaultTimeframeValue,
     'default_timeframe_unit' => $defaultTimeframeUnit,
     'allow_overpayment' => $allowOverpayment,
+    'auto_fill_amount_received' => $autoFillAmountReceived,
     'poll_interval_seconds' => (string) $pollIntervalSeconds,
 ];
 

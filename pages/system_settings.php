@@ -70,6 +70,14 @@ require __DIR__ . '/../includes/layout_start.php';
                 </select>
             </div>
             <div class="field">
+                <label>Auto Fill Amount Received</label>
+                <?php $autoFillAmount = $get('auto_fill_amount_received', '1'); ?>
+                <select name="auto_fill_amount_received" required<?= $disabledAttr ?>>
+                    <option value="1" <?= $autoFillAmount === '1' ? 'selected' : '' ?>>On</option>
+                    <option value="0" <?= $autoFillAmount === '0' ? 'selected' : '' ?>>Off</option>
+                </select>
+            </div>
+            <div class="field">
                 <label>Live Update Interval (seconds)</label>
                 <input type="number" min="3" max="60" name="poll_interval_seconds" value="<?= e($get('poll_interval_seconds', '10')) ?>" required<?= $disabledAttr ?>>
             </div>

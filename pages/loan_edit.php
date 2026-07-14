@@ -100,6 +100,16 @@ $collectionHistoryStmt = $pdo->prepare(
 );
 $collectionHistoryStmt->execute(['loan_id' => $loanId]);
 $loanCollectionHistory = $collectionHistoryStmt->fetchAll();
+$loanTotalRepayable = (float) ($loan['total_amount'] ?? 0);
+$loanCollectedStmt = $pdo->prepare('SELECT COALESCE(SUM(amount), 0) FROM collections WHERE loan_id = :loan_id');
+$loanCollectedStmt->execute(['loan_id' => $loanId]);
+$loanTotalCollected = (float) $loanCollectedStmt->fetchColumn();
+$loanBalance = max(0.0, $loanTotalRepayable - $loanTotalCollected);
+$loanProgressPercent = $loanTotalRepayable > 0
+    ? min(100.0, ($loanTotalCollected / $loanTotalRepayable) * 100)
+    : 0.0;
+$loanProgressStyleValue = number_format($loanProgressPercent, 2, '.', '');
+$loanProgressLabel = number_format($loanProgressPercent, 1) . '%';
 
 $nextInstallmentStmt = $pdo->prepare(
     "SELECT *
@@ -116,12 +126,13 @@ $currentCollectible = $nextInstallment;
 $collectibleBalance = $currentCollectible
     ? max(0.0, (float) $currentCollectible['due_amount'] - (float) $currentCollectible['paid_amount'])
     : 0.0;
+$autoFillAmountReceived = system_setting($pdo, 'auto_fill_amount_received', '1') !== '0';
 
 require __DIR__ . '/../includes/layout_start.php';
 ?>
 
-<section class="panel">
-    <div class="panel-head">
+<div class="loan-edit-tabs-shell" data-loan-tabs>
+    <div class="loan-edit-actionbar">
         <div class="panel-head-actions">
             <a class="btn" href="<?= e(url('pages/loans.php')) ?>">
                 <span class="btn-icon-inline" aria-hidden="true">
@@ -140,7 +151,7 @@ require __DIR__ . '/../includes/layout_start.php';
                 </a>
             <?php endif; ?>
             <?php if ($canViewCollectionHistory): ?>
-                <a class="btn" href="<?= e(url('pages/collections.php?customer_id=' . (int) $loan['customer_id'])) ?>">Collection History</a>
+                <button type="button" class="btn" data-loan-tab-open="collections">Collection History</button>
             <?php endif; ?>
             <?php if ($canDeleteLoan): ?>
                 <form method="post" action="<?= e(url('actions/loan_delete.php')) ?>" class="inline-form" onsubmit="return confirm('Delete this loan permanently? This action cannot be undone.');">
@@ -157,26 +168,34 @@ require __DIR__ . '/../includes/layout_start.php';
         </div>
     </div>
 
-    <?php if ($repaymentLocked): ?>
-        <div class="flash flash-warning">
-            <?php if ($hasCollections): ?>
-                This loan already has collections. Repayment structure fields are locked. You can still update assignment, notes and status.
-            <?php else: ?>
-                This loan has collected value. Repayment structure fields are locked to protect collected totals. You can still update assignment, notes and status.
-            <?php endif; ?>
-        </div>
-    <?php endif; ?>
+    <div class="loan-tab-frame">
+    <div class="loan-tab-nav" role="tablist" aria-label="Loan edit sections">
+        <button type="button" class="loan-tab-button is-active" data-loan-tab-open="details" role="tab" aria-selected="true">Loan Details</button>
+        <button type="button" class="loan-tab-button" data-loan-tab-open="collections" role="tab" aria-selected="false">Collection History</button>
+    </div>
 
-    <form
-        id="loan-form"
-        class="form-grid"
-        method="post"
-        action="<?= e(url('actions/loan_update.php')) ?>"
-        data-start-date="<?= e($issuedDate) ?>"
-        data-first-due-date="<?= e((string) ($loan['first_due_date'] ?? '')) ?>"
-        data-repayment-locked="<?= $repaymentLocked ? '1' : '0' ?>"
-        data-holiday-dates="<?= e((string) json_encode($holidayDates, JSON_UNESCAPED_SLASHES)) ?>"
-    >
+    <section class="panel loan-edit-tabs">
+    <div class="loan-tab-panel is-active" data-loan-tab-panel="details" role="tabpanel">
+        <?php if ($repaymentLocked): ?>
+            <div class="flash flash-warning">
+                <?php if ($hasCollections): ?>
+                    This loan already has collections. Repayment structure fields are locked. You can still update assignment, notes and status.
+                <?php else: ?>
+                    This loan has collected value. Repayment structure fields are locked to protect collected totals. You can still update assignment, notes and status.
+                <?php endif; ?>
+            </div>
+        <?php endif; ?>
+
+        <form
+            id="loan-form"
+            class="form-grid"
+            method="post"
+            action="<?= e(url('actions/loan_update.php')) ?>"
+            data-start-date="<?= e($issuedDate) ?>"
+            data-first-due-date="<?= e((string) ($loan['first_due_date'] ?? '')) ?>"
+            data-repayment-locked="<?= $repaymentLocked ? '1' : '0' ?>"
+            data-holiday-dates="<?= e((string) json_encode($holidayDates, JSON_UNESCAPED_SLASHES)) ?>"
+        >
         <?= csrf_input() ?>
         <input type="hidden" name="loan_id" value="<?= e((string) $loan['id']) ?>">
 
@@ -315,10 +334,39 @@ require __DIR__ . '/../includes/layout_start.php';
         <div class="field full loan-submit-field">
             <button type="submit" class="btn btn-primary">Update Loan</button>
         </div>
-    </form>
-</section>
+        </form>
+    </div>
 
-<section class="loan-payment-layout">
+    <div class="loan-tab-panel" data-loan-tab-panel="collections" role="tabpanel" hidden>
+        <section class="loan-payment-layout">
+    <div class="loan-history-column">
+    <section class="loan-progress-panel" aria-label="Loan progress">
+        <div class="loan-progress-head">
+            <div>
+                <h2 class="loan-progress-title">Loan Progress</h2>
+                <p class="loan-progress-subtitle">Track repayment progress for this loan.</p>
+            </div>
+            <span class="loan-progress-pill"><?= e($loanProgressLabel) ?></span>
+        </div>
+        <div class="loan-progress-track" aria-hidden="true">
+            <div class="loan-progress-fill" style="--loan-progress: <?= e($loanProgressStyleValue) ?>%;"></div>
+        </div>
+        <div class="loan-progress-stats">
+            <div class="loan-progress-stat">
+                <span>Total Repayable</span>
+                <strong><?= e(money_label($pdo, $loanTotalRepayable)) ?></strong>
+            </div>
+            <div class="loan-progress-stat is-collected">
+                <span>Collected</span>
+                <strong><?= e(money_label($pdo, $loanTotalCollected)) ?></strong>
+            </div>
+            <div class="loan-progress-stat is-balance">
+                <span>Balance</span>
+                <strong><?= e(money_label($pdo, $loanBalance)) ?></strong>
+            </div>
+        </div>
+    </section>
+
     <div class="panel loan-history-panel">
         <div class="panel-head">
             <h2 class="panel-title">Collection History</h2>
@@ -366,6 +414,7 @@ require __DIR__ . '/../includes/layout_start.php';
             </table>
         </div>
     </div>
+    </div>
 
     <aside class="panel loan-collect-panel">
         <div class="panel-head">
@@ -404,11 +453,11 @@ require __DIR__ . '/../includes/layout_start.php';
                 <input type="hidden" name="loan_id" value="<?= e((string) $loanId) ?>">
                 <input type="hidden" name="installment_id" value="<?= e((string) $currentCollectible['id']) ?>">
                 <input type="hidden" name="collected_on" value="<?= e(today()) ?>">
-                <input type="hidden" name="return_to" value="<?= e('pages/loan_edit.php?loan_id=' . $loanId) ?>">
+                <input type="hidden" name="return_to" value="<?= e('pages/loan_edit.php?loan_id=' . $loanId . '#collections') ?>">
 
                 <div class="field">
                     <label>Amount Received</label>
-                    <input type="number" step="0.01" min="0.01" name="amount" value="<?= e(number_format($collectibleBalance, 2, '.', '')) ?>" required>
+                    <input type="number" step="0.01" min="0.01" name="amount" value="<?= e($autoFillAmountReceived ? number_format($collectibleBalance, 2, '.', '') : '') ?>" required>
                 </div>
                 <div class="field">
                     <label>Method</label>
@@ -427,8 +476,54 @@ require __DIR__ . '/../includes/layout_start.php';
         <?php endif; ?>
     </aside>
 </section>
+    </div>
+    </section>
+    </div>
+</div>
 
 <script>
+(() => {
+    const tabRoot = document.querySelector('[data-loan-tabs]');
+    if (!tabRoot) {
+        return;
+    }
+
+    const tabButtons = Array.from(tabRoot.querySelectorAll('[data-loan-tab-open]'));
+    const panels = Array.from(tabRoot.querySelectorAll('[data-loan-tab-panel]'));
+
+    const openTab = (target) => {
+        panels.forEach((panel) => {
+            const isActive = panel.getAttribute('data-loan-tab-panel') === target;
+            panel.classList.toggle('is-active', isActive);
+            panel.hidden = !isActive;
+        });
+
+        tabButtons.forEach((button) => {
+            const isActive = button.getAttribute('data-loan-tab-open') === target;
+            button.classList.toggle('is-active', isActive && button.classList.contains('loan-tab-button'));
+            if (button.classList.contains('loan-tab-button')) {
+                button.setAttribute('aria-selected', isActive ? 'true' : 'false');
+            }
+        });
+
+        if (target === 'collections') {
+            history.replaceState(null, '', '#collections');
+        } else if (window.location.hash === '#collections') {
+            history.replaceState(null, '', window.location.pathname + window.location.search);
+        }
+    };
+
+    tabButtons.forEach((button) => {
+        button.addEventListener('click', () => {
+            openTab(button.getAttribute('data-loan-tab-open') || 'details');
+        });
+    });
+
+    if (window.location.hash === '#collections') {
+        openTab('collections');
+    }
+})();
+
 (() => {
     const scheduleToggle = document.getElementById('schedule-next-payment-toggle');
     const scheduleInput = document.getElementById('next-payment-date-input');

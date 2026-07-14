@@ -969,12 +969,171 @@ button {
     gap: 8px;
 }
 
+.loan-edit-tabs-shell {
+    margin-bottom: 16px;
+}
+
+.loan-edit-actionbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 20px;
+}
+
+.loan-edit-tabs {
+    border-radius: 0 10px 10px 10px;
+    margin-bottom: 0;
+    margin-top: -1px;
+}
+
+.loan-tab-frame {
+    margin-top: 10px;
+}
+
+.loan-tab-nav {
+    display: flex;
+    align-items: flex-end;
+    margin: 0;
+    border-bottom: 0;
+}
+
+.loan-tab-button {
+    position: relative;
+    z-index: 1;
+    flex: 0 1 280px;
+    min-height: 48px;
+    border: 1px solid var(--edge);
+    border-bottom-color: var(--edge);
+    border-radius: 10px 10px 0 0;
+    background: rgba(10, 19, 27, 0.7);
+    color: var(--muted);
+    font: inherit;
+    font-weight: 700;
+    cursor: pointer;
+    margin-bottom: 0;
+}
+
+.loan-tab-button + .loan-tab-button {
+    margin-left: -1px;
+}
+
+.loan-tab-button.is-active {
+    background: rgba(20, 32, 42, 0.96);
+    color: var(--text);
+    border-color: var(--edge);
+    border-bottom-color: var(--edge);
+    box-shadow: inset 0 2px 0 var(--accent);
+}
+
+.loan-tab-panel[hidden] {
+    display: none;
+}
+
 .loan-payment-layout {
     display: grid;
     grid-template-columns: minmax(0, 7fr) minmax(320px, 3fr);
     gap: 16px;
     align-items: start;
-    margin-top: 16px;
+}
+
+.loan-history-column {
+    display: grid;
+    gap: 14px;
+    min-width: 0;
+}
+
+.loan-progress-panel {
+    padding: 18px;
+    border-radius: 10px;
+    background:
+        radial-gradient(circle at 0 0, rgba(56, 189, 248, 0.1), transparent 34%),
+        linear-gradient(135deg, rgba(255, 122, 26, 0.05), rgba(12, 28, 39, 0.35)),
+        var(--surface-2);
+    box-shadow: inset 0 0 0 1px var(--edge);
+}
+
+.loan-progress-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 14px;
+    margin-bottom: 12px;
+}
+
+.loan-progress-title {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 800;
+}
+
+.loan-progress-subtitle {
+    margin: 4px 0 0;
+    color: var(--muted);
+    font-size: 13px;
+}
+
+.loan-progress-pill {
+    flex: 0 0 auto;
+    padding: 5px 12px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 122, 26, 0.35);
+    background: rgba(255, 122, 26, 0.12);
+    color: var(--accent);
+    font-weight: 800;
+    font-size: 13px;
+}
+
+.loan-progress-track {
+    height: 10px;
+    margin: 10px 0 18px;
+    overflow: hidden;
+    border-radius: 999px;
+    background: rgba(148, 184, 213, 0.12);
+}
+
+.loan-progress-fill {
+    width: var(--loan-progress, 0%);
+    height: 100%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, var(--accent), #ff9f43);
+}
+
+.loan-progress-stats {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.loan-progress-stat {
+    min-width: 0;
+    padding: 0 20px;
+    border-left: 1px solid var(--edge);
+}
+
+.loan-progress-stat:first-child {
+    padding-left: 0;
+    border-left: 0;
+}
+
+.loan-progress-stat span {
+    display: block;
+    margin-bottom: 6px;
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.loan-progress-stat strong {
+    display: block;
+    font-size: 15px;
+    overflow-wrap: anywhere;
+}
+
+.loan-progress-stat.is-collected strong {
+    color: var(--success);
+}
+
+.loan-progress-stat.is-balance strong {
+    color: var(--accent);
 }
 
 .loan-payment-layout .panel-head {
@@ -2050,6 +2209,15 @@ textarea {
     margin-bottom: 0;
 }
 
+.today-collections-record-panel .panel-head-compact.has-actions {
+    margin-bottom: 12px;
+}
+
+.today-collections-record-panel .panel-head-actions {
+    justify-content: flex-end;
+    width: 100%;
+}
+
 .due-installment-cards {
     display: none;
 }
@@ -2784,6 +2952,21 @@ textarea {
         display: block;
     }
 
+    .today-collections-layout.mobile-record-mode .today-collections-record-panel .panel-head-actions {
+        display: flex;
+        justify-content: space-between;
+        width: 100%;
+    }
+
+    .today-collections-layout.mobile-record-mode .record-back-link {
+        order: 1;
+    }
+
+    .today-collections-layout.mobile-record-mode .record-history-link {
+        order: 2;
+        margin-left: auto;
+    }
+
     .today-collections-layout.mobile-record-mode .due-installment-cards {
         display: none;
     }
@@ -2816,6 +2999,15 @@ textarea {
 
     .loan-payment-layout {
         grid-template-columns: 1fr;
+    }
+
+    .loan-edit-actionbar {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .loan-edit-actionbar .panel-head-actions {
+        flex-wrap: wrap;
     }
 
     .loan-collect-panel {
@@ -2864,8 +3056,30 @@ textarea {
         grid-template-columns: 1fr;
     }
 
+    .loan-tab-nav {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .loan-tab-button {
+        flex: none;
+        min-height: 42px;
+        font-size: 14px;
+    }
+
     .loan-collect-panel {
         position: static;
+    }
+
+    .loan-progress-stats {
+        grid-template-columns: 1fr;
+        gap: 12px;
+    }
+
+    .loan-progress-stat,
+    .loan-progress-stat:first-child {
+        padding: 0;
+        border-left: 0;
     }
 
     .loan-collect-summary {
