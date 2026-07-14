@@ -70,6 +70,7 @@ require __DIR__ . '/../includes/layout_start.php';
             data-holiday-dates="<?= e((string) json_encode($holidayDates, JSON_UNESCAPED_SLASHES)) ?>"
         >
             <?= csrf_input() ?>
+            <div class="loan-form-divider">Loan Details</div>
             <div class="field">
                 <label>Loan No</label>
                 <input type="text" name="loan_number" value="<?= e($suggestedLoanNumber) ?>" inputmode="numeric" pattern="\d+" required>
@@ -93,6 +94,7 @@ require __DIR__ . '/../includes/layout_start.php';
                 <label>Loan Issued Date</label>
                 <input type="date" name="issued_date" value="<?= e($defaultIssuedDate) ?>" required>
             </div>
+            <div class="loan-form-divider">Terms &amp; Repayment</div>
             <div class="field">
                 <label>Principal Amount</label>
                 <input type="number" step="0.01" name="principal_amount" required>
@@ -142,6 +144,7 @@ require __DIR__ . '/../includes/layout_start.php';
                     </select>
                 </div>
             <?php endif; ?>
+            <div class="loan-form-divider">Installment Options</div>
             <div class="field full">
                 <label>Round Installment Amount</label>
                 <div class="loan-rounding-row">
@@ -153,12 +156,13 @@ require __DIR__ . '/../includes/layout_start.php';
                 </div>
                 <small id="rounded-installment-hint">When enabled, the last installment will carry the remaining balance.</small>
             </div>
+            <div class="loan-form-divider">Notes</div>
             <div class="field full">
-                <label>Notes</label>
+                <label class="sr-only">Notes</label>
                 <textarea name="notes" placeholder="Optional"></textarea>
             </div>
+            <div class="loan-form-divider">Repayment Preview</div>
             <div class="field full loan-preview-field">
-                <label>Repayment Preview</label>
                 <div class="calc-preview-grid calc-preview-grid-four">
                     <div class="calc-preview-item">
                         <p>Total Repayable</p>

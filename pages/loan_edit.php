@@ -199,6 +199,7 @@ require __DIR__ . '/../includes/layout_start.php';
         <?= csrf_input() ?>
         <input type="hidden" name="loan_id" value="<?= e((string) $loan['id']) ?>">
 
+        <div class="loan-form-divider">Loan Details</div>
         <div class="field">
             <label>Customer</label>
             <select name="customer_id" required <?= $repaymentLocked ? 'disabled' : '' ?>>
@@ -224,6 +225,7 @@ require __DIR__ . '/../includes/layout_start.php';
             <input type="date" name="issued_date" value="<?= e($issuedDate) ?>" required>
         </div>
 
+        <div class="loan-form-divider">Terms &amp; Repayment</div>
         <div class="field">
             <label>Interest Rate (%)</label>
             <div class="combo-field combo-field-interest">
@@ -291,6 +293,7 @@ require __DIR__ . '/../includes/layout_start.php';
             <?php endif; ?>
         </div>
 
+        <div class="loan-form-divider">Installment Options</div>
         <div class="field loan-schedule-field">
             <label>Schedule Next Payment</label>
             <div class="loan-schedule-row">
@@ -304,13 +307,14 @@ require __DIR__ . '/../includes/layout_start.php';
             <?php endif; ?>
         </div>
 
+        <div class="loan-form-divider">Notes</div>
         <div class="field full">
-            <label>Notes</label>
+            <label class="sr-only">Notes</label>
             <textarea name="notes" placeholder="Optional"><?= e((string) ($loan['notes'] ?? '')) ?></textarea>
         </div>
 
+        <div class="loan-form-divider">Repayment Preview</div>
         <div class="field full loan-preview-field">
-            <label>Repayment Preview</label>
             <div class="calc-preview-grid calc-preview-grid-four">
                 <div class="calc-preview-item">
                     <p>Total Repayable</p>

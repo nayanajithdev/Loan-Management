@@ -1369,6 +1369,40 @@ th {
     grid-template-columns: repeat(12, minmax(0, 1fr));
 }
 
+.loan-form-divider {
+    grid-column: span 12;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 18px 0 4px;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    line-height: 1.2;
+    text-transform: uppercase;
+}
+
+.loan-form-divider:first-child {
+    margin-top: 0;
+}
+
+.loan-form-divider::before,
+.loan-form-divider::after {
+    content: "";
+    height: 1px;
+    background: rgba(148, 163, 184, 0.34);
+}
+
+.loan-form-divider::before {
+    width: 28px;
+    flex: 0 0 28px;
+}
+
+.loan-form-divider::after {
+    flex: 1;
+}
+
 .field {
     grid-column: span 4;
     display: flex;
@@ -1699,12 +1733,101 @@ textarea {
     margin-left: 0;
 }
 
+.reports-tabs-shell {
+    margin-top: 0;
+}
+
+.reports-tabs-panel {
+    border-top-left-radius: 0;
+}
+
+.reports-collections-filter {
+    align-items: end;
+    margin-bottom: 18px;
+}
+
+.reports-date-field,
+.reports-sort-field {
+    grid-column: span 3;
+}
+
+.reports-filter-button-field {
+    grid-column: span 2;
+}
+
+.reports-filter-button-field .btn {
+    width: auto;
+    min-width: 120px;
+}
+
+.reports-summary-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    margin-bottom: 16px;
+}
+
+.reports-summary-grid .stat-card {
+    min-height: 104px;
+}
+
+.reports-summary-grid .stat-value-small {
+    font-size: 24px;
+}
+
+.reports-inner-panel {
+    background: rgba(12, 25, 34, 0.42);
+}
+
+.reports-placeholder-panel {
+    min-height: 240px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
 .activity-log-search-field {
     justify-content: flex-end;
 }
 
 .activity-log-search-field .search-control {
     width: min(390px, 100%);
+}
+
+.pagination-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 14px;
+    flex-wrap: wrap;
+}
+
+.pagination-info {
+    margin: 0;
+    color: var(--muted);
+    font-size: 13px;
+}
+
+.pagination-links {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.pagination-link {
+    min-width: 40px;
+    justify-content: center;
+}
+
+.pagination-link.is-current {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #111827;
+}
+
+.pagination-link.is-disabled {
+    opacity: 0.45;
+    pointer-events: none;
 }
 
 .settings-two-col {
@@ -3175,6 +3298,20 @@ textarea {
 
     .reports-filter-actions .btn {
         min-width: 100px;
+    }
+
+    .reports-date-field,
+    .reports-sort-field,
+    .reports-filter-button-field {
+        grid-column: span 12;
+    }
+
+    .reports-filter-button-field .btn {
+        width: 100%;
+    }
+
+    .reports-summary-grid {
+        grid-template-columns: 1fr;
     }
 
     .combo-field {

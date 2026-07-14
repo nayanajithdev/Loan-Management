@@ -13,7 +13,10 @@ $defaultTo = today();
 
 $fromDate = trim((string) ($_GET['from'] ?? $defaultFrom));
 $toDate = trim((string) ($_GET['to'] ?? $defaultTo));
-$search = trim((string) ($_GET['q'] ?? ''));
+$search = substr(trim((string) ($_GET['q'] ?? '')), 0, 120);
+$selectedUser = trim((string) ($_GET['user_id'] ?? 'all'));
+$currentPage = max(1, (int) ($_GET['page'] ?? 1));
+$perPage = 50;
 
 $fromObj = DateTimeImmutable::createFromFormat('Y-m-d', $fromDate) ?: new DateTimeImmutable($defaultFrom);
 $toObj = DateTimeImmutable::createFromFormat('Y-m-d', $toDate) ?: new DateTimeImmutable($defaultTo);
@@ -23,6 +26,11 @@ if ($fromObj > $toObj) {
 
 $fromDate = $fromObj->format('Y-m-d');
 $toDate = $toObj->format('Y-m-d');
+
+$logUsers = $pdo->query('SELECT id, full_name, username, role FROM users ORDER BY full_name ASC, username ASC')->fetchAll();
+if ($selectedUser !== 'all' && $selectedUser !== 'system' && !ctype_digit($selectedUser)) {
+    $selectedUser = 'all';
+}
 
 function activity_action_label(string $actionKey): string
 {
@@ -91,23 +99,29 @@ function activity_description_for_user(string $actionKey, string $description): 
     return $description;
 }
 
-$sql = "SELECT
-            al.id,
-            al.created_at,
-            al.action_key,
-            al.description,
-            COALESCE(u.full_name, 'System') AS actor_name,
-            COALESCE(u.username, '-') AS actor_username
-        FROM activity_logs al
-        LEFT JOIN users u ON u.id = al.actor_user_id
-        WHERE DATE(al.created_at) BETWEEN :from_date AND :to_date";
+function activity_logs_page_url(int $pageNumber): string
+{
+    $query = $_GET;
+    $query['page'] = $pageNumber;
+
+    return url('pages/activity_logs.php') . '?' . http_build_query($query);
+}
+
+$where = ['DATE(al.created_at) BETWEEN :from_date AND :to_date'];
 $params = [
     'from_date' => $fromDate,
     'to_date' => $toDate,
 ];
 
+if ($selectedUser === 'system') {
+    $where[] = 'al.actor_user_id IS NULL';
+} elseif (ctype_digit($selectedUser) && (int) $selectedUser > 0) {
+    $where[] = 'al.actor_user_id = :actor_user_id';
+    $params['actor_user_id'] = (int) $selectedUser;
+}
+
 if ($search !== '') {
-    $sql .= " AND (
+    $where[] = "(
         al.action_key LIKE :q_action
         OR al.description LIKE :q_desc
         OR COALESCE(u.full_name, '') LIKE :q_name
@@ -120,7 +134,37 @@ if ($search !== '') {
     $params['q_username'] = $searchLike;
 }
 
-$sql .= ' ORDER BY al.id DESC LIMIT 600';
+$whereSql = 'WHERE ' . implode(' AND ', $where);
+
+$countSql = "SELECT COUNT(*)
+        FROM activity_logs al
+        LEFT JOIN users u ON u.id = al.actor_user_id
+        {$whereSql}";
+$countStmt = $pdo->prepare($countSql);
+$countStmt->execute($params);
+$totalLogs = (int) $countStmt->fetchColumn();
+$totalPages = max(1, (int) ceil($totalLogs / $perPage));
+if ($currentPage > $totalPages) {
+    $currentPage = $totalPages;
+}
+$offset = ($currentPage - 1) * $perPage;
+$showingFrom = $totalLogs > 0 ? $offset + 1 : 0;
+$showingTo = min($offset + $perPage, $totalLogs);
+$pageStart = max(1, $currentPage - 2);
+$pageEnd = min($totalPages, $currentPage + 2);
+
+$sql = "SELECT
+            al.id,
+            al.created_at,
+            al.action_key,
+            al.description,
+            COALESCE(u.full_name, 'System') AS actor_name,
+            COALESCE(u.username, '-') AS actor_username
+        FROM activity_logs al
+        LEFT JOIN users u ON u.id = al.actor_user_id
+        {$whereSql}
+        ORDER BY al.id DESC
+        LIMIT {$perPage} OFFSET {$offset}";
 
 $stmt = $pdo->prepare($sql);
 $stmt->execute($params);
@@ -142,6 +186,19 @@ require __DIR__ . '/../includes/layout_start.php';
         <div class="field">
             <label>To Date</label>
             <input type="date" name="to" value="<?= e($toDate) ?>" required>
+        </div>
+        <div class="field">
+            <label>User</label>
+            <select name="user_id">
+                <option value="all" <?= $selectedUser === 'all' ? 'selected' : '' ?>>All Users</option>
+                <option value="system" <?= $selectedUser === 'system' ? 'selected' : '' ?>>System</option>
+                <?php foreach ($logUsers as $user): ?>
+                    <?php $userId = (string) $user['id']; ?>
+                    <option value="<?= e($userId) ?>" <?= $selectedUser === $userId ? 'selected' : '' ?>>
+                        <?= e((string) $user['full_name']) ?> (<?= e((string) $user['username']) ?> - <?= e(role_display_name((string) $user['role'])) ?>)
+                    </option>
+                <?php endforeach; ?>
+            </select>
         </div>
         <div class="field activity-log-search-field">
             <label class="sr-only">Search activity logs</label>
@@ -194,6 +251,27 @@ require __DIR__ . '/../includes/layout_start.php';
             </tbody>
         </table>
     </div>
+
+    <?php if ($totalLogs > 0): ?>
+        <div class="pagination-bar">
+            <p class="pagination-info">
+                Showing <?= e((string) $showingFrom) ?>-<?= e((string) $showingTo) ?> of <?= e((string) $totalLogs) ?>
+            </p>
+            <?php if ($totalPages > 1): ?>
+                <div class="pagination-links" aria-label="Activity log pagination">
+                    <a class="btn pagination-link <?= $currentPage <= 1 ? 'is-disabled' : '' ?>" href="<?= e(activity_logs_page_url(max(1, $currentPage - 1))) ?>">Previous</a>
+                    <?php for ($pageNumber = $pageStart; $pageNumber <= $pageEnd; $pageNumber++): ?>
+                        <?php if ($pageNumber === $currentPage): ?>
+                            <span class="btn pagination-link is-current"><?= e((string) $pageNumber) ?></span>
+                        <?php else: ?>
+                            <a class="btn pagination-link" href="<?= e(activity_logs_page_url($pageNumber)) ?>"><?= e((string) $pageNumber) ?></a>
+                        <?php endif; ?>
+                    <?php endfor; ?>
+                    <a class="btn pagination-link <?= $currentPage >= $totalPages ? 'is-disabled' : '' ?>" href="<?= e(activity_logs_page_url(min($totalPages, $currentPage + 1))) ?>">Next</a>
+                </div>
+            <?php endif; ?>
+        </div>
+    <?php endif; ?>
 </section>
 
 <?php require __DIR__ . '/../includes/layout_end.php';
