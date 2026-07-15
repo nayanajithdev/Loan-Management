@@ -150,9 +150,6 @@ require __DIR__ . '/../includes/layout_start.php';
                     View Customer
                 </a>
             <?php endif; ?>
-            <?php if ($canViewCollectionHistory): ?>
-                <button type="button" class="btn" data-loan-tab-open="collections">Collection History</button>
-            <?php endif; ?>
             <?php if ($canDeleteLoan): ?>
                 <form method="post" action="<?= e(url('actions/loan_delete.php')) ?>" class="inline-form" onsubmit="return confirm('Delete this loan permanently? This action cannot be undone.');">
                     <?= csrf_input() ?>

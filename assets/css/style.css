@@ -1363,6 +1363,10 @@ th {
 .badge-danger { background: rgba(239, 68, 68, 0.2); color: #ff8a8a; }
 .badge-neutral { background: rgba(148, 163, 184, 0.2); color: #cad5e2; }
 
+[hidden] {
+    display: none !important;
+}
+
 .form-grid {
     display: grid;
     gap: 12px;
@@ -1374,7 +1378,7 @@ th {
     display: flex;
     align-items: center;
     gap: 12px;
-    margin: 18px 0 4px;
+    margin: 18px -16px 4px;
     color: var(--muted);
     font-size: 12px;
     font-weight: 700;
@@ -1395,8 +1399,8 @@ th {
 }
 
 .loan-form-divider::before {
-    width: 28px;
-    flex: 0 0 28px;
+    width: 44px;
+    flex: 0 0 44px;
 }
 
 .loan-form-divider::after {
@@ -1746,8 +1750,18 @@ textarea {
     margin-bottom: 18px;
 }
 
+.reports-profit-filter {
+    align-items: end;
+    margin-bottom: 18px;
+}
+
 .reports-date-field,
 .reports-sort-field {
+    grid-column: span 3;
+}
+
+.reports-profit-mode-field,
+.reports-profit-date-field {
     grid-column: span 3;
 }
 
@@ -1773,8 +1787,24 @@ textarea {
     font-size: 24px;
 }
 
-.reports-inner-panel {
-    background: rgba(12, 25, 34, 0.42);
+.reports-profit-summary {
+    margin-top: 0;
+}
+
+.reports-table-section {
+    border-top: 1px solid var(--border);
+    margin: 12px -16px 0;
+    padding: 14px 16px 0;
+}
+
+.reports-table-head {
+    margin-bottom: 12px;
+}
+
+.reports-profit-total-row td {
+    border-top: 1px solid var(--border-strong);
+    color: var(--text);
+    font-weight: 800;
 }
 
 .reports-placeholder-panel {
@@ -3302,7 +3332,10 @@ textarea {
 
     .reports-date-field,
     .reports-sort-field,
-    .reports-filter-button-field {
+    .reports-filter-button-field,
+    .reports-profit-mode-field,
+    .reports-profit-date-field,
+    .reports-profit-action-field {
         grid-column: span 12;
     }
 

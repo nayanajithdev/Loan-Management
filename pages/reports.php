@@ -10,6 +10,11 @@ $activePage = 'reports';
 
 refresh_overdue_installments($pdo);
 
+$activeReportTab = (string) ($_GET['report_tab'] ?? 'collections');
+if (!in_array($activeReportTab, ['collections', 'profit'], true)) {
+    $activeReportTab = 'collections';
+}
+
 $selectedDate = trim((string) ($_GET['date'] ?? today()));
 $dateObj = DateTimeImmutable::createFromFormat('Y-m-d', $selectedDate) ?: new DateTimeImmutable(today());
 $selectedDate = $dateObj->format('Y-m-d');
@@ -67,19 +72,95 @@ $collections = $collectionsStmt->fetchAll();
 $collectedTotal = (float) ($collectionTotals['collected_total'] ?? 0);
 $paymentCount = (int) ($collectionTotals['payment_count'] ?? 0);
 
+$profitMode = (string) ($_GET['profit_mode'] ?? 'daily');
+if (!in_array($profitMode, ['daily', 'monthly'], true)) {
+    $profitMode = 'daily';
+}
+
+$profitDate = trim((string) ($_GET['profit_date'] ?? today()));
+$profitDateObj = DateTimeImmutable::createFromFormat('Y-m-d', $profitDate) ?: new DateTimeImmutable(today());
+$profitDate = $profitDateObj->format('Y-m-d');
+
+$defaultMonthStart = (new DateTimeImmutable(today()))->modify('first day of this month')->format('Y-m-d');
+$profitFrom = trim((string) ($_GET['profit_from'] ?? $defaultMonthStart));
+$profitTo = trim((string) ($_GET['profit_to'] ?? today()));
+$profitFromObj = DateTimeImmutable::createFromFormat('Y-m-d', $profitFrom) ?: new DateTimeImmutable($defaultMonthStart);
+$profitToObj = DateTimeImmutable::createFromFormat('Y-m-d', $profitTo) ?: new DateTimeImmutable(today());
+if ($profitFromObj > $profitToObj) {
+    [$profitFromObj, $profitToObj] = [$profitToObj, $profitFromObj];
+}
+$profitFrom = $profitFromObj->format('Y-m-d');
+$profitTo = $profitToObj->format('Y-m-d');
+
+$profitRows = [];
+$profitCollectedTotal = 0.0;
+$profitTotal = 0.0;
+
+if ($profitMode === 'monthly') {
+    $profitStmt = $pdo->prepare(
+        "SELECT
+            c.collected_on AS report_date,
+            SUM(c.amount) AS collected_amount,
+            SUM(
+                CASE
+                    WHEN l.total_amount > 0
+                    THEN c.amount * ((l.total_amount - l.principal_amount) / l.total_amount)
+                    ELSE 0
+                END
+            ) AS profit_amount
+         FROM collections c
+         JOIN loans l ON l.id = c.loan_id
+         WHERE c.collected_on BETWEEN :profit_from AND :profit_to
+         GROUP BY c.collected_on
+         ORDER BY c.collected_on ASC"
+    );
+    $profitStmt->execute([
+        'profit_from' => $profitFrom,
+        'profit_to' => $profitTo,
+    ]);
+    $profitRows = $profitStmt->fetchAll();
+} else {
+    $profitStmt = $pdo->prepare(
+        "SELECT
+            l.loan_number,
+            MIN(CASE WHEN l.loan_number REGEXP '^[0-9]+$' THEN CAST(l.loan_number AS UNSIGNED) ELSE l.id END) AS loan_sort,
+            SUM(c.amount) AS collected_amount,
+            SUM(
+                CASE
+                    WHEN l.total_amount > 0
+                    THEN c.amount * ((l.total_amount - l.principal_amount) / l.total_amount)
+                    ELSE 0
+                END
+            ) AS profit_amount
+         FROM collections c
+         JOIN loans l ON l.id = c.loan_id
+         WHERE c.collected_on = :profit_date
+         GROUP BY l.id, l.loan_number
+         ORDER BY loan_sort ASC, l.loan_number ASC"
+    );
+    $profitStmt->execute(['profit_date' => $profitDate]);
+    $profitRows = $profitStmt->fetchAll();
+}
+
+foreach ($profitRows as $profitRow) {
+    $profitCollectedTotal += (float) ($profitRow['collected_amount'] ?? 0);
+    $profitTotal += (float) ($profitRow['profit_amount'] ?? 0);
+}
+
 require __DIR__ . '/../includes/layout_start.php';
 ?>
 
 <div class="loan-edit-tabs-shell reports-tabs-shell" data-reports-tabs>
     <div class="loan-tab-frame">
         <div class="loan-tab-nav" role="tablist" aria-label="Report sections">
-            <button type="button" class="loan-tab-button is-active" data-report-tab-open="collections" role="tab" aria-selected="true">Collections</button>
-            <button type="button" class="loan-tab-button" data-report-tab-open="more" role="tab" aria-selected="false">More Reports</button>
+            <button type="button" class="loan-tab-button <?= $activeReportTab === 'collections' ? 'is-active' : '' ?>" data-report-tab-open="collections" role="tab" aria-selected="<?= $activeReportTab === 'collections' ? 'true' : 'false' ?>">Collections</button>
+            <button type="button" class="loan-tab-button <?= $activeReportTab === 'profit' ? 'is-active' : '' ?>" data-report-tab-open="profit" role="tab" aria-selected="<?= $activeReportTab === 'profit' ? 'true' : 'false' ?>">Profit</button>
         </div>
 
         <section class="panel loan-edit-tabs reports-tabs-panel">
-            <div class="loan-tab-panel is-active" data-report-tab-panel="collections" role="tabpanel">
+            <div class="loan-tab-panel <?= $activeReportTab === 'collections' ? 'is-active' : '' ?>" data-report-tab-panel="collections" role="tabpanel" <?= $activeReportTab === 'collections' ? '' : 'hidden' ?>>
                 <form method="get" class="form-grid reports-collections-filter">
+                    <input type="hidden" name="report_tab" value="collections">
                     <div class="field reports-date-field">
                         <label>Select Date</label>
                         <input type="date" name="date" value="<?= e($selectedDate) ?>" required>
@@ -118,8 +199,8 @@ require __DIR__ . '/../includes/layout_start.php';
                     </article>
                 </section>
 
-                <section class="panel reports-inner-panel">
-                    <div class="panel-head">
+                <section class="reports-table-section">
+                    <div class="panel-head reports-table-head">
                         <h2 class="panel-title">Collections</h2>
                     </div>
                     <div class="table-wrap">
@@ -166,10 +247,121 @@ require __DIR__ . '/../includes/layout_start.php';
                 </section>
             </div>
 
-            <div class="loan-tab-panel" data-report-tab-panel="more" role="tabpanel" hidden>
-                <section class="panel reports-inner-panel reports-placeholder-panel">
-                    <h2 class="panel-title">More Reports</h2>
-                    <p class="muted-text">This tab is ready. We can build the next report here later.</p>
+            <div class="loan-tab-panel <?= $activeReportTab === 'profit' ? 'is-active' : '' ?>" data-report-tab-panel="profit" role="tabpanel" <?= $activeReportTab === 'profit' ? '' : 'hidden' ?>>
+                <form method="get" class="form-grid reports-profit-filter">
+                    <input type="hidden" name="report_tab" value="profit">
+                    <div class="field reports-profit-mode-field">
+                        <label>Report Type</label>
+                        <select name="profit_mode" data-profit-mode>
+                            <option value="daily" <?= $profitMode === 'daily' ? 'selected' : '' ?>>Daily</option>
+                            <option value="monthly" <?= $profitMode === 'monthly' ? 'selected' : '' ?>>Monthly</option>
+                        </select>
+                    </div>
+                    <div class="field reports-profit-date-field" data-profit-daily <?= $profitMode === 'monthly' ? 'hidden' : '' ?>>
+                        <label>Select Date</label>
+                        <input type="date" name="profit_date" value="<?= e($profitDate) ?>" <?= $profitMode === 'monthly' ? 'disabled' : '' ?>>
+                    </div>
+                    <div class="field reports-profit-date-field" data-profit-monthly <?= $profitMode === 'monthly' ? '' : 'hidden' ?>>
+                        <label>From Date</label>
+                        <input type="date" name="profit_from" value="<?= e($profitFrom) ?>" <?= $profitMode === 'monthly' ? '' : 'disabled' ?>>
+                    </div>
+                    <div class="field reports-profit-date-field" data-profit-monthly <?= $profitMode === 'monthly' ? '' : 'hidden' ?>>
+                        <label>To Date</label>
+                        <input type="date" name="profit_to" value="<?= e($profitTo) ?>" <?= $profitMode === 'monthly' ? '' : 'disabled' ?>>
+                    </div>
+                    <div class="field reports-filter-button-field reports-profit-action-field">
+                        <label class="sr-only">Apply</label>
+                        <button type="submit" class="btn btn-primary">Apply</button>
+                    </div>
+                    <div class="field reports-filter-button-field reports-profit-action-field">
+                        <label class="sr-only">Reset</label>
+                        <a class="btn" href="<?= e(url('pages/reports.php?report_tab=profit')) ?>">Reset</a>
+                    </div>
+                </form>
+
+                <section class="card-grid reports-summary-grid reports-profit-summary">
+                    <article class="stat-card">
+                        <p class="stat-label"><?= $profitMode === 'monthly' ? 'Selected Range' : 'Selected Date' ?></p>
+                        <p class="stat-value stat-value-small">
+                            <?= $profitMode === 'monthly' ? e(display_date($profitFrom) . ' - ' . display_date($profitTo)) : e(display_date($profitDate)) ?>
+                        </p>
+                    </article>
+                    <article class="stat-card">
+                        <p class="stat-label">Collected Amount</p>
+                        <p class="stat-value"><?= e(money_label($pdo, $profitCollectedTotal)) ?></p>
+                    </article>
+                    <article class="stat-card">
+                        <p class="stat-label">Profit</p>
+                        <p class="stat-value"><?= e(money_label($pdo, $profitTotal)) ?></p>
+                    </article>
+                </section>
+
+                <section class="reports-table-section">
+                    <div class="panel-head reports-table-head">
+                        <h2 class="panel-title"><?= $profitMode === 'monthly' ? 'Monthly Profit' : 'Daily Profit' ?></h2>
+                    </div>
+                    <div class="table-wrap">
+                        <?php if ($profitMode === 'monthly'): ?>
+                            <table class="collection-history-table">
+                                <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th class="text-right">Collected Amount</th>
+                                    <th class="text-right">Profit</th>
+                                </tr>
+                                </thead>
+                                <tbody>
+                                <?php if (!$profitRows): ?>
+                                    <tr><td colspan="3">No profit records found for selected range.</td></tr>
+                                <?php else: ?>
+                                    <?php foreach ($profitRows as $row): ?>
+                                        <tr>
+                                            <td><?= e(display_date((string) $row['report_date'])) ?></td>
+                                            <td class="text-right"><?= e(money_label($pdo, (float) $row['collected_amount'])) ?></td>
+                                            <td class="text-right"><?= e(money_label($pdo, (float) $row['profit_amount'])) ?></td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                    <tr class="reports-profit-total-row">
+                                        <td>Total</td>
+                                        <td class="text-right"><?= e(money_label($pdo, $profitCollectedTotal)) ?></td>
+                                        <td class="text-right"><?= e(money_label($pdo, $profitTotal)) ?></td>
+                                    </tr>
+                                <?php endif; ?>
+                                </tbody>
+                            </table>
+                        <?php else: ?>
+                            <table class="collection-history-table">
+                                <thead>
+                                <tr>
+                                    <th>Loan No</th>
+                                    <th class="text-right">Profit</th>
+                                </tr>
+                                </thead>
+                                <tbody>
+                                <?php if (!$profitRows): ?>
+                                    <tr><td colspan="2">No profit records found for selected date.</td></tr>
+                                <?php else: ?>
+                                    <?php foreach ($profitRows as $row): ?>
+                                        <tr>
+                                            <td><?= e((string) $row['loan_number']) ?></td>
+                                            <td class="text-right"><?= e(money_label($pdo, (float) $row['profit_amount'])) ?></td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                    <tr class="reports-profit-total-row">
+                                        <td>
+                                            <span class="muted-text">Collected:</span>
+                                            <?= e(money_label($pdo, $profitCollectedTotal)) ?>
+                                        </td>
+                                        <td class="text-right">
+                                            <span class="muted-text">Profit:</span>
+                                            <?= e(money_label($pdo, $profitTotal)) ?>
+                                        </td>
+                                    </tr>
+                                <?php endif; ?>
+                                </tbody>
+                            </table>
+                        <?php endif; ?>
+                    </div>
                 </section>
             </div>
         </section>
@@ -203,6 +395,30 @@ require __DIR__ . '/../includes/layout_start.php';
     tabButtons.forEach((button) => {
         button.addEventListener('click', () => openTab(button.getAttribute('data-report-tab-open') || 'collections'));
     });
+
+    const profitMode = tabRoot.querySelector('[data-profit-mode]');
+    if (!profitMode) {
+        return;
+    }
+
+    const dailyFields = Array.from(tabRoot.querySelectorAll('[data-profit-daily]'));
+    const monthlyFields = Array.from(tabRoot.querySelectorAll('[data-profit-monthly]'));
+    const setFieldState = (fields, enabled) => {
+        fields.forEach((field) => {
+            field.hidden = !enabled;
+            field.querySelectorAll('input, select, textarea').forEach((input) => {
+                input.disabled = !enabled;
+            });
+        });
+    };
+    const syncProfitMode = () => {
+        const isMonthly = profitMode.value === 'monthly';
+        setFieldState(dailyFields, !isMonthly);
+        setFieldState(monthlyFields, isMonthly);
+    };
+
+    profitMode.addEventListener('change', syncProfitMode);
+    syncProfitMode();
 })();
 </script>
 
