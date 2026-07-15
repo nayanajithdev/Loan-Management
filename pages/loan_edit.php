@@ -110,6 +110,19 @@ $loanProgressPercent = $loanTotalRepayable > 0
     : 0.0;
 $loanProgressStyleValue = number_format($loanProgressPercent, 2, '.', '');
 $loanProgressLabel = number_format($loanProgressPercent, 1) . '%';
+$loanArrearsStmt = $pdo->prepare(
+    'SELECT COUNT(*)
+     FROM loan_installments
+     WHERE loan_id = :loan_id
+       AND due_date < :today
+       AND due_amount > paid_amount'
+);
+$loanArrearsStmt->execute([
+    'loan_id' => $loanId,
+    'today' => today(),
+]);
+$loanArrearsCount = (int) $loanArrearsStmt->fetchColumn();
+$loanArrearsLabel = $loanArrearsCount === 1 ? '1 installment' : $loanArrearsCount . ' installments';
 
 $nextInstallmentStmt = $pdo->prepare(
     "SELECT *
@@ -340,33 +353,37 @@ require __DIR__ . '/../includes/layout_start.php';
 
     <div class="loan-tab-panel" data-loan-tab-panel="collections" role="tabpanel" hidden>
         <section class="loan-payment-layout">
-    <div class="loan-history-column">
-    <section class="loan-progress-panel" aria-label="Loan progress">
-        <div class="loan-progress-head">
-            <div>
-                <h2 class="loan-progress-title">Loan Progress</h2>
-                <p class="loan-progress-subtitle">Track repayment progress for this loan.</p>
-            </div>
-            <span class="loan-progress-pill"><?= e($loanProgressLabel) ?></span>
-        </div>
-        <div class="loan-progress-track" aria-hidden="true">
-            <div class="loan-progress-fill" style="--loan-progress: <?= e($loanProgressStyleValue) ?>%;"></div>
-        </div>
-        <div class="loan-progress-stats">
-            <div class="loan-progress-stat">
-                <span>Total Repayable</span>
-                <strong><?= e(money_label($pdo, $loanTotalRepayable)) ?></strong>
-            </div>
-            <div class="loan-progress-stat is-collected">
-                <span>Collected</span>
-                <strong><?= e(money_label($pdo, $loanTotalCollected)) ?></strong>
-            </div>
-            <div class="loan-progress-stat is-balance">
-                <span>Balance</span>
-                <strong><?= e(money_label($pdo, $loanBalance)) ?></strong>
-            </div>
-        </div>
-    </section>
+            <div class="loan-history-column">
+                <section class="loan-progress-panel" aria-label="Loan progress">
+                    <div class="loan-progress-head">
+                        <div>
+                            <h2 class="loan-progress-title">Loan Progress</h2>
+                            <p class="loan-progress-subtitle">Track repayment progress for this loan.</p>
+                        </div>
+                        <span class="loan-progress-pill"><?= e($loanProgressLabel) ?></span>
+                    </div>
+                    <div class="loan-progress-track" aria-hidden="true">
+                        <div class="loan-progress-fill" style="--loan-progress: <?= e($loanProgressStyleValue) ?>%;"></div>
+                    </div>
+                    <div class="loan-progress-stats">
+                        <div class="loan-progress-stat">
+                            <span>Total Repayable</span>
+                            <strong><?= e(money_label($pdo, $loanTotalRepayable)) ?></strong>
+                        </div>
+                        <div class="loan-progress-stat is-collected">
+                            <span>Collected</span>
+                            <strong><?= e(money_label($pdo, $loanTotalCollected)) ?></strong>
+                        </div>
+                        <div class="loan-progress-stat is-balance">
+                            <span>Balance</span>
+                            <strong><?= e(money_label($pdo, $loanBalance)) ?></strong>
+                        </div>
+                        <div class="loan-progress-stat is-arrears <?= $loanArrearsCount > 0 ? 'has-arrears' : '' ?>">
+                            <span>Arrears</span>
+                            <strong><?= e($loanArrearsLabel) ?></strong>
+                        </div>
+                    </div>
+                </section>
 
     <div class="panel loan-history-panel">
         <div class="panel-head">

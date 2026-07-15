@@ -1101,7 +1101,7 @@ button {
 
 .loan-progress-stats {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 .loan-progress-stat {
@@ -1134,6 +1134,14 @@ button {
 
 .loan-progress-stat.is-balance strong {
     color: var(--accent);
+}
+
+.loan-progress-stat.is-arrears strong {
+    color: var(--muted);
+}
+
+.loan-progress-stat.is-arrears.has-arrears strong {
+    color: #ff6262;
 }
 
 .loan-payment-layout .panel-head {
