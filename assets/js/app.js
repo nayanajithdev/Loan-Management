@@ -402,7 +402,63 @@
     const confirmForms = document.querySelectorAll('form[data-confirm]');
     confirmForms.forEach((form) => {
         form.addEventListener('submit', (event) => {
+            if (form.getAttribute('data-confirmed') === '1') {
+                return;
+            }
+
             const message = form.getAttribute('data-confirm') || 'Are you sure?';
+            if (form.getAttribute('data-inline-confirm') === '1') {
+                const submitter = event.submitter instanceof HTMLButtonElement || event.submitter instanceof HTMLInputElement
+                    ? event.submitter
+                    : form.querySelector('[type="submit"]');
+                if (!(submitter instanceof HTMLElement) || submitter.disabled) {
+                    event.preventDefault();
+                    return;
+                }
+
+                if (submitter.getAttribute('data-inline-confirm-submit') === '1') {
+                    form.setAttribute('data-confirmed', '1');
+                    return;
+                }
+
+                event.preventDefault();
+
+                if (form.querySelector('[data-inline-confirm-actions]')) {
+                    return;
+                }
+
+                const actions = document.createElement('div');
+                actions.className = 'inline-confirm-actions';
+                actions.setAttribute('data-inline-confirm-actions', '1');
+                actions.setAttribute('aria-label', message);
+
+                const confirmButton = document.createElement('button');
+                confirmButton.type = 'submit';
+                const confirmVariant = form.getAttribute('data-inline-confirm-variant') === 'danger' ? 'btn-danger' : 'btn-success';
+                confirmButton.className = `btn ${confirmVariant}`;
+                confirmButton.textContent = 'Confirm';
+                confirmButton.setAttribute('data-inline-confirm-submit', '1');
+
+                const cancelButton = document.createElement('button');
+                cancelButton.type = 'button';
+                cancelButton.className = 'btn';
+                cancelButton.textContent = 'Cancel';
+
+                actions.append(confirmButton, cancelButton);
+                submitter.hidden = true;
+                submitter.insertAdjacentElement('afterend', actions);
+                confirmButton.focus();
+
+                cancelButton.addEventListener('click', () => {
+                    actions.remove();
+                    form.removeAttribute('data-confirmed');
+                    submitter.hidden = false;
+                    submitter.focus();
+                }, { once: true });
+
+                return;
+            }
+
             if (!window.confirm(message)) {
                 event.preventDefault();
             }

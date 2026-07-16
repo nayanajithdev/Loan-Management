@@ -49,10 +49,9 @@ require __DIR__ . '/../includes/layout_start.php';
         <li>Backup and restore tools for business continuity.</li>
     </ul>
 
-    <h4>Support & Updates</h4>
+    <h4>Support</h4>
     <p>
-        For software updates, support, and maintenance, contact your system developer.
-        Update notifications are shown inside the application when available.
+        For software support and maintenance, contact your system developer.
     </p>
 
     <div class="about-note">

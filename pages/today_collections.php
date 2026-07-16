@@ -340,7 +340,7 @@ require __DIR__ . '/../includes/layout_start.php';
         </div>
 
         <?php if ($selectedCollectionStatus === 'collected'): ?>
-            <form method="post" action="<?= e(url('actions/collection_undo.php')) ?>" class="form-grid" data-confirm="Undo this collection? This will restore the previous installment state.">
+            <form method="post" action="<?= e(url('actions/collection_undo.php')) ?>" class="form-grid" data-confirm="Undo this collection? This will restore the previous installment state." data-inline-confirm="1" data-inline-confirm-variant="danger">
                 <?= csrf_input() ?>
                 <input type="hidden" name="collection_id" value="<?= e($hasSelectedCollection ? (string) $selectedCollection['collection_id'] : '') ?>">
                 <input type="hidden" name="return_to" value="<?= e($returnTo) ?>">
@@ -397,7 +397,7 @@ require __DIR__ . '/../includes/layout_start.php';
                 </p>
             <?php endif; ?>
 
-            <form method="post" action="<?= e(url('actions/collection_save.php')) ?>" class="form-grid" data-confirm="Confirm this collection payment?">
+            <form method="post" action="<?= e(url('actions/collection_save.php')) ?>" class="form-grid" data-confirm="Confirm this collection payment?" data-inline-confirm="1">
                 <?= csrf_input() ?>
                 <input type="hidden" name="loan_id" value="<?= e($hasSelectedInstallment ? (string) $selectedInstallment['loan_id'] : '') ?>">
                 <input type="hidden" name="installment_id" value="<?= e($hasSelectedInstallment ? (string) $selectedInstallment['id'] : '') ?>">

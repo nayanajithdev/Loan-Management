@@ -2,7 +2,6 @@
 $currentScript = basename((string) ($_SERVER['SCRIPT_NAME'] ?? ''));
 $businessName = system_setting($pdo, 'business_name', 'Loan Manager');
 $businessIconPath = business_icon_path($pdo);
-$updateNotice = current_update_notice();
 $authUser = current_user();
 $businessInitial = strtoupper(substr(preg_replace('/\s+/', '', $businessName), 0, 1));
 if ($businessInitial === '') {
@@ -206,22 +205,6 @@ $brandHref = can('business_settings.manage') ? 'pages/settings.php' : 'pages/abo
     </div>
 
     <div class="sidebar-footer">
-        <?php if ($updateNotice !== null): ?>
-            <?php $updateSeverity = (string) ($updateNotice['severity'] ?? 'warning'); ?>
-            <?php $updateVersion = trim((string) ($updateNotice['version'] ?? '')); ?>
-            <a class="sidebar-version sidebar-version-update sidebar-version-<?= e($updateSeverity) ?> sidebar-version-link" href="<?= e(url('pages/update_notice.php')) ?>">
-                <span class="sidebar-version-icon" aria-hidden="true">
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
-                        <path d="M3 3v5h5"/>
-                        <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/>
-                        <path d="M16 16h5v5"/>
-                    </svg>
-                </span>
-                Update Available<?= $updateVersion !== '' ? (' - v' . e($updateVersion)) : '' ?>
-            </a>
-        <?php else: ?>
-            <p class="sidebar-version">LoanDesk v<?= e(app_version()) ?></p>
-        <?php endif; ?>
+        <p class="sidebar-version">LoanDesk v<?= e(app_version()) ?></p>
     </div>
 </aside>

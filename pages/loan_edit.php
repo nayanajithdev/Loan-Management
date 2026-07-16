@@ -466,7 +466,7 @@ require __DIR__ . '/../includes/layout_start.php';
                 </div>
             </div>
 
-            <form class="loan-collect-form" method="post" action="<?= e(url('actions/collection_save.php')) ?>" data-confirm="Confirm this collection payment?">
+            <form class="loan-collect-form" method="post" action="<?= e(url('actions/collection_save.php')) ?>" data-confirm="Confirm this collection payment?" data-inline-confirm="1">
                 <?= csrf_input() ?>
                 <input type="hidden" name="loan_id" value="<?= e((string) $loanId) ?>">
                 <input type="hidden" name="installment_id" value="<?= e((string) $currentCollectible['id']) ?>">
