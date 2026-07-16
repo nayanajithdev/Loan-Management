@@ -65,6 +65,7 @@ function permission_groups(): array
             'permissions' => [
                 'today_collections.view' => ['label' => 'Today Collection', 'description' => 'View due installments and collection screen.'],
                 'collections.record' => ['label' => 'Record Collection', 'description' => 'Save installment payments.'],
+                'collections.undo' => ['label' => 'Undo Collection', 'description' => 'Reverse the latest saved collection using stored installment snapshots.'],
                 'collections.backdate' => ['label' => 'Backdated Entry', 'description' => 'Record a payment as paid on an earlier date.'],
                 'collections.schedule' => ['label' => 'Schedule Next Payment', 'description' => 'Move a customer next payment date without marking bad quality.'],
                 'collections.history' => ['label' => 'Collection History', 'description' => 'View saved collection records.'],
@@ -1124,6 +1125,60 @@ function collection_due_installments_for_date(PDO $pdo, string $selectedDate, st
     return $futureRows;
 }
 
+function collection_collected_installments_for_date(PDO $pdo, string $selectedDate, string $search, string $currentRole, int $currentUserId): array
+{
+    $sql = "SELECT
+                li.id,
+                li.loan_id,
+                li.installment_no,
+                li.due_date,
+                li.due_amount,
+                li.paid_amount,
+                li.status,
+                col.id AS collection_id,
+                col.amount AS collected_amount,
+                col.collected_on,
+                col.created_at AS collected_at,
+                col.method,
+                col.note,
+                col.payment_ref,
+                col.meta_json,
+                l.loan_number,
+                l.installment_frequency,
+                c.id AS customer_id,
+                c.full_name,
+                c.phone,
+                COALESCE(u.full_name, 'Unknown') AS collected_by_name
+            FROM collections col
+            JOIN loan_installments li ON li.id = col.installment_id
+            JOIN loans l ON l.id = col.loan_id
+            JOIN customers c ON c.id = l.customer_id
+            LEFT JOIN users u ON u.id = col.collected_by_user_id
+            WHERE col.collected_on = :selected_date";
+
+    $params = ['selected_date' => $selectedDate];
+
+    if (is_collector_role($currentRole)) {
+        $sql .= ' AND l.assigned_user_id = :assigned_user_id';
+        $params['assigned_user_id'] = $currentUserId;
+    }
+
+    if ($search !== '') {
+        $sql .= " AND (l.loan_number LIKE :q_loan OR c.full_name LIKE :q_name OR c.phone LIKE :q_phone)";
+        $searchLike = '%' . $search . '%';
+        $params['q_loan'] = $searchLike;
+        $params['q_name'] = $searchLike;
+        $params['q_phone'] = $searchLike;
+    }
+
+    $sql .= ' ORDER BY col.created_at DESC, col.id DESC';
+
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($params);
+
+    return $stmt->fetchAll();
+}
+
 function schedule_next_installment_date(PDO $pdo, int $loanId, string $scheduledDate): array
 {
     if ($loanId <= 0) {
@@ -1144,7 +1199,7 @@ function schedule_next_installment_date(PDO $pdo, int $loanId, string $scheduled
     $scheduledDateObj = new DateTimeImmutable($scheduledDate);
 
     $pendingStmt = $pdo->prepare(
-        "SELECT id, installment_no, due_date, due_amount, paid_amount, status
+        "SELECT *
          FROM loan_installments
          WHERE loan_id = :loan_id
            AND status IN ('pending', 'partial', 'overdue')
@@ -1180,6 +1235,10 @@ function schedule_next_installment_date(PDO $pdo, int $loanId, string $scheduled
     }
 
     $deltaDays = (int) $currentDueObj->diff($scheduledDateObj)->format('%r%a');
+    $scheduleSnapshots = array_map(
+        static fn (array $installment): array => installment_snapshot($installment, true),
+        $pendingInstallments
+    );
     $updateStmt = $pdo->prepare(
         'UPDATE loan_installments
          SET due_date = :due_date, status = :status
@@ -1217,6 +1276,7 @@ function schedule_next_installment_date(PDO $pdo, int $loanId, string $scheduled
         'to_due_date' => $scheduledDate,
         'changed' => true,
         'shifted_count' => count($pendingInstallments),
+        'installment_snapshots' => $scheduleSnapshots,
     ];
 }
 
@@ -1608,6 +1668,289 @@ function record_loan_collection_payment(
         'payment_ref' => $paymentRef,
     ];
 }
+
+function append_collection_payment_snapshots(PDO $pdo, int $loanId, string $paymentRef, array $snapshots, array $extraMeta = []): void
+{
+    $paymentRef = trim($paymentRef);
+    if ($loanId <= 0 || $paymentRef === '' || $snapshots === []) {
+        return;
+    }
+
+    $metaStmt = $pdo->prepare(
+        'SELECT meta_json
+         FROM collections
+         WHERE loan_id = :loan_id
+           AND payment_ref = :payment_ref
+         ORDER BY id ASC
+         LIMIT 1'
+    );
+    $metaStmt->execute([
+        'loan_id' => $loanId,
+        'payment_ref' => $paymentRef,
+    ]);
+    $meta = json_decode((string) $metaStmt->fetchColumn(), true);
+    if (!is_array($meta)) {
+        $meta = [];
+    }
+
+    $existingSnapshots = isset($meta['installment_snapshots']) && is_array($meta['installment_snapshots'])
+        ? $meta['installment_snapshots']
+        : [];
+    $seen = [];
+    foreach ($existingSnapshots as $snapshot) {
+        if (!is_array($snapshot)) {
+            continue;
+        }
+        $data = isset($snapshot['row']) && is_array($snapshot['row'])
+            ? $snapshot['row']
+            : (isset($snapshot['data']) && is_array($snapshot['data']) ? $snapshot['data'] : $snapshot);
+        $id = (int) ($data['id'] ?? $snapshot['id'] ?? 0);
+        if ($id > 0) {
+            $seen[$id] = true;
+        }
+    }
+
+    foreach ($snapshots as $snapshot) {
+        if (!is_array($snapshot)) {
+            continue;
+        }
+        $data = isset($snapshot['row']) && is_array($snapshot['row'])
+            ? $snapshot['row']
+            : (isset($snapshot['data']) && is_array($snapshot['data']) ? $snapshot['data'] : $snapshot);
+        $id = (int) ($data['id'] ?? $snapshot['id'] ?? 0);
+        if ($id <= 0 || isset($seen[$id])) {
+            continue;
+        }
+
+        $existingSnapshots[] = $snapshot;
+        $seen[$id] = true;
+    }
+
+    $meta = array_merge($meta, $extraMeta);
+    $meta['installment_snapshots'] = $existingSnapshots;
+
+    $metaJson = json_encode($meta, JSON_UNESCAPED_UNICODE);
+    if ($metaJson === false) {
+        return;
+    }
+
+    $updateStmt = $pdo->prepare(
+        'UPDATE collections
+         SET meta_json = :meta_json
+         WHERE loan_id = :loan_id
+           AND payment_ref = :payment_ref'
+    );
+    $updateStmt->execute([
+        'meta_json' => $metaJson,
+        'loan_id' => $loanId,
+        'payment_ref' => $paymentRef,
+    ]);
+}
+
+function undo_collection_payment(PDO $pdo, int $collectionId, int $actorUserId, string $actorRole): array
+{
+    if ($collectionId <= 0) {
+        throw new RuntimeException('Invalid collection selected for undo.');
+    }
+
+    $collectionStmt = $pdo->prepare(
+        "SELECT
+            col.*,
+            l.loan_number,
+            l.assigned_user_id,
+            c.full_name AS customer_name
+         FROM collections col
+         JOIN loans l ON l.id = col.loan_id
+         JOIN customers c ON c.id = l.customer_id
+         WHERE col.id = :id
+         LIMIT 1
+         FOR UPDATE"
+    );
+    $collectionStmt->execute(['id' => $collectionId]);
+    $collection = $collectionStmt->fetch();
+    if (!$collection) {
+        throw new RuntimeException('Collection not found.');
+    }
+
+    $loanId = (int) $collection['loan_id'];
+    $paymentRef = trim((string) ($collection['payment_ref'] ?? ''));
+    if ($loanId <= 0 || $paymentRef === '') {
+        throw new RuntimeException('This collection cannot be undone because it does not have a payment reference.');
+    }
+
+    $assignedUserId = (int) ($collection['assigned_user_id'] ?? 0);
+    if (is_collector_role($actorRole) && $assignedUserId > 0 && $assignedUserId !== $actorUserId) {
+        throw new RuntimeException('You can only undo collections for loans assigned to you.');
+    }
+
+    $paymentRowsStmt = $pdo->prepare(
+        'SELECT *
+         FROM collections
+         WHERE loan_id = :loan_id
+           AND payment_ref = :payment_ref
+         ORDER BY id ASC
+         FOR UPDATE'
+    );
+    $paymentRowsStmt->execute([
+        'loan_id' => $loanId,
+        'payment_ref' => $paymentRef,
+    ]);
+    $paymentRows = $paymentRowsStmt->fetchAll();
+    if (!$paymentRows) {
+        throw new RuntimeException('Collection payment group not found.');
+    }
+
+    $maxPaymentId = 0;
+    $totalAmount = 0.0;
+    $meta = null;
+    foreach ($paymentRows as $row) {
+        $maxPaymentId = max($maxPaymentId, (int) $row['id']);
+        $totalAmount += (float) $row['amount'];
+        if ($meta === null && trim((string) ($row['meta_json'] ?? '')) !== '') {
+            $meta = json_decode((string) $row['meta_json'], true);
+        }
+    }
+
+    $latestStmt = $pdo->prepare('SELECT COALESCE(MAX(id), 0) FROM collections WHERE loan_id = :loan_id');
+    $latestStmt->execute(['loan_id' => $loanId]);
+    $latestCollectionId = (int) $latestStmt->fetchColumn();
+    if ($latestCollectionId !== $maxPaymentId) {
+        throw new RuntimeException('Only the latest collection for this loan can be undone safely.');
+    }
+
+    if (!is_array($meta) || !isset($meta['installment_snapshots']) || !is_array($meta['installment_snapshots'])) {
+        throw new RuntimeException('This collection cannot be undone because its installment snapshots are missing.');
+    }
+
+    $snapshots = $meta['installment_snapshots'];
+    if ($snapshots === []) {
+        throw new RuntimeException('This collection cannot be undone because its installment snapshots are empty.');
+    }
+
+    $deleteCollectionsStmt = $pdo->prepare(
+        'DELETE FROM collections
+         WHERE loan_id = :loan_id
+           AND payment_ref = :payment_ref'
+    );
+    $deleteCollectionsStmt->execute([
+        'loan_id' => $loanId,
+        'payment_ref' => $paymentRef,
+    ]);
+
+    $collectionLinkStmt = $pdo->prepare('SELECT COUNT(*) FROM collections WHERE installment_id = :installment_id');
+    $deleteInstallmentStmt = $pdo->prepare('DELETE FROM loan_installments WHERE id = :id AND loan_id = :loan_id');
+    $existsInstallmentStmt = $pdo->prepare('SELECT COUNT(*) FROM loan_installments WHERE id = :id');
+    $updateInstallmentStmt = $pdo->prepare(
+        'UPDATE loan_installments
+         SET loan_id = :loan_id,
+             installment_no = :installment_no,
+             due_date = :due_date,
+             due_amount = :due_amount,
+             paid_amount = :paid_amount,
+             paid_on = :paid_on,
+             status = :status,
+             is_flexible_adjustment = :is_flexible_adjustment,
+             source_payment_ref = :source_payment_ref
+         WHERE id = :id'
+    );
+    $insertInstallmentStmt = $pdo->prepare(
+        'INSERT INTO loan_installments
+            (id, loan_id, installment_no, due_date, due_amount, paid_amount, paid_on, status, is_flexible_adjustment, source_payment_ref)
+         VALUES
+            (:id, :loan_id, :installment_no, :due_date, :due_amount, :paid_amount, :paid_on, :status, :is_flexible_adjustment, :source_payment_ref)'
+    );
+
+    foreach ($snapshots as $snapshot) {
+        if (!is_array($snapshot)) {
+            continue;
+        }
+
+        $existsBefore = (bool) ($snapshot['exists_before'] ?? true);
+        $row = isset($snapshot['row']) && is_array($snapshot['row'])
+            ? $snapshot['row']
+            : (isset($snapshot['data']) && is_array($snapshot['data']) ? $snapshot['data'] : $snapshot);
+        $installmentId = (int) ($row['id'] ?? $snapshot['id'] ?? 0);
+        if ($installmentId <= 0) {
+            continue;
+        }
+
+        if (!$existsBefore) {
+            $collectionLinkStmt->execute(['installment_id' => $installmentId]);
+            if ((int) $collectionLinkStmt->fetchColumn() > 0) {
+                throw new RuntimeException('Cannot undo because a generated installment has later collections.');
+            }
+
+            $deleteInstallmentStmt->execute([
+                'id' => $installmentId,
+                'loan_id' => $loanId,
+            ]);
+            continue;
+        }
+
+        $snapshotLoanId = (int) ($row['loan_id'] ?? 0);
+        if ($snapshotLoanId !== $loanId) {
+            throw new RuntimeException('Cannot undo because an installment snapshot belongs to a different loan.');
+        }
+
+        $status = (string) ($row['status'] ?? 'pending');
+        if (!in_array($status, ['pending', 'partial', 'paid', 'overdue'], true)) {
+            $status = 'pending';
+        }
+
+        $params = [
+            'id' => $installmentId,
+            'loan_id' => $loanId,
+            'installment_no' => (int) ($row['installment_no'] ?? 0),
+            'due_date' => (string) ($row['due_date'] ?? today()),
+            'due_amount' => round((float) ($row['due_amount'] ?? 0), 2),
+            'paid_amount' => round((float) ($row['paid_amount'] ?? 0), 2),
+            'paid_on' => isset($row['paid_on']) && (string) $row['paid_on'] !== '' ? (string) $row['paid_on'] : null,
+            'status' => $status,
+            'is_flexible_adjustment' => (int) ($row['is_flexible_adjustment'] ?? 0),
+            'source_payment_ref' => isset($row['source_payment_ref']) && (string) $row['source_payment_ref'] !== '' ? (string) $row['source_payment_ref'] : null,
+        ];
+
+        if ($params['installment_no'] <= 0 || $params['due_amount'] < 0 || $params['paid_amount'] < 0) {
+            throw new RuntimeException('Cannot undo because an installment snapshot is invalid.');
+        }
+
+        $existsInstallmentStmt->execute(['id' => $installmentId]);
+        if ((int) $existsInstallmentStmt->fetchColumn() > 0) {
+            $updateInstallmentStmt->execute($params);
+        } else {
+            $insertInstallmentStmt->execute($params);
+        }
+    }
+
+    $pendingCountStmt = $pdo->prepare(
+        "SELECT COUNT(*)
+         FROM loan_installments
+         WHERE loan_id = :loan_id
+           AND status IN ('pending', 'partial', 'overdue')
+           AND due_amount > paid_amount"
+    );
+    $pendingCountStmt->execute(['loan_id' => $loanId]);
+    $pendingCount = (int) $pendingCountStmt->fetchColumn();
+
+    if ($pendingCount === 0) {
+        $closeLoan = $pdo->prepare("UPDATE loans SET status = 'closed' WHERE id = :id");
+        $closeLoan->execute(['id' => $loanId]);
+    } else {
+        $reopenLoan = $pdo->prepare("UPDATE loans SET status = 'active' WHERE id = :id AND status <> 'defaulted'");
+        $reopenLoan->execute(['id' => $loanId]);
+    }
+
+    return [
+        'loan_id' => $loanId,
+        'loan_number' => (string) ($collection['loan_number'] ?? ('#' . $loanId)),
+        'customer_name' => (string) ($collection['customer_name'] ?? ''),
+        'payment_ref' => $paymentRef,
+        'amount' => round($totalAmount, 2),
+        'collection_count' => count($paymentRows),
+        'restored_installment_count' => count($snapshots),
+    ];
+}
+
 function dashboard_stats(PDO $pdo, ?array $viewer = null): array
 {
     refresh_overdue_installments($pdo);

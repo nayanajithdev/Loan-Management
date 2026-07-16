@@ -45,6 +45,9 @@ if (is_array($parsedReturn) && isset($parsedReturn['path']) && preg_match('/^(in
         if (!empty($queryValues['q'])) {
             $allowedQuery['q'] = (string) $queryValues['q'];
         }
+        if (!empty($queryValues['collection_status']) && in_array($queryValues['collection_status'], ['pending', 'collected'], true)) {
+            $allowedQuery['collection_status'] = (string) $queryValues['collection_status'];
+        }
         if (!empty($queryValues['selected_installment'])) {
             $allowedQuery['selected_installment'] = (int) $queryValues['selected_installment'];
         }
@@ -217,6 +220,19 @@ try {
     if ($scheduleNextPayment) {
         if ($pendingCount > 0) {
             $scheduledInstallment = schedule_next_installment_date($pdo, $loanId, $nextPaymentDateInput);
+            append_collection_payment_snapshots(
+                $pdo,
+                $loanId,
+                $paymentRef,
+                (array) ($scheduledInstallment['installment_snapshots'] ?? []),
+                [
+                    'schedule_next_payment' => 1,
+                    'scheduled_installment_id' => (int) ($scheduledInstallment['installment_id'] ?? 0),
+                    'scheduled_from_due_date' => (string) ($scheduledInstallment['from_due_date'] ?? ''),
+                    'scheduled_to_due_date' => (string) ($scheduledInstallment['to_due_date'] ?? ''),
+                    'scheduled_shifted_count' => (int) ($scheduledInstallment['shifted_count'] ?? 0),
+                ]
+            );
         } else {
             $scheduleSkippedNoPending = true;
         }

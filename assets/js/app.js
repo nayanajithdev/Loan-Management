@@ -377,17 +377,25 @@
 
 (function () {
     const dateModeSelect = document.getElementById('date-mode-select');
+    const collectionStatusSelect = document.getElementById('collection-status-select');
 
-    if (!dateModeSelect) {
+    if (!dateModeSelect && !collectionStatusSelect) {
         return;
     }
 
-    dateModeSelect.addEventListener('change', () => {
-        const form = dateModeSelect.closest('form');
+    const submitParentForm = (select) => {
+        const form = select.closest('form');
         if (form instanceof HTMLFormElement) {
             form.submit();
         }
-    });
+    };
+
+    if (dateModeSelect) {
+        dateModeSelect.addEventListener('change', () => submitParentForm(dateModeSelect));
+    }
+    if (collectionStatusSelect) {
+        collectionStatusSelect.addEventListener('change', () => submitParentForm(collectionStatusSelect));
+    }
 })();
 
 (function () {
