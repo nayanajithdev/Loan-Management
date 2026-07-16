@@ -12,6 +12,8 @@ $disabledAttr = $canEditSystemSettings ? '' : ' disabled';
 
 $settings = system_settings_all($pdo);
 $get = static fn(string $key, string $default = ''): string => $settings[$key] ?? $default;
+$defaultLoanCollectorId = default_loan_collector_id($pdo);
+$loanDefaultCollectors = assignable_collector_rows($pdo, $defaultLoanCollectorId);
 
 require __DIR__ . '/../includes/layout_start.php';
 ?>
@@ -37,31 +39,6 @@ require __DIR__ . '/../includes/layout_start.php';
                 <input type="text" name="date_format" maxlength="20" value="<?= e($get('date_format', 'd M Y')) ?>" required<?= $disabledAttr ?>>
             </div>
             <div class="field">
-                <label>Default Interest Rate (%)</label>
-                <input type="number" step="0.01" min="0" name="default_interest_rate" value="<?= e($get('default_interest_rate', '0.00')) ?>" required<?= $disabledAttr ?>>
-            </div>
-            <div class="field">
-                <label>Default Installment Frequency</label>
-                <?php $freq = $get('default_installment_frequency', 'daily'); ?>
-                <select name="default_installment_frequency" required<?= $disabledAttr ?>>
-                    <option value="daily" <?= $freq === 'daily' ? 'selected' : '' ?>>Daily</option>
-                    <option value="weekly" <?= $freq === 'weekly' ? 'selected' : '' ?>>Weekly</option>
-                    <option value="monthly" <?= $freq === 'monthly' ? 'selected' : '' ?>>Monthly</option>
-                </select>
-            </div>
-            <div class="field">
-                <label>Default Timeframe Value</label>
-                <input type="number" min="1" name="default_timeframe_value" value="<?= e($get('default_timeframe_value', '30')) ?>" required<?= $disabledAttr ?>>
-            </div>
-            <div class="field">
-                <label>Default Timeframe Unit</label>
-                <?php $tUnit = $get('default_timeframe_unit', 'days'); ?>
-                <select name="default_timeframe_unit" required<?= $disabledAttr ?>>
-                    <option value="days" <?= $tUnit === 'days' ? 'selected' : '' ?>>Days</option>
-                    <option value="months" <?= $tUnit === 'months' ? 'selected' : '' ?>>Months</option>
-                </select>
-            </div>
-            <div class="field">
                 <label>Allow Overpayment</label>
                 <?php $allowOverpay = $get('allow_overpayment', '1'); ?>
                 <select name="allow_overpayment" required<?= $disabledAttr ?>>
@@ -80,6 +57,57 @@ require __DIR__ . '/../includes/layout_start.php';
             <div class="field">
                 <label>Live Update Interval (seconds)</label>
                 <input type="number" min="3" max="60" name="poll_interval_seconds" value="<?= e($get('poll_interval_seconds', '10')) ?>" required<?= $disabledAttr ?>>
+            </div>
+        </div>
+    </div>
+
+    <div class="settings-col">
+        <h3 class="settings-subtitle">Loan Default Settings</h3>
+        <div class="form-grid settings-loan-default-grid">
+            <div class="field">
+                <label>Interest Rate (%)</label>
+                <input type="number" step="0.01" min="0" name="default_interest_rate" value="<?= e($get('default_interest_rate', '0.00')) ?>" required<?= $disabledAttr ?>>
+            </div>
+            <div class="field">
+                <label>Calculate Interest Rate (months)</label>
+                <input type="number" min="1" name="default_interest_rate_months" value="<?= e($get('default_interest_rate_months', '1')) ?>" required<?= $disabledAttr ?>>
+            </div>
+            <div class="field">
+                <label>Timeframe</label>
+                <?php $tUnit = $get('default_timeframe_unit', 'days'); ?>
+                <div class="combo-field">
+                    <input type="number" min="1" name="default_timeframe_value" value="<?= e($get('default_timeframe_value', '30')) ?>" required<?= $disabledAttr ?>>
+                    <select name="default_timeframe_unit" required<?= $disabledAttr ?>>
+                        <option value="days" <?= $tUnit === 'days' ? 'selected' : '' ?>>Days</option>
+                        <option value="months" <?= $tUnit === 'months' ? 'selected' : '' ?>>Months</option>
+                    </select>
+                </div>
+            </div>
+            <div class="field">
+                <label>Installment Frequency</label>
+                <?php $freq = $get('default_installment_frequency', 'daily'); ?>
+                <select name="default_installment_frequency" required<?= $disabledAttr ?>>
+                    <option value="daily" <?= $freq === 'daily' ? 'selected' : '' ?>>Daily</option>
+                    <option value="weekly" <?= $freq === 'weekly' ? 'selected' : '' ?>>Weekly</option>
+                    <option value="monthly" <?= $freq === 'monthly' ? 'selected' : '' ?>>Monthly</option>
+                </select>
+            </div>
+            <div class="field">
+                <label>Collector</label>
+                <select name="default_loan_collector_id" required<?= $disabledAttr ?>>
+                    <?php foreach ($loanDefaultCollectors as $collector): ?>
+                        <?php
+                        $collectorId = (int) ($collector['id'] ?? 0);
+                        $collectorName = trim((string) ($collector['full_name'] ?? ''));
+                        if ($collectorName === '') {
+                            $collectorName = (string) ($collector['username'] ?? ('User #' . $collectorId));
+                        }
+                        ?>
+                        <option value="<?= e((string) $collectorId) ?>" <?= $collectorId === $defaultLoanCollectorId ? 'selected' : '' ?>>
+                            <?= e($collectorName . ' (' . role_display_name((string) ($collector['role'] ?? 'collector')) . ')') ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
             </div>
         </div>
     </div>

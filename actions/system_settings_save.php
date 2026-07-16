@@ -14,9 +14,11 @@ $currencyLabel = strtoupper(trim((string) ($_POST['currency_label'] ?? 'LKR')));
 $timezone = trim((string) ($_POST['timezone'] ?? date_default_timezone_get()));
 $dateFormat = trim((string) ($_POST['date_format'] ?? 'd M Y'));
 $defaultInterestRate = (float) ($_POST['default_interest_rate'] ?? 0);
+$defaultInterestRateMonths = normalize_interest_rate_months((int) ($_POST['default_interest_rate_months'] ?? 1));
 $defaultFrequency = (string) ($_POST['default_installment_frequency'] ?? 'daily');
 $defaultTimeframeValue = max(1, (int) ($_POST['default_timeframe_value'] ?? 30));
 $defaultTimeframeUnit = (string) ($_POST['default_timeframe_unit'] ?? 'days');
+$defaultLoanCollectorId = (int) ($_POST['default_loan_collector_id'] ?? 0);
 $allowOverpayment = (string) ($_POST['allow_overpayment'] ?? '1') === '0' ? '0' : '1';
 $autoFillAmountReceived = (string) ($_POST['auto_fill_amount_received'] ?? '1') === '0' ? '0' : '1';
 $pollIntervalSeconds = max(3, min(60, (int) ($_POST['poll_interval_seconds'] ?? 10)));
@@ -29,14 +31,20 @@ if (!in_array($defaultTimeframeUnit, ['days', 'months'], true)) {
     $defaultTimeframeUnit = 'days';
 }
 
+if (!is_assignable_collector($pdo, $defaultLoanCollectorId)) {
+    $defaultLoanCollectorId = default_loan_collector_id($pdo);
+}
+
 $settingsToSave = [
     'currency_label' => mb_substr($currencyLabel !== '' ? $currencyLabel : 'LKR', 0, 12),
     'timezone' => mb_substr($timezone, 0, 80),
     'date_format' => mb_substr($dateFormat !== '' ? $dateFormat : 'd M Y', 0, 20),
     'default_interest_rate' => number_format(max($defaultInterestRate, 0), 2, '.', ''),
+    'default_interest_rate_months' => (string) $defaultInterestRateMonths,
     'default_installment_frequency' => $defaultFrequency,
     'default_timeframe_value' => (string) $defaultTimeframeValue,
     'default_timeframe_unit' => $defaultTimeframeUnit,
+    'default_loan_collector_id' => (string) $defaultLoanCollectorId,
     'allow_overpayment' => $allowOverpayment,
     'auto_fill_amount_received' => $autoFillAmountReceived,
     'poll_interval_seconds' => (string) $pollIntervalSeconds,

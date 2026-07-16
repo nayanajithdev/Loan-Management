@@ -16,6 +16,8 @@ if (!in_array($status, $allowedStatuses, true)) {
 
 $search = trim((string) ($_GET['q'] ?? ''));
 $search = mb_substr($search, 0, 120);
+$assignedUserId = max(0, (int) ($_GET['assigned_user_id'] ?? 0));
+$assignedUsers = assignable_collector_rows($pdo, $assignedUserId > 0 ? $assignedUserId : null);
 
 $sql = "SELECT l.*, c.full_name, l.assigned_user_id, u.full_name AS assigned_user_name, u.username AS assigned_username, u.role AS assigned_role,
             COALESCE((SELECT SUM(li.due_amount - li.paid_amount) FROM loan_installments li WHERE li.loan_id = l.id AND li.status IN ('pending', 'partial', 'overdue')), 0) AS outstanding_amount,
@@ -32,6 +34,10 @@ if ($search !== '') {
     $params['search_name'] = $searchLike;
     $params['search_nic'] = $searchLike;
 }
+if ($assignedUserId > 0) {
+    $sql .= ' AND l.assigned_user_id = :assigned_user_id';
+    $params['assigned_user_id'] = $assignedUserId;
+}
 
 $sql .= ' ORDER BY l.id DESC';
 $stmt = $pdo->prepare($sql);
@@ -42,7 +48,7 @@ $canCreateLoan = can('loans.create');
 $renderLoansBody = static function (array $loans, PDO $pdo): string {
     ob_start();
     if (!$loans): ?>
-        <tr><td colspan="9">No loans yet.</td></tr>
+        <tr><td colspan="8">No loans yet.</td></tr>
     <?php else: ?>
         <?php foreach ($loans as $loan): ?>
             <?php $balance = max(0, (float) $loan['outstanding_amount']); ?>
@@ -70,7 +76,6 @@ $renderLoansBody = static function (array $loans, PDO $pdo): string {
                         <span class="badge badge-info">Owner</span>
                     <?php endif; ?>
                 </td>
-                <td><span class="badge badge-<?= e(status_badge_class($loan['status'])) ?>"><?= e($loan['status']) ?></span></td>
             </tr>
         <?php endforeach; ?>
     <?php endif;
@@ -101,11 +106,12 @@ require __DIR__ . '/../includes/layout_start.php';
             <form id="loan-filter-form" class="loan-filter-form" method="get">
                 <div class="field loan-status-field">
                     <label>Status</label>
-                    <select name="status" id="loan-status-filter">
+                    <select name="status" id="loan-status-filter" class="loan-status-select is-<?= e($status) ?>">
                         <option value="active" <?= $status === 'active' ? 'selected' : '' ?>>Active</option>
                         <option value="closed" <?= $status === 'closed' ? 'selected' : '' ?>>Closed</option>
                     </select>
                 </div>
+                <input type="hidden" name="assigned_user_id" id="loan-assigned-filter" value="<?= e((string) $assignedUserId) ?>">
                 <div class="field loan-search-field">
                     <label class="sr-only">Search loans</label>
                     <div class="search-control">
@@ -135,8 +141,29 @@ require __DIR__ . '/../includes/layout_start.php';
                 <th>Collected</th>
                 <th>Balance</th>
                 <th>Inst. Left</th>
-                <th>Assigned To</th>
-                <th>Status</th>
+                <th>
+                    <div class="table-header-filter" data-table-filter-menu>
+                        <button type="button" class="table-header-filter-toggle <?= $assignedUserId > 0 ? 'is-active' : '' ?>" data-table-filter-toggle aria-expanded="false">
+                            <span>Assigned To</span>
+                            <span class="table-header-filter-chevron" aria-hidden="true">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-down-icon lucide-chevron-down"><path d="m6 9 6 6 6-6"/></svg>
+                            </span>
+                        </button>
+                        <div class="table-header-filter-menu" data-table-filter-options hidden>
+                            <button type="button" data-assigned-filter-value="0" class="<?= $assignedUserId === 0 ? 'is-selected' : '' ?>">All Assigned Users</button>
+                            <?php foreach ($assignedUsers as $assignedUser): ?>
+                                <?php
+                                $userId = (int) ($assignedUser['id'] ?? 0);
+                                $label = trim((string) ($assignedUser['full_name'] ?? ''));
+                                if ($label === '') {
+                                    $label = (string) ($assignedUser['username'] ?? ('User #' . $userId));
+                                }
+                                ?>
+                                <button type="button" data-assigned-filter-value="<?= e((string) $userId) ?>" class="<?= $assignedUserId === $userId ? 'is-selected' : '' ?>"><?= e($label) ?></button>
+                            <?php endforeach; ?>
+                        </div>
+                    </div>
+                </th>
             </tr>
             </thead>
             <tbody id="loans-table-body">
@@ -150,8 +177,10 @@ require __DIR__ . '/../includes/layout_start.php';
 (() => {
   const form = document.getElementById('loan-filter-form');
   const status = document.getElementById('loan-status-filter');
+  const assigned = document.getElementById('loan-assigned-filter');
   const tbody = document.getElementById('loans-table-body');
-  if (!form || !status || !tbody) return;
+  if (!form || !status || !assigned || !tbody) return;
+  const filterMenus = Array.from(document.querySelectorAll('[data-table-filter-menu]'));
 
   const loadRows = async () => {
     const params = new URLSearchParams(new FormData(form));
@@ -175,7 +204,52 @@ require __DIR__ . '/../includes/layout_start.php';
     }
   };
 
-  status.addEventListener('change', loadRows);
+  status.addEventListener('change', () => {
+    status.classList.toggle('is-active', status.value === 'active');
+    status.classList.toggle('is-closed', status.value === 'closed');
+    loadRows();
+  });
+  filterMenus.forEach((menu) => {
+    const toggle = menu.querySelector('[data-table-filter-toggle]');
+    const options = menu.querySelector('[data-table-filter-options]');
+    if (!(toggle instanceof HTMLButtonElement) || !(options instanceof HTMLElement)) return;
+
+    toggle.addEventListener('click', (event) => {
+      event.stopPropagation();
+      const willOpen = options.hidden;
+      filterMenus.forEach((otherMenu) => {
+        const otherOptions = otherMenu.querySelector('[data-table-filter-options]');
+        const otherToggle = otherMenu.querySelector('[data-table-filter-toggle]');
+        if (otherOptions instanceof HTMLElement) otherOptions.hidden = true;
+        if (otherToggle instanceof HTMLElement) otherToggle.setAttribute('aria-expanded', 'false');
+      });
+      options.hidden = !willOpen;
+      toggle.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+    });
+
+    options.querySelectorAll('[data-assigned-filter-value]').forEach((option) => {
+      option.addEventListener('click', () => {
+        const selectedValue = option.getAttribute('data-assigned-filter-value') || '0';
+        assigned.value = selectedValue;
+        options.querySelectorAll('[data-assigned-filter-value]').forEach((item) => {
+          item.classList.toggle('is-selected', item === option);
+        });
+        toggle.classList.toggle('is-active', selectedValue !== '0');
+        options.hidden = true;
+        toggle.setAttribute('aria-expanded', 'false');
+        loadRows();
+      });
+    });
+  });
+
+  document.addEventListener('click', () => {
+    filterMenus.forEach((menu) => {
+      const options = menu.querySelector('[data-table-filter-options]');
+      const toggle = menu.querySelector('[data-table-filter-toggle]');
+      if (options instanceof HTMLElement) options.hidden = true;
+      if (toggle instanceof HTMLElement) toggle.setAttribute('aria-expanded', 'false');
+    });
+  });
 })();
 </script>
 

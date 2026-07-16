@@ -147,6 +147,12 @@ foreach ($profitRows as $profitRow) {
     $profitTotal += (float) ($profitRow['profit_amount'] ?? 0);
 }
 
+$businessSettings = system_settings_all($pdo);
+$businessName = trim((string) ($businessSettings['business_name'] ?? 'Loan Manager'));
+$businessAddress = trim((string) ($businessSettings['business_address'] ?? ''));
+$businessPhone = trim((string) ($businessSettings['business_phone'] ?? ''));
+$dailyCollectionFileName = 'daily-collections-' . $selectedDate;
+
 require __DIR__ . '/../includes/layout_start.php';
 ?>
 
@@ -243,6 +249,9 @@ require __DIR__ . '/../includes/layout_start.php';
                             <?php endif; ?>
                             </tbody>
                         </table>
+                    </div>
+                    <div class="reports-print-actions">
+                        <button type="button" class="btn btn-primary" data-print-daily-collections-report data-print-filename="<?= e($dailyCollectionFileName) ?>">Save as PDF</button>
                     </div>
                 </section>
             </div>
@@ -367,6 +376,57 @@ require __DIR__ . '/../includes/layout_start.php';
         </section>
     </div>
 </div>
+
+<section class="daily-collections-print-report" id="daily-collections-print-report" aria-hidden="true">
+    <header class="print-report-header">
+        <h1><?= e($businessName) ?></h1>
+        <?php if ($businessAddress !== ''): ?>
+            <p><?= e($businessAddress) ?></p>
+        <?php endif; ?>
+        <?php if ($businessPhone !== ''): ?>
+            <p class="print-report-contact">
+                <em>Tel:</em> <?= e($businessPhone) ?>
+            </p>
+        <?php endif; ?>
+    </header>
+
+    <div class="print-report-rule"></div>
+
+    <div class="daily-print-meta">
+        <span>Collection Date</span>
+        <strong><?= e(display_date($selectedDate)) ?></strong>
+    </div>
+
+    <table class="daily-collections-print-table">
+        <thead>
+            <tr>
+                <th>Time</th>
+                <th>Loan no</th>
+                <th>Amount</th>
+            </tr>
+        </thead>
+        <tbody>
+            <?php if (!$collections): ?>
+                <tr>
+                    <td colspan="3">No collections found for selected date.</td>
+                </tr>
+            <?php else: ?>
+                <?php foreach ($collections as $row): ?>
+                    <tr>
+                        <td><?= e(date('H:i:s', strtotime((string) $row['collected_at']))) ?></td>
+                        <td><?= e((string) $row['loan_number']) ?></td>
+                        <td><?= e(money_label($pdo, (float) $row['amount'])) ?></td>
+                    </tr>
+                <?php endforeach; ?>
+            <?php endif; ?>
+        </tbody>
+    </table>
+
+    <div class="daily-print-total">
+        <span>Collected total</span>
+        <strong><?= e(money_label($pdo, $collectedTotal)) ?></strong>
+    </div>
+</section>
 
 <script>
 (() => {

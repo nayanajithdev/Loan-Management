@@ -3452,6 +3452,11 @@ function owner_user_id(PDO $pdo): int
 
 function default_loan_collector_id(PDO $pdo): int
 {
+    $configuredCollectorId = (int) system_setting($pdo, 'default_loan_collector_id', '0');
+    if ($configuredCollectorId > 0 && is_assignable_collector($pdo, $configuredCollectorId)) {
+        return $configuredCollectorId;
+    }
+
     return owner_user_id($pdo);
 }
 

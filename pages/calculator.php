@@ -9,6 +9,7 @@ $pageTitle = 'Calculator';
 $activePage = 'calculator';
 $defaultInterestRate = system_setting($pdo, 'default_interest_rate', '0.00');
 $defaultInterestRateType = 'amount_based';
+$defaultInterestRateMonths = normalize_interest_rate_months((int) system_setting($pdo, 'default_interest_rate_months', '1'));
 $defaultFrequency = system_setting($pdo, 'default_installment_frequency', 'daily');
 $defaultTimeframeValue = (int) system_setting($pdo, 'default_timeframe_value', '30');
 $defaultTimeframeUnit = system_setting($pdo, 'default_timeframe_unit', 'days');
@@ -47,7 +48,7 @@ require __DIR__ . '/../includes/layout_start.php';
         </div>
         <div class="field" data-interest-months-field>
             <label>Calculate Interest Rate (months)</label>
-            <input type="number" min="1" name="interest_rate_months" value="1">
+            <input type="number" min="1" name="interest_rate_months" value="<?= e((string) $defaultInterestRateMonths) ?>">
         </div>
         <div class="field">
             <label>Installment Frequency</label>

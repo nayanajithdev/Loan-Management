@@ -31,7 +31,8 @@ require __DIR__ . '/../includes/layout_start.php';
             </div>
             <div class="field">
                 <label>Business Phone</label>
-                <input type="text" name="business_phone" maxlength="40" value="<?= e($get('business_phone', '')) ?>">
+                <input type="text" name="business_phone" maxlength="120" value="<?= e($get('business_phone', '')) ?>" placeholder="0712222222, 0776666666">
+                <small>Use comma to separate multiple phone numbers.</small>
             </div>
             <div class="field">
                 <label>Business Email</label>

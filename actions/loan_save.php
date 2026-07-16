@@ -24,10 +24,17 @@ $timeframeUnit = trim((string) ($_POST['timeframe_unit'] ?? 'days'));
 $useRoundedInstallment = (int) ($_POST['use_rounded_installment'] ?? 0) === 1;
 $roundedInstallmentAmount = round((float) ($_POST['rounded_installment_amount'] ?? 0), 2);
 $canAssignLoan = can('loans.assign');
+$canCreateCustomer = can('customers.create');
 $assignedUserId = $canAssignLoan
     ? assignable_collector_id_or_default($pdo, (int) ($_POST['assigned_user_id'] ?? 0))
     : default_loan_collector_id($pdo);
 $notes = trim((string) ($_POST['notes'] ?? ''));
+$createNewCustomer = (string) ($_POST['create_new_customer'] ?? '0') === '1';
+$newCustomerFullName = trim((string) ($_POST['new_customer_full_name'] ?? ''));
+$newCustomerPhone = trim((string) ($_POST['new_customer_phone'] ?? ''));
+$newCustomerNic = trim((string) ($_POST['new_customer_nic'] ?? ''));
+$newCustomerAddress = trim((string) ($_POST['new_customer_address'] ?? ''));
+$newCustomerNote = trim((string) ($_POST['new_customer_note'] ?? ''));
 
 if ($loanNumber === '' || (int) ltrim($loanNumber, '0') <= 0) {
     set_flash('error', 'Loan No must be a positive number.');
@@ -39,8 +46,30 @@ if (loan_number_exists($pdo, $loanNumber)) {
     redirect('pages/loan_create.php');
 }
 
-if ($customerId <= 0 || $principal <= 0 || $timeframeValue <= 0) {
+if ($principal <= 0 || $timeframeValue <= 0) {
     set_flash('error', 'Please fill all required loan fields correctly.');
+    redirect('pages/loan_create.php');
+}
+
+if ($createNewCustomer) {
+    if (!$canCreateCustomer) {
+        set_flash('error', 'You do not have permission to create customers.');
+        redirect('pages/loan_create.php');
+    }
+
+    if ($newCustomerFullName === '' || $newCustomerPhone === '' || $newCustomerNic === '') {
+        set_flash('error', 'Full name, phone and NIC / ID are required for the new customer.');
+        redirect('pages/loan_create.php');
+    }
+
+    $duplicateNicStmt = $pdo->prepare('SELECT id FROM customers WHERE nic = :nic LIMIT 1');
+    $duplicateNicStmt->execute(['nic' => $newCustomerNic]);
+    if ($duplicateNicStmt->fetch()) {
+        set_flash('error', 'NIC / ID is already used by another customer.');
+        redirect('pages/loan_create.php');
+    }
+} elseif ($customerId <= 0) {
+    set_flash('error', 'Please select a customer.');
     redirect('pages/loan_create.php');
 }
 
@@ -63,11 +92,13 @@ if (!in_array($timeframeUnit, ['days', 'months'], true)) {
 
 $installmentCount = installment_count_from_timeframe($frequency, $timeframeValue, $timeframeUnit);
 
-$customerStmt = $pdo->prepare('SELECT id FROM customers WHERE id = :id');
-$customerStmt->execute(['id' => $customerId]);
-if (!$customerStmt->fetch()) {
-    set_flash('error', 'Customer not found.');
-    redirect('pages/loan_create.php');
+if (!$createNewCustomer) {
+    $customerStmt = $pdo->prepare('SELECT id FROM customers WHERE id = :id');
+    $customerStmt->execute(['id' => $customerId]);
+    if (!$customerStmt->fetch()) {
+        set_flash('error', 'Customer not found.');
+        redirect('pages/loan_create.php');
+    }
 }
 
 if ($assignedUserId <= 0) {
@@ -98,6 +129,27 @@ $firstDueDate = next_collectible_date($pdo, $issuedDateObj->add(new DateInterval
 
 try {
     $pdo->beginTransaction();
+    $createdCustomerId = 0;
+    $createdCustomerCode = '';
+
+    if ($createNewCustomer) {
+        $createdCustomerCode = next_customer_code($pdo);
+        $insertCustomer = $pdo->prepare(
+            'INSERT INTO customers (customer_code, full_name, phone, nic, address, note, status)
+             VALUES (:customer_code, :full_name, :phone, :nic, :address, :note, :status)'
+        );
+        $insertCustomer->execute([
+            'customer_code' => $createdCustomerCode,
+            'full_name' => $newCustomerFullName,
+            'phone' => $newCustomerPhone,
+            'nic' => $newCustomerNic,
+            'address' => $newCustomerAddress === '' ? null : $newCustomerAddress,
+            'note' => $newCustomerNote === '' ? null : $newCustomerNote,
+            'status' => 'active',
+        ]);
+        $customerId = (int) $pdo->lastInsertId();
+        $createdCustomerId = $customerId;
+    }
 
     $insertLoan = $pdo->prepare(
         'INSERT INTO loans (
@@ -191,6 +243,13 @@ try {
     ]);
 
     $pdo->commit();
+    if ($createdCustomerId > 0) {
+        log_activity($pdo, 'customer.created', 'Customer created: ' . $newCustomerFullName . '.', [
+            'customer_id' => $createdCustomerId,
+            'customer_code' => $createdCustomerCode,
+            'source' => 'loan_create_inline',
+        ]);
+    }
     log_activity($pdo, 'loan.created', 'Loan created: ' . $loanNumber . '.', [
         'loan_id' => $loanId,
         'customer_id' => $customerId,

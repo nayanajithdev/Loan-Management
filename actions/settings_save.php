@@ -15,6 +15,10 @@ $businessPhone = trim((string) ($_POST['business_phone'] ?? ''));
 $businessEmail = trim((string) ($_POST['business_email'] ?? ''));
 $businessAddress = trim((string) ($_POST['business_address'] ?? ''));
 $businessNote = trim((string) ($_POST['business_note'] ?? ''));
+$businessPhone = implode(', ', array_filter(array_map(
+    static fn(string $phone): string => trim($phone),
+    explode(',', $businessPhone)
+), static fn(string $phone): bool => $phone !== ''));
 
 if ($businessName === '') {
     set_flash('error', 'Business name is required.');
@@ -28,7 +32,7 @@ if ($businessEmail !== '' && !filter_var($businessEmail, FILTER_VALIDATE_EMAIL))
 
 $settingsToSave = [
     'business_name' => mb_substr($businessName, 0, 120),
-    'business_phone' => mb_substr($businessPhone, 0, 40),
+    'business_phone' => mb_substr($businessPhone, 0, 120),
     'business_email' => mb_substr($businessEmail, 0, 120),
     'business_address' => mb_substr($businessAddress, 0, 600),
     'business_note' => mb_substr($businessNote, 0, 600),

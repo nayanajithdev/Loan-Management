@@ -16,7 +16,7 @@ if ($loanId <= 0) {
 }
 
 $loanStmt = $pdo->prepare(
-    "SELECT l.*, c.full_name
+    "SELECT l.*, c.full_name, c.nic AS customer_nic, c.phone AS customer_phone, c.address AS customer_address
             , l.assigned_user_id AS loan_assigned_user_id
      FROM loans l
      JOIN customers c ON c.id = l.customer_id
@@ -100,6 +100,20 @@ $collectionHistoryStmt = $pdo->prepare(
 );
 $collectionHistoryStmt->execute(['loan_id' => $loanId]);
 $loanCollectionHistory = $collectionHistoryStmt->fetchAll();
+$collectionReportHistoryStmt = $pdo->prepare(
+    "SELECT
+        COALESCE(col.payment_ref, CONCAT('legacy-', col.id)) AS payment_ref,
+        MIN(col.id) AS first_id,
+        MAX(col.collected_on) AS collected_on,
+        MAX(col.created_at) AS collected_at,
+        SUM(col.amount) AS amount
+     FROM collections col
+     WHERE col.loan_id = :loan_id
+     GROUP BY COALESCE(col.payment_ref, CONCAT('legacy-', col.id))
+     ORDER BY first_id ASC"
+);
+$collectionReportHistoryStmt->execute(['loan_id' => $loanId]);
+$loanCollectionReportHistory = $collectionReportHistoryStmt->fetchAll();
 $loanTotalRepayable = (float) ($loan['total_amount'] ?? 0);
 $loanCollectedStmt = $pdo->prepare('SELECT COALESCE(SUM(amount), 0) FROM collections WHERE loan_id = :loan_id');
 $loanCollectedStmt->execute(['loan_id' => $loanId]);
@@ -140,6 +154,23 @@ $collectibleBalance = $currentCollectible
     ? max(0.0, (float) $currentCollectible['due_amount'] - (float) $currentCollectible['paid_amount'])
     : 0.0;
 $autoFillAmountReceived = system_setting($pdo, 'auto_fill_amount_received', '1') !== '0';
+$businessSettings = system_settings_all($pdo);
+$businessName = trim((string) ($businessSettings['business_name'] ?? 'Loan Manager'));
+$businessAddress = trim((string) ($businessSettings['business_address'] ?? ''));
+$businessPhone = trim((string) ($businessSettings['business_phone'] ?? ''));
+$reportLoanNumber = trim($loanDisplayNumber) !== '' ? $loanDisplayNumber : ('#' . $loanId);
+$customerNicNumber = customer_id_no_label((string) ($loan['customer_nic'] ?? ''));
+$customerFirstNameParts = preg_split('/\s+/', trim((string) $loan['full_name']));
+$customerFirstName = $customerFirstNameParts[0] ?? 'customer';
+$printReportFileName = preg_replace('/[^A-Za-z0-9_-]+/', '-', $reportLoanNumber . '-' . $customerFirstName) ?? 'collection-report';
+$printReportFileName = trim($printReportFileName, '-_');
+if ($printReportFileName === '') {
+    $printReportFileName = 'collection-report';
+}
+$loanTotalInterest = max(0.0, $loanTotalRepayable - (float) ($loan['principal_amount'] ?? 0));
+$paidInterest = $loanTotalRepayable > 0 ? min($loanTotalInterest, $loanTotalCollected * ($loanTotalInterest / $loanTotalRepayable)) : 0.0;
+$paidPrincipal = max(0.0, $loanTotalCollected - $paidInterest);
+$reportGeneratedDate = date('l, F j, Y');
 
 require __DIR__ . '/../includes/layout_start.php';
 ?>
@@ -198,7 +229,7 @@ require __DIR__ . '/../includes/layout_start.php';
 
         <form
             id="loan-form"
-            class="form-grid"
+            class="create-loan-form"
             method="post"
             action="<?= e(url('actions/loan_update.php')) ?>"
             data-start-date="<?= e($issuedDate) ?>"
@@ -209,6 +240,8 @@ require __DIR__ . '/../includes/layout_start.php';
         <?= csrf_input() ?>
         <input type="hidden" name="loan_id" value="<?= e((string) $loan['id']) ?>">
 
+        <div class="create-loan-body">
+        <div class="create-loan-main form-grid">
         <div class="loan-form-divider">Loan Details</div>
         <div class="field">
             <label>Customer</label>
@@ -319,13 +352,15 @@ require __DIR__ . '/../includes/layout_start.php';
 
         <div class="loan-form-divider">Notes</div>
         <div class="field full">
-            <label class="sr-only">Notes</label>
+            <label>Note</label>
             <textarea name="notes" placeholder="Optional"><?= e((string) ($loan['notes'] ?? '')) ?></textarea>
         </div>
 
-        <div class="loan-form-divider">Repayment Preview</div>
-        <div class="field full loan-preview-field">
-            <div class="calc-preview-grid calc-preview-grid-four">
+        </div>
+
+        <aside class="create-loan-preview-panel">
+            <h3 class="create-loan-preview-title">Repayment Preview</h3>
+            <div class="calc-preview-grid calc-preview-grid-four create-loan-preview-grid">
                 <div class="calc-preview-item">
                     <p>Total Repayable</p>
                     <h3><?= e(currency_label($pdo)) ?> <span id="preview-total"><?= e(money((float) $loan['total_amount'])) ?></span></h3>
@@ -343,10 +378,8 @@ require __DIR__ . '/../includes/layout_start.php';
                     <h3><span id="preview-end-date"><?= e($loanEndDate !== '' ? display_date($loanEndDate) : '-') ?></span></h3>
                 </div>
             </div>
-        </div>
-
-        <div class="field full loan-submit-field">
-            <button type="submit" class="btn btn-primary">Update Loan</button>
+            <button type="submit" class="btn btn-primary create-loan-submit-btn">Update Loan</button>
+        </aside>
         </div>
         </form>
     </div>
@@ -431,6 +464,9 @@ require __DIR__ . '/../includes/layout_start.php';
                 </tbody>
             </table>
         </div>
+        <div class="loan-history-print-actions">
+            <button type="button" class="btn loan-history-print-btn" data-print-loan-collection-report data-print-filename="<?= e($printReportFileName) ?>">Print</button>
+        </div>
     </div>
     </div>
 
@@ -498,6 +534,124 @@ require __DIR__ . '/../includes/layout_start.php';
     </section>
     </div>
 </div>
+
+<section class="loan-collection-print-report" id="loan-collection-print-report" aria-hidden="true">
+    <header class="print-report-header">
+        <h1><?= e($businessName) ?></h1>
+        <?php if ($businessAddress !== ''): ?>
+            <p><?= e($businessAddress) ?></p>
+        <?php endif; ?>
+        <?php if ($businessPhone !== ''): ?>
+            <p class="print-report-contact">
+                <em>Tel:</em> <?= e($businessPhone) ?>
+            </p>
+        <?php endif; ?>
+    </header>
+
+    <div class="print-report-rule"></div>
+
+    <section class="print-report-summary">
+        <div class="print-customer-block">
+            <div class="print-customer-details">
+                <div class="print-info-row">
+                    <strong>Name</strong>
+                    <span>:</span>
+                    <p><?= e((string) $loan['full_name']) ?></p>
+                </div>
+                <div class="print-info-row">
+                    <strong>NIC</strong>
+                    <span>:</span>
+                    <p><?= e($customerNicNumber) ?></p>
+                </div>
+                <div class="print-info-row">
+                    <strong>Tel No.</strong>
+                    <span>:</span>
+                    <p><?= e(trim((string) ($loan['customer_phone'] ?? '')) !== '' ? (string) $loan['customer_phone'] : '-') ?></p>
+                </div>
+                <div class="print-info-row">
+                    <strong>Address</strong>
+                    <span>:</span>
+                    <p><?= e(trim((string) ($loan['customer_address'] ?? '')) !== '' ? (string) $loan['customer_address'] : '-') ?></p>
+                </div>
+            </div>
+
+            <div class="print-left-divider"></div>
+
+            <div class="print-loan-details">
+                <div class="print-info-row">
+                    <strong>Loan no</strong>
+                    <span>:</span>
+                    <p><?= e($reportLoanNumber) ?></p>
+                </div>
+                <div class="print-info-row">
+                    <strong>Loan amount</strong>
+                    <span>:</span>
+                    <p><?= e(money_label($pdo, (float) $loan['principal_amount'])) ?></p>
+                </div>
+            </div>
+        </div>
+
+        <div class="print-amount-summary">
+            <div>
+                <span>Installation</span>
+                <strong><?= e(money_label($pdo, (float) $loan['installment_amount'])) ?></strong>
+            </div>
+            <div>
+                <span>Total Loan</span>
+                <strong><?= e(money_label($pdo, $loanTotalRepayable)) ?></strong>
+            </div>
+            <div>
+                <span>Total Payment</span>
+                <strong><?= e(money_label($pdo, $loanTotalCollected)) ?></strong>
+            </div>
+            <div class="print-balance-row">
+                <span>Balance</span>
+                <strong><?= e(money_label($pdo, $loanBalance)) ?></strong>
+            </div>
+            <div>
+                <span>Interest</span>
+                <strong><?= e(money_label($pdo, $paidInterest)) ?></strong>
+            </div>
+            <div>
+                <span>Non Interest</span>
+                <strong><?= e(money_label($pdo, $paidPrincipal)) ?></strong>
+            </div>
+        </div>
+    </section>
+
+    <table class="print-collection-table">
+        <thead>
+            <tr>
+                <th>Loan Number</th>
+                <th>Date</th>
+                <th>Payment</th>
+            </tr>
+        </thead>
+        <tbody>
+            <?php if (!$loanCollectionReportHistory): ?>
+                <tr>
+                    <td><?= e($reportLoanNumber) ?></td>
+                    <td colspan="2">No collection payments recorded.</td>
+                </tr>
+            <?php else: ?>
+                <?php foreach ($loanCollectionReportHistory as $index => $history): ?>
+                    <tr>
+                        <?php if ($index === 0): ?>
+                            <td rowspan="<?= e((string) count($loanCollectionReportHistory)) ?>"><?= e($reportLoanNumber) ?></td>
+                        <?php endif; ?>
+                        <td><?= e(display_date((string) $history['collected_on'])) ?></td>
+                        <td><?= e(money_label($pdo, (float) $history['amount'])) ?></td>
+                    </tr>
+                <?php endforeach; ?>
+            <?php endif; ?>
+        </tbody>
+    </table>
+
+    <footer class="print-report-footer">
+        <span><?= e($reportGeneratedDate) ?></span>
+        <span class="print-page-number"></span>
+    </footer>
+</section>
 
 <script>
 (() => {

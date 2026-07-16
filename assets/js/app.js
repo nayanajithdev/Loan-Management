@@ -399,6 +399,40 @@
 })();
 
 (function () {
+    document.addEventListener('click', (event) => {
+        const target = event.target;
+        if (!(target instanceof Element)) {
+            return;
+        }
+
+        const printButton = target.closest('[data-print-loan-collection-report], [data-print-daily-collections-report]');
+        if (!printButton) {
+            return;
+        }
+
+        const originalTitle = document.title;
+        const printFileName = (printButton.getAttribute('data-print-filename') || '').trim();
+        let restoreTitleTimer = null;
+        const restoreTitle = () => {
+            if (restoreTitleTimer !== null) {
+                window.clearTimeout(restoreTitleTimer);
+                restoreTitleTimer = null;
+            }
+            document.title = originalTitle;
+            window.removeEventListener('afterprint', restoreTitle);
+        };
+
+        if (printFileName !== '') {
+            document.title = printFileName;
+            window.addEventListener('afterprint', restoreTitle, { once: true });
+            restoreTitleTimer = window.setTimeout(restoreTitle, 3000);
+        }
+
+        window.print();
+    });
+})();
+
+(function () {
     const confirmForms = document.querySelectorAll('form[data-confirm]');
     confirmForms.forEach((form) => {
         form.addEventListener('submit', (event) => {
@@ -435,8 +469,9 @@
                 const confirmButton = document.createElement('button');
                 confirmButton.type = 'submit';
                 const confirmVariant = form.getAttribute('data-inline-confirm-variant') === 'danger' ? 'btn-danger' : 'btn-success';
-                confirmButton.className = `btn ${confirmVariant}`;
-                confirmButton.textContent = 'Confirm';
+                confirmButton.className = `btn ${confirmVariant} inline-confirm-button is-waiting`;
+                confirmButton.disabled = true;
+                confirmButton.innerHTML = '<span class="inline-confirm-progress" aria-hidden="true"></span><span>Confirm</span>';
                 confirmButton.setAttribute('data-inline-confirm-submit', '1');
 
                 const cancelButton = document.createElement('button');
@@ -448,8 +483,13 @@
                 submitter.hidden = true;
                 submitter.insertAdjacentElement('afterend', actions);
                 confirmButton.focus();
+                const enableConfirmTimer = window.setTimeout(() => {
+                    confirmButton.disabled = false;
+                    confirmButton.classList.remove('is-waiting');
+                }, 1000);
 
                 cancelButton.addEventListener('click', () => {
+                    window.clearTimeout(enableConfirmTimer);
                     actions.remove();
                     form.removeAttribute('data-confirmed');
                     submitter.hidden = false;
@@ -579,6 +619,13 @@
     const endDateEl = document.getElementById('preview-end-date');
     const isEditLoanForm = Boolean(form.querySelector('[name="loan_id"]'));
     const repaymentLocked = form.getAttribute('data-repayment-locked') === '1';
+    const inlineCustomerToggle = document.querySelector('[data-inline-customer-toggle]');
+    const inlineCustomerCancel = form.querySelector('[data-inline-customer-cancel]');
+    const inlineCustomerPanel = form.querySelector('[data-inline-customer-panel]');
+    const inlineCustomerFlag = form.querySelector('[data-inline-customer-flag]');
+    const inlineCustomerRequiredFields = Array.from(form.querySelectorAll('[data-inline-customer-required]'));
+    const customerValueInput = form.querySelector('[data-select-value]');
+    const customerSearchInput = form.querySelector('[data-select-search]');
     let holidayDates = [];
     try {
         holidayDates = JSON.parse(form.getAttribute('data-holiday-dates') || '[]');
@@ -586,6 +633,48 @@
         holidayDates = [];
     }
     const holidaySet = new Set(Array.isArray(holidayDates) ? holidayDates : []);
+
+    const setInlineCustomerMode = (enabled) => {
+        if (!(inlineCustomerPanel instanceof HTMLElement) || !(inlineCustomerFlag instanceof HTMLInputElement)) {
+            return;
+        }
+
+        inlineCustomerPanel.hidden = !enabled;
+        inlineCustomerFlag.value = enabled ? '1' : '0';
+        inlineCustomerRequiredFields.forEach((field) => {
+            if (field instanceof HTMLInputElement || field instanceof HTMLTextAreaElement || field instanceof HTMLSelectElement) {
+                field.required = enabled;
+            }
+        });
+
+        if (customerValueInput instanceof HTMLInputElement) {
+            customerValueInput.disabled = enabled;
+            if (enabled) {
+                customerValueInput.value = '';
+            }
+        }
+        if (customerSearchInput instanceof HTMLInputElement) {
+            customerSearchInput.disabled = enabled;
+            if (enabled) {
+                customerSearchInput.value = '';
+                customerSearchInput.placeholder = 'New customer will be used';
+            } else {
+                customerSearchInput.placeholder = 'Select customer';
+            }
+        }
+    };
+
+    if (inlineCustomerPanel instanceof HTMLElement && inlineCustomerFlag instanceof HTMLInputElement) {
+        setInlineCustomerMode(inlineCustomerFlag.value === '1');
+    }
+
+    if (inlineCustomerToggle instanceof HTMLButtonElement) {
+        inlineCustomerToggle.addEventListener('click', () => setInlineCustomerMode(true));
+    }
+
+    if (inlineCustomerCancel instanceof HTMLButtonElement) {
+        inlineCustomerCancel.addEventListener('click', () => setInlineCustomerMode(false));
+    }
 
     const toNumber = (value) => {
         const n = Number(value);
