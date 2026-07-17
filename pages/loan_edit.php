@@ -195,7 +195,7 @@ require __DIR__ . '/../includes/layout_start.php';
                 </a>
             <?php endif; ?>
             <?php if ($canDeleteLoan): ?>
-                <form method="post" action="<?= e(url('actions/loan_delete.php')) ?>" class="inline-form" onsubmit="return confirm('Delete this loan permanently? This action cannot be undone.');">
+                <form method="post" action="<?= e(url('actions/loan_delete.php')) ?>" class="inline-form" data-confirm="Delete this loan permanently? This action cannot be undone." data-inline-confirm="1" data-inline-confirm-mode="modal" data-inline-confirm-variant="danger" data-inline-confirm-label="Delete Loan" data-inline-confirm-delay="3000">
                     <?= csrf_input() ?>
                     <input type="hidden" name="loan_id" value="<?= e((string) $loanId) ?>">
                     <button type="submit" class="btn btn-danger">
@@ -217,16 +217,6 @@ require __DIR__ . '/../includes/layout_start.php';
 
     <section class="panel loan-edit-tabs">
     <div class="loan-tab-panel is-active" data-loan-tab-panel="details" role="tabpanel">
-        <?php if ($repaymentLocked): ?>
-            <div class="flash flash-warning">
-                <?php if ($hasCollections): ?>
-                    This loan already has collections. Repayment structure fields are locked. You can still update assignment, notes and status.
-                <?php else: ?>
-                    This loan has collected value. Repayment structure fields are locked to protect collected totals. You can still update assignment, notes and status.
-                <?php endif; ?>
-            </div>
-        <?php endif; ?>
-
         <form
             id="loan-form"
             class="create-loan-form"

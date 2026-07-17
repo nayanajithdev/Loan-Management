@@ -69,6 +69,15 @@ function build_sql_dump(PDO $pdo): array
     ];
 }
 
+function backup_filename_prefix(PDO $pdo): string
+{
+    $businessName = trim(system_setting($pdo, 'business_name', 'Loan Management'));
+    $prefix = strtolower((string) preg_replace('/[^A-Za-z0-9]+/', '_', $businessName));
+    $prefix = trim($prefix, '_');
+
+    return $prefix !== '' ? $prefix : 'loan_management';
+}
+
 $mode = trim((string) ($_GET['mode'] ?? 'sql'));
 $mode = in_array($mode, ['sql', 'full'], true) ? $mode : 'sql';
 
@@ -77,6 +86,7 @@ $tables = $dumpData['tables'];
 $content = (string) $dumpData['content'];
 
 $timestamp = date('Ymd_His');
+$filenamePrefix = backup_filename_prefix($pdo);
 
 $uploadsRoot = dirname(__DIR__) . DIRECTORY_SEPARATOR . 'uploads';
 
@@ -131,7 +141,7 @@ if ($mode === 'full' && class_exists('ZipArchive')) {
 
             $zip->close();
 
-            $filename = 'loan_management_full_backup_' . $timestamp . '.zip';
+            $filename = $filenamePrefix . '_full_backup_' . $timestamp . '.zip';
             log_activity($pdo, 'backup.download', 'Full backup downloaded.', [
                 'mode' => 'full',
                 'tables' => count($tables),
@@ -156,7 +166,7 @@ if ($mode === 'full' && class_exists('ZipArchive')) {
     }
 }
 
-$filename = 'loan_management_backup_' . $timestamp . '.sql';
+$filename = $filenamePrefix . '_backup_' . $timestamp . '.sql';
 log_activity($pdo, 'backup.download', 'Database backup downloaded.', [
     'mode' => 'sql',
     'tables' => count($tables),

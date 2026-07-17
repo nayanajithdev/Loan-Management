@@ -37,16 +37,8 @@ function role_display_name(string $role): string
     return match ($role) {
         'superadmin' => 'Owner',
         'admin' => 'Manager',
-        'collector_l1', 'collector_l2', 'collector' => 'Collector',
+        'collector' => 'Collector',
         default => ucfirst($role),
-    };
-}
-
-function normalize_user_role(string $role): string
-{
-    return match ($role) {
-        'superadmin', 'admin' => $role,
-        default => 'collector',
     };
 }
 
@@ -137,37 +129,6 @@ function role_default_permissions(string $role): array
         ]));
     }
 
-    if ($role === 'collector_l2') {
-        return [
-            'dashboard.view',
-            'profile.manage',
-            'today_collections.view',
-            'collections.record',
-            'collections.history',
-            'customers.view',
-            'customers.view_all',
-            'customers.create',
-            'customers.edit',
-            'customers.documents',
-            'loans.view',
-            'loans.create',
-            'loans.edit',
-            'calculator.view',
-        ];
-    }
-
-    if ($role === 'collector_l1') {
-        return [
-            'dashboard.view',
-            'profile.manage',
-            'today_collections.view',
-            'collections.record',
-            'collections.history',
-            'customers.view',
-            'customers.documents',
-        ];
-    }
-
     return [
         'dashboard.view',
         'profile.manage',
@@ -176,18 +137,6 @@ function role_default_permissions(string $role): array
         'collections.history',
         'customers.view',
     ];
-}
-
-function short_name_words(string $fullName, int $maxWords = 2): string
-{
-    $maxWords = max(1, $maxWords);
-    $parts = preg_split('/\s+/', trim($fullName)) ?: [];
-    $parts = array_values(array_filter($parts, static fn ($part) => $part !== ''));
-    if (count($parts) === 0) {
-        return '';
-    }
-
-    return implode(' ', array_slice($parts, 0, $maxWords));
 }
 
 function collection_note_split(?string $rawNote): array
@@ -3667,19 +3616,9 @@ function can_any(array $permissionKeys, ?array $viewer = null): bool
     return false;
 }
 
-function can_manage_users(): bool
-{
-    return can('users.manage');
-}
-
 function is_collector_role(?string $role): bool
 {
     return (string) $role === 'collector';
-}
-
-function can_manage_loans(): bool
-{
-    return can_any(['loans.view', 'loans.create', 'loans.edit', 'loans.delete', 'loans.assign']);
 }
 
 function can_view_all_customers(?array $viewer = null): bool
@@ -3851,96 +3790,6 @@ function today_collected_total(PDO $pdo, ?array $viewer = null): float
         'viewer_user_id' => $viewerId,
     ]);
     return (float) $stmt->fetchColumn();
-}
-
-function collections_30day_trend(PDO $pdo, ?array $viewer = null): array
-{
-    $days = 30;
-    $start = (new DateTimeImmutable(today()))->sub(new DateInterval('P' . ($days - 1) . 'D'))->format('Y-m-d');
-    $viewerRole = (string) ($viewer['role'] ?? '');
-    $viewerId = (int) ($viewer['id'] ?? 0);
-    $isCollectorScope = is_collector_role($viewerRole) && $viewerId > 0;
-
-    if (!$isCollectorScope) {
-        $collectedStmt = $pdo->prepare(
-            "SELECT collected_on AS d, COALESCE(SUM(amount), 0) AS total
-             FROM collections
-             WHERE collected_on >= :start_date
-             GROUP BY collected_on"
-        );
-        $collectedStmt->execute(['start_date' => $start]);
-        $collectedRows = $collectedStmt->fetchAll();
-
-        $targetStmt = $pdo->prepare(
-            "SELECT due_date AS d, COALESCE(SUM(due_amount), 0) AS total
-             FROM loan_installments
-             WHERE due_date >= :start_date
-             GROUP BY due_date"
-        );
-        $targetStmt->execute(['start_date' => $start]);
-        $targetRows = $targetStmt->fetchAll();
-    } else {
-        $scope = 'l.assigned_user_id = :viewer_user_id';
-
-        $collectedStmt = $pdo->prepare(
-            "SELECT c.collected_on AS d, COALESCE(SUM(c.amount), 0) AS total
-             FROM collections c
-             JOIN loans l ON l.id = c.loan_id
-             WHERE c.collected_on >= :start_date
-               AND {$scope}
-             GROUP BY c.collected_on"
-        );
-        $collectedStmt->execute([
-            'start_date' => $start,
-            'viewer_user_id' => $viewerId,
-        ]);
-        $collectedRows = $collectedStmt->fetchAll();
-
-        $targetStmt = $pdo->prepare(
-            "SELECT li.due_date AS d, COALESCE(SUM(li.due_amount), 0) AS total
-             FROM loan_installments li
-             JOIN loans l ON l.id = li.loan_id
-             WHERE li.due_date >= :start_date
-               AND {$scope}
-             GROUP BY li.due_date"
-        );
-        $targetStmt->execute([
-            'start_date' => $start,
-            'viewer_user_id' => $viewerId,
-        ]);
-        $targetRows = $targetStmt->fetchAll();
-    }
-
-    $collectedMap = [];
-    foreach ($collectedRows as $row) {
-        $collectedMap[(string) $row['d']] = (float) $row['total'];
-    }
-
-    $targetMap = [];
-    foreach ($targetRows as $row) {
-        $targetMap[(string) $row['d']] = (float) $row['total'];
-    }
-
-    $labels = [];
-    $collected = [];
-    $target = [];
-
-    for ($i = $days - 1; $i >= 0; $i--) {
-        $date = (new DateTimeImmutable(today()))->sub(new DateInterval('P' . $i . 'D'));
-        $key = $date->format('Y-m-d');
-        $labels[] = $date->format('M d');
-        $collected[] = $collectedMap[$key] ?? 0.0;
-        $target[] = $targetMap[$key] ?? 0.0;
-    }
-
-    return [
-        'labels' => $labels,
-        'collected' => $collected,
-        'target' => $target,
-        'collected_total' => array_sum($collected),
-        'target_total' => array_sum($target),
-        'max_value' => max([1.0, ...$collected, ...$target]),
-    ];
 }
 
 function collections_total_chart(PDO $pdo, ?array $viewer = null, string $mode = 'monthly'): array
@@ -4183,27 +4032,4 @@ function dashboard_user_goals(PDO $pdo, ?array $viewer = null): array
         'total_target' => $totalTarget,
         'users' => $goals,
     ];
-}
-
-function sparkline_points_scaled(array $values, float $min, float $max, int $width = 140, int $height = 46, int $padding = 4): string
-{
-    if (empty($values)) {
-        return '';
-    }
-
-    $range = max(1.0, $max - $min);
-    $count = count($values);
-    $innerWidth = $width - ($padding * 2);
-    $innerHeight = $height - ($padding * 2);
-
-    $points = [];
-    foreach ($values as $i => $v) {
-        $x = $padding + ($count === 1 ? 0 : ($innerWidth * $i / ($count - 1)));
-        $norm = (((float) $v) - $min) / $range;
-        $norm = max(0.0, min(1.0, $norm));
-        $y = $padding + ($innerHeight * (1 - $norm));
-        $points[] = number_format($x, 2, '.', '') . ',' . number_format($y, 2, '.', '');
-    }
-
-    return implode(' ', $points);
 }

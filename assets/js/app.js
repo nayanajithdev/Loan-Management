@@ -463,21 +463,25 @@
 
                 event.preventDefault();
 
-                if (form.querySelector('[data-inline-confirm-actions]')) {
+                if (form.querySelector('[data-inline-confirm-actions]') || document.querySelector('[data-inline-confirm-modal]')) {
                     return;
                 }
 
-                const actions = document.createElement('div');
-                actions.className = 'inline-confirm-actions';
-                actions.setAttribute('data-inline-confirm-actions', '1');
-                actions.setAttribute('aria-label', message);
-
+                const confirmMode = form.getAttribute('data-inline-confirm-mode') === 'modal' ? 'modal' : 'inline';
+                const confirmDelay = Math.max(0, Number.parseInt(form.getAttribute('data-inline-confirm-delay') || '1000', 10) || 0);
+                const confirmLabel = (form.getAttribute('data-inline-confirm-label') || 'Confirm').trim() || 'Confirm';
                 const confirmButton = document.createElement('button');
                 confirmButton.type = 'submit';
                 const confirmVariant = form.getAttribute('data-inline-confirm-variant') === 'danger' ? 'btn-danger' : 'btn-success';
                 confirmButton.className = `btn ${confirmVariant} inline-confirm-button is-waiting`;
                 confirmButton.disabled = true;
-                confirmButton.innerHTML = '<span class="inline-confirm-progress" aria-hidden="true"></span><span>Confirm</span>';
+                const confirmProgress = document.createElement('span');
+                confirmProgress.className = 'inline-confirm-progress';
+                confirmProgress.setAttribute('aria-hidden', 'true');
+                confirmProgress.style.setProperty('--inline-confirm-progress-duration', `${Math.max(confirmDelay, 1)}ms`);
+                const confirmText = document.createElement('span');
+                confirmText.textContent = confirmLabel;
+                confirmButton.append(confirmProgress, confirmText);
                 confirmButton.setAttribute('data-inline-confirm-submit', '1');
 
                 const cancelButton = document.createElement('button');
@@ -485,18 +489,63 @@
                 cancelButton.className = 'btn';
                 cancelButton.textContent = 'Cancel';
 
-                actions.append(confirmButton, cancelButton);
-                submitter.hidden = true;
-                submitter.insertAdjacentElement('afterend', actions);
+                let actions = null;
+                let modal = null;
+                if (confirmMode === 'modal') {
+                    modal = document.createElement('div');
+                    modal.className = 'inline-confirm-modal-backdrop';
+                    modal.setAttribute('data-inline-confirm-modal', '1');
+                    modal.innerHTML = `
+                        <div class="inline-confirm-modal" role="dialog" aria-modal="true" aria-labelledby="inline-confirm-modal-title">
+                            <div class="inline-confirm-modal-title" id="inline-confirm-modal-title">Confirm Action</div>
+                            <p class="inline-confirm-modal-message"></p>
+                            <div class="inline-confirm-modal-actions" data-inline-confirm-actions="1"></div>
+                        </div>
+                    `;
+                    const messageNode = modal.querySelector('.inline-confirm-modal-message');
+                    const modalActions = modal.querySelector('[data-inline-confirm-actions]');
+                    if (messageNode) {
+                        messageNode.textContent = message;
+                    }
+                    if (modalActions) {
+                        modalActions.append(confirmButton, cancelButton);
+                    }
+                    document.body.append(modal);
+                    confirmButton.type = 'button';
+                    confirmButton.addEventListener('click', () => {
+                        if (confirmButton.disabled) {
+                            return;
+                        }
+                        form.setAttribute('data-confirmed', '1');
+                        if (typeof form.requestSubmit === 'function') {
+                            form.requestSubmit(submitter instanceof HTMLElement ? submitter : undefined);
+                        } else {
+                            form.submit();
+                        }
+                    });
+                } else {
+                    actions = document.createElement('div');
+                    actions.className = 'inline-confirm-actions';
+                    actions.setAttribute('data-inline-confirm-actions', '1');
+                    actions.setAttribute('aria-label', message);
+                    actions.append(confirmButton, cancelButton);
+                    submitter.hidden = true;
+                    submitter.insertAdjacentElement('afterend', actions);
+                }
                 confirmButton.focus();
                 const enableConfirmTimer = window.setTimeout(() => {
                     confirmButton.disabled = false;
                     confirmButton.classList.remove('is-waiting');
-                }, 1000);
+                }, confirmDelay);
 
                 cancelButton.addEventListener('click', () => {
                     window.clearTimeout(enableConfirmTimer);
-                    actions.remove();
+                    if (modal) {
+                        modal.remove();
+                    }
+                    if (actions) {
+                        actions.remove();
+                    }
                     form.removeAttribute('data-confirmed');
                     submitter.hidden = false;
                     submitter.focus();

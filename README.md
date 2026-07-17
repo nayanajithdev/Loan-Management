@@ -12,14 +12,13 @@ PHP + MySQL loan management system for small lending businesses.
 - Multi-user login with roles:
   - `superadmin` (Owner)
   - `admin` (Manager)
-  - `collector_l1` (Collector L1)
-  - `collector_l2` (Collector L2)
+  - `collector` (Collector)
 
 ## Role rules
 - Only one `superadmin` (Owner) is allowed.
 - Owner can add/delete users (except deleting owner itself).
 - Manager can add/delete users, but cannot delete owner.
-- Collector L1 and Collector L2 cannot add/delete users.
+- Collector permissions are configurable by the owner/manager.
 
 ## Tech stack
 - HTML

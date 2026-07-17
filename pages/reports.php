@@ -256,7 +256,7 @@ require __DIR__ . '/../includes/layout_start.php';
                         </table>
                     </div>
                     <div class="reports-print-actions">
-                        <button type="button" class="btn btn-primary" data-print-daily-collections-report data-print-filename="<?= e($dailyCollectionFileName) ?>">Save as PDF</button>
+                        <button type="button" class="btn btn-primary" data-print-daily-collections-report data-print-filename="<?= e($dailyCollectionFileName) ?>">Print</button>
                     </div>
                 </section>
             </div>

@@ -2362,19 +2362,65 @@ textarea {
 
 .inline-confirm-progress {
     --inline-confirm-progress-angle: 0deg;
+    --inline-confirm-progress-duration: 1s;
     width: 18px;
     height: 18px;
     border-radius: 50%;
     background: conic-gradient(currentColor var(--inline-confirm-progress-angle), rgba(255, 255, 255, 0.18) 0deg);
     -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 3px));
     mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 3px));
-    animation: inline-confirm-progress 1s linear forwards;
+    animation: inline-confirm-progress var(--inline-confirm-progress-duration) linear forwards;
 }
 
 @keyframes inline-confirm-progress {
     to {
         --inline-confirm-progress-angle: 360deg;
     }
+}
+
+.inline-confirm-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 72px 16px 24px;
+    background: rgba(2, 6, 23, 0.62);
+}
+
+.inline-confirm-modal {
+    width: min(460px, 100%);
+    border: 1px solid rgba(148, 163, 184, 0.24);
+    border-radius: 8px;
+    background: #101820;
+    box-shadow: 0 24px 70px rgba(0, 0, 0, 0.48);
+    color: #f8fafc;
+    padding: 20px;
+}
+
+.inline-confirm-modal-title {
+    font-size: 16px;
+    font-weight: 700;
+    margin-bottom: 12px;
+}
+
+.inline-confirm-modal-message {
+    margin: 0;
+    color: #f8fafc;
+    line-height: 1.45;
+}
+
+.inline-confirm-modal-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 28px;
+}
+
+.inline-confirm-modal-actions .btn {
+    min-width: 112px;
 }
 
 .reports-filter-actions {
