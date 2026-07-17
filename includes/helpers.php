@@ -278,6 +278,11 @@ function poll_interval_ms(PDO $pdo): int
     return max(3000, min(60000, $seconds * 1000));
 }
 
+function payment_method_selection_enabled(PDO $pdo): bool
+{
+    return system_setting($pdo, 'payment_method_selection_enabled', '1') !== '0';
+}
+
 function display_date(string $dateValue, ?string $fallback = null): string
 {
     static $format = null;
@@ -2158,6 +2163,7 @@ function ensure_user_permissions_schema(PDO $pdo): void
             ]);
         }
     }
+
 }
 
 function ensure_user_email_schema(PDO $pdo): void
@@ -4037,9 +4043,7 @@ function dashboard_collection_chart_html(PDO $pdo, array $chart, string $mode): 
     ?>
     <div class="panel-head collections-chart-head">
         <div>
-            <p class="chart-kicker">Collections Trend</p>
             <h2 class="panel-title"><?= e((string) $chart['title']) ?></h2>
-            <p class="chart-subtitle"><?= e((string) $chart['subtitle']) ?></p>
         </div>
         <div class="collections-chart-actions">
             <span class="chart-total-pill"><?= e(money_label($pdo, (float) $chart['total'])) ?> <?= e((string) $chart['pill_suffix']) ?></span>

@@ -21,6 +21,7 @@ $defaultTimeframeUnit = (string) ($_POST['default_timeframe_unit'] ?? 'days');
 $defaultLoanCollectorId = (int) ($_POST['default_loan_collector_id'] ?? 0);
 $allowOverpayment = (string) ($_POST['allow_overpayment'] ?? '1') === '0' ? '0' : '1';
 $autoFillAmountReceived = (string) ($_POST['auto_fill_amount_received'] ?? '1') === '0' ? '0' : '1';
+$paymentMethodSelectionEnabled = (string) ($_POST['payment_method_selection_enabled'] ?? '1') === '0' ? '0' : '1';
 $pollIntervalSeconds = max(3, min(60, (int) ($_POST['poll_interval_seconds'] ?? 10)));
 
 if (!in_array($defaultFrequency, ['daily', 'weekly', 'monthly'], true)) {
@@ -47,6 +48,7 @@ $settingsToSave = [
     'default_loan_collector_id' => (string) $defaultLoanCollectorId,
     'allow_overpayment' => $allowOverpayment,
     'auto_fill_amount_received' => $autoFillAmountReceived,
+    'payment_method_selection_enabled' => $paymentMethodSelectionEnabled,
     'poll_interval_seconds' => (string) $pollIntervalSeconds,
 ];
 

@@ -42,8 +42,8 @@ $canEditAssignment = can('loans.assign');
 $canScheduleNextPayment = can('collections.schedule');
 $canDeleteLoan = can('loans.delete');
 $canViewCustomer = can('customers.view');
-$canViewCollectionHistory = can('collections.history');
 $canRecordCollection = can('collections.record');
+$paymentMethodSelectionEnabled = payment_method_selection_enabled($pdo);
 
 $collectionCountStmt = $pdo->prepare('SELECT COUNT(*) FROM collections WHERE loan_id = :loan_id');
 $collectionCountStmt->execute(['loan_id' => $loanId]);
@@ -336,19 +336,18 @@ require __DIR__ . '/../includes/layout_start.php';
             <?php endif; ?>
         </div>
 
-        <div class="loan-form-divider">Installment Options</div>
-        <div class="field loan-schedule-field">
-            <label>Schedule Next Payment</label>
-            <div class="loan-schedule-row">
-                <div class="loan-schedule-checkbox-field">
-                    <input type="checkbox" name="schedule_next_payment" id="schedule-next-payment-toggle" value="1" class="loan-schedule-checkbox-input" <?= $canScheduleNextPayment ? '' : 'disabled' ?>>
+        <?php if ($canScheduleNextPayment): ?>
+            <div class="loan-form-divider">Installment Options</div>
+            <div class="field loan-schedule-field">
+                <label>Schedule Next Payment</label>
+                <div class="loan-schedule-row">
+                    <div class="loan-schedule-checkbox-field">
+                        <input type="checkbox" name="schedule_next_payment" id="schedule-next-payment-toggle" value="1" class="loan-schedule-checkbox-input">
+                    </div>
+                    <input type="date" name="next_payment_date" id="next-payment-date-input" value="<?= e($tomorrowDate) ?>" min="<?= e($tomorrowDate) ?>" disabled>
                 </div>
-                <input type="date" name="next_payment_date" id="next-payment-date-input" value="<?= e($tomorrowDate) ?>" min="<?= e($tomorrowDate) ?>" disabled>
             </div>
-            <?php if (!$canScheduleNextPayment): ?>
-                <small>You do not have permission to schedule payments.</small>
-            <?php endif; ?>
-        </div>
+        <?php endif; ?>
 
         <div class="loan-form-divider">Notes</div>
         <div class="field full">
@@ -429,7 +428,9 @@ require __DIR__ . '/../includes/layout_start.php';
                         <th>Date</th>
                         <th>Inst.</th>
                         <th>Collected By</th>
-                        <th>Method</th>
+                        <?php if ($paymentMethodSelectionEnabled): ?>
+                            <th>Method</th>
+                        <?php endif; ?>
                         <th>Note</th>
                         <th class="text-right">Amount</th>
                     </tr>
@@ -437,7 +438,7 @@ require __DIR__ . '/../includes/layout_start.php';
                 <tbody>
                     <?php if (!$loanCollectionHistory): ?>
                         <tr>
-                            <td colspan="6">No collections recorded for this loan.</td>
+                            <td colspan="<?= $paymentMethodSelectionEnabled ? '6' : '5' ?>">No collections recorded for this loan.</td>
                         </tr>
                     <?php else: ?>
                         <?php foreach ($loanCollectionHistory as $history): ?>
@@ -455,7 +456,9 @@ require __DIR__ . '/../includes/layout_start.php';
                                 <td><?= e($collectedDisplay) ?></td>
                                 <td><?= e($installments) ?></td>
                                 <td><?= e((string) ($history['collected_by_name'] ?? 'Unknown')) ?></td>
-                                <td><?= e(ucfirst((string) ($history['method'] ?? 'cash'))) ?></td>
+                                <?php if ($paymentMethodSelectionEnabled): ?>
+                                    <td><?= e(ucfirst((string) ($history['method'] ?? 'cash'))) ?></td>
+                                <?php endif; ?>
                                 <td><?= e($noteText === '' ? '-' : $noteText) ?></td>
                                 <td class="text-right"><?= e(money_label($pdo, (float) $history['amount'])) ?></td>
                             </tr>
@@ -513,14 +516,16 @@ require __DIR__ . '/../includes/layout_start.php';
                     <label>Amount Received</label>
                     <input type="number" step="0.01" min="0.01" name="amount" value="<?= e($autoFillAmountReceived ? number_format($collectibleBalance, 2, '.', '') : '') ?>" required>
                 </div>
-                <div class="field">
-                    <label>Method</label>
-                    <select name="method">
-                        <option value="cash">Cash</option>
-                        <option value="bank">Bank</option>
-                        <option value="online">Online</option>
-                    </select>
-                </div>
+                <?php if ($paymentMethodSelectionEnabled): ?>
+                    <div class="field">
+                        <label>Method</label>
+                        <select name="method">
+                            <option value="cash">Cash</option>
+                            <option value="bank">Bank</option>
+                            <option value="online">Online</option>
+                        </select>
+                    </div>
+                <?php endif; ?>
                 <div class="field">
                     <label>Note</label>
                     <textarea name="note" placeholder="Optional"></textarea>

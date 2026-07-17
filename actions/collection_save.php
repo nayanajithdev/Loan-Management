@@ -117,7 +117,7 @@ if ($scheduleNextPayment && !$canScheduleNextPayment) {
     redirect($returnTo);
 }
 
-if (!in_array($method, ['cash', 'bank', 'online'], true)) {
+if (!payment_method_selection_enabled($pdo) || !in_array($method, ['cash', 'bank', 'online'], true)) {
     $method = 'cash';
 }
 

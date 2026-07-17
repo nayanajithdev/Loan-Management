@@ -409,6 +409,8 @@ a {
 .app-shell {
     min-height: 100vh;
     height: 100vh;
+    min-height: 100dvh;
+    height: 100dvh;
     display: grid;
     grid-template-columns: 280px 1fr;
     overflow: hidden;
@@ -417,6 +419,7 @@ a {
 .content-shell {
     min-width: 0;
     height: 100vh;
+    height: 100dvh;
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -438,6 +441,7 @@ body.sidebar-open {
     position: sticky;
     top: 0;
     height: 100vh;
+    height: 100dvh;
     overflow-y: auto;
     overscroll-behavior: contain;
     scrollbar-gutter: stable;
@@ -2386,6 +2390,27 @@ textarea {
     margin-left: 0;
 }
 
+.collection-history-filter {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin: 22px 0 18px;
+}
+
+.collection-history-search {
+    width: min(100%, 390px);
+}
+
+.collection-history-filter-actions {
+    display: flex;
+    align-items: center;
+}
+
+.collection-history-filter-actions .btn {
+    min-width: 120px;
+}
+
 .reports-tabs-shell {
     margin-top: 0;
 }
@@ -3331,6 +3356,71 @@ textarea {
     background: transparent;
 }
 
+.collection-history-table {
+    min-width: 1040px;
+    table-layout: fixed;
+}
+
+.collection-history-table th:nth-child(1),
+.collection-history-table td:nth-child(1) {
+    width: 190px;
+}
+
+.collection-history-table th:nth-child(2),
+.collection-history-table td:nth-child(2) {
+    width: 130px;
+}
+
+.collection-history-table th:nth-child(3),
+.collection-history-table td:nth-child(3) {
+    width: 230px;
+}
+
+.collection-history-table th:nth-child(4),
+.collection-history-table td:nth-child(4) {
+    width: 170px;
+}
+
+.collection-history-table th:nth-child(5),
+.collection-history-table td:nth-child(5) {
+    width: 110px;
+}
+
+.collection-history-table th:nth-child(6),
+.collection-history-table td:nth-child(6) {
+    width: 180px;
+}
+
+.collection-history-table th:nth-child(7),
+.collection-history-table td:nth-child(7) {
+    width: 150px;
+}
+
+.collection-history-table.is-method-hidden {
+    min-width: 940px;
+}
+
+.reports-table-section .collection-history-table.is-method-hidden {
+    min-width: 1120px;
+}
+
+.collection-history-table.is-method-hidden th:nth-last-child(2),
+.collection-history-table.is-method-hidden td:nth-last-child(2) {
+    width: 220px;
+}
+
+.collection-history-table.is-method-hidden th:last-child,
+.collection-history-table.is-method-hidden td:last-child {
+    width: 150px;
+}
+
+.collection-history-note {
+    max-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 .zebra-table tbody tr:nth-child(odd):not(.table-row-clickable:hover):not(.row-selected) {
     background: rgba(27, 42, 54, 0.36);
 }
@@ -3695,11 +3785,13 @@ textarea {
     .app-shell {
         grid-template-columns: 1fr;
         height: 100vh;
+        height: 100dvh;
         overflow: hidden;
     }
 
     .content-shell {
         height: 100vh;
+        height: 100dvh;
     }
 
     .create-loan-body {
@@ -3716,6 +3808,7 @@ textarea {
         left: 0;
         width: min(82vw, 300px);
         height: 100vh;
+        height: 100dvh;
         padding: 0 16px 22px;
         z-index: 1200;
         transform: translateX(-105%);
@@ -3755,6 +3848,8 @@ textarea {
         flex: 1;
         overflow-y: auto;
         overscroll-behavior: contain;
+        -webkit-overflow-scrolling: touch;
+        padding-bottom: calc(22px + env(safe-area-inset-bottom));
     }
 
     /* Prevent iOS Safari auto-zoom on focused form controls */
@@ -3840,6 +3935,11 @@ textarea {
 
     .today-collections-layout.mobile-record-mode .today-collections-record-panel {
         display: block;
+        margin-bottom: calc(96px + env(safe-area-inset-bottom));
+    }
+
+    .today-collections-layout.mobile-record-mode .today-collections-record-panel form {
+        padding-bottom: calc(90px + env(safe-area-inset-bottom));
     }
 
     .today-collections-layout.mobile-record-mode .today-collections-record-panel .panel-head-actions {
@@ -4090,15 +4190,23 @@ textarea {
         grid-template-columns: 1fr;
     }
 
-    .collection-date-field,
-    .collection-status-field,
-    .collection-search-field {
-        grid-column: span 12;
+    .collection-filter-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 14px;
     }
 
-    .collection-filter-grid {
-        grid-template-columns: 1fr;
-        gap: 14px;
+    .collection-date-field,
+    .collection-status-field {
+        grid-column: span 1;
+    }
+
+    .collection-status-field[hidden] + .collection-search-field,
+    .collection-date-field:has(+ .collection-status-field[hidden]) {
+        grid-column: span 2;
+    }
+
+    .collection-search-field {
+        grid-column: span 2;
     }
 
     .collection-search-field .search-control {

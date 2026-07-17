@@ -71,6 +71,7 @@ $collections = $collectionsStmt->fetchAll();
 
 $collectedTotal = (float) ($collectionTotals['collected_total'] ?? 0);
 $paymentCount = (int) ($collectionTotals['payment_count'] ?? 0);
+$paymentMethodSelectionEnabled = payment_method_selection_enabled($pdo);
 
 $profitMode = (string) ($_GET['profit_mode'] ?? 'daily');
 if (!in_array($profitMode, ['daily', 'monthly'], true)) {
@@ -210,7 +211,7 @@ require __DIR__ . '/../includes/layout_start.php';
                         <h2 class="panel-title">Collections</h2>
                     </div>
                     <div class="table-wrap">
-                        <table class="collection-history-table">
+                        <table class="collection-history-table <?= $paymentMethodSelectionEnabled ? '' : 'is-method-hidden' ?>">
                             <thead>
                             <tr>
                                 <th>Date</th>
@@ -219,14 +220,16 @@ require __DIR__ . '/../includes/layout_start.php';
                                 <th>Phone</th>
                                 <th>Inst.</th>
                                 <th>Collected By</th>
-                                <th>Method</th>
+                                <?php if ($paymentMethodSelectionEnabled): ?>
+                                    <th>Method</th>
+                                <?php endif; ?>
                                 <th>Note</th>
                                 <th class="text-right">Amount</th>
                             </tr>
                             </thead>
                             <tbody>
                             <?php if (!$collections): ?>
-                                <tr><td colspan="9">No collections found for selected date.</td></tr>
+                                <tr><td colspan="<?= $paymentMethodSelectionEnabled ? '9' : '8' ?>">No collections found for selected date.</td></tr>
                             <?php else: ?>
                                 <?php foreach ($collections as $row): ?>
                                     <?php
@@ -241,7 +244,9 @@ require __DIR__ . '/../includes/layout_start.php';
                                         <td><?= e((string) $row['phone']) ?></td>
                                         <td><?= e($installments === '' ? '-' : $installments) ?></td>
                                         <td><?= e((string) $row['collected_by']) ?></td>
-                                        <td><?= e(ucfirst((string) $row['method'])) ?></td>
+                                        <?php if ($paymentMethodSelectionEnabled): ?>
+                                            <td><?= e(ucfirst((string) $row['method'])) ?></td>
+                                        <?php endif; ?>
                                         <td><?= e($noteText === '' ? '-' : $noteText) ?></td>
                                         <td class="text-right"><?= e(money_label($pdo, (float) $row['amount'])) ?></td>
                                     </tr>

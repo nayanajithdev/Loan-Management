@@ -18,6 +18,7 @@ $search = mb_substr($search, 0, 120);
 $offset = max(0, (int) ($_GET['offset'] ?? 0));
 $perPage = 50;
 $queryLimit = $perPage + 1;
+$paymentMethodSelectionEnabled = payment_method_selection_enabled($pdo);
 
 $scopeSql = '';
 $params = [];
@@ -48,6 +49,7 @@ $collectionsStmt = $pdo->prepare(
     "SELECT
         MAX(col.id) AS latest_id,
         MAX(col.collected_on) AS collected_on,
+        MAX(col.created_at) AS collected_at,
         l.loan_number,
         c.full_name,
         MAX(u.full_name) AS collected_by_name,
@@ -82,8 +84,8 @@ require __DIR__ . '/../includes/layout_start.php';
     <div class="panel-head">
         <h2 class="panel-title">Collection History</h2>
     </div>
-    <form method="get" class="form-grid" style="margin-bottom: 12px;">
-        <div class="field" style="grid-column: span 5;">
+    <form method="get" class="collection-history-filter">
+        <div class="collection-history-search">
             <label class="sr-only">Search collection history</label>
             <div class="search-control">
                 <input type="text" name="q" value="<?= e($search) ?>" placeholder="Search..." aria-label="Search by loan number, customer name, or phone">
@@ -95,26 +97,28 @@ require __DIR__ . '/../includes/layout_start.php';
                 <input type="hidden" name="customer_id" value="<?= e((string) $selectedCustomerId) ?>">
             <?php endif; ?>
         </div>
-        <div class="field reports-filter-actions" style="grid-column: span 3; justify-content: flex-start; align-self: end;">
+        <div class="collection-history-filter-actions">
             <a class="btn" href="<?= e(url('pages/collections.php')) ?>">Reset</a>
         </div>
     </form>
     <div class="table-wrap">
-        <table class="collection-history-table">
+        <table class="collection-history-table <?= $paymentMethodSelectionEnabled ? '' : 'is-method-hidden' ?>">
             <thead>
             <tr>
-                <th>Date</th>
+                <th>Date &amp; Time</th>
                 <th>Loan</th>
                 <th>Customer</th>
                 <th>Collected By</th>
-                <th>Method</th>
+                <?php if ($paymentMethodSelectionEnabled): ?>
+                    <th>Method</th>
+                <?php endif; ?>
                 <th>Note</th>
                 <th class="text-right">Amount</th>
             </tr>
             </thead>
             <tbody id="collection-history-table-body">
             <?php if (!$collections): ?>
-                <tr><td colspan="7">No collections yet.</td></tr>
+                <tr><td colspan="<?= $paymentMethodSelectionEnabled ? '7' : '6' ?>">No collections yet.</td></tr>
             <?php else: ?>
                 <?php foreach ($collections as $item): ?>
                     <?php
@@ -125,12 +129,14 @@ require __DIR__ . '/../includes/layout_start.php';
                     }
                     ?>
                     <tr>
-                        <td><?= e(display_date((string) $item['collected_on'])) ?></td>
+                        <td><?= e(display_datetime((string) ($item['collected_at'] ?? ''), display_date((string) $item['collected_on']))) ?></td>
                         <td><?= e($item['loan_number']) ?></td>
                         <td><?= e($item['full_name']) ?></td>
                         <td><?= e((string) ($item['collected_by_name'] ?? '-')) ?></td>
-                        <td><?= e($item['method']) ?></td>
-                        <td><?= e($note) ?></td>
+                        <?php if ($paymentMethodSelectionEnabled): ?>
+                            <td><?= e($item['method']) ?></td>
+                        <?php endif; ?>
+                        <td class="collection-history-note"><?= e($note) ?></td>
                         <td class="text-right"><?= e(money_label($pdo, (float) $item['amount'])) ?></td>
                     </tr>
                 <?php endforeach; ?>

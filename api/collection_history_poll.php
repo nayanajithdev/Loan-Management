@@ -14,6 +14,7 @@ $search = mb_substr($search, 0, 120);
 $offset = max(0, (int) ($_GET['offset'] ?? 0));
 $perPage = 50;
 $queryLimit = $perPage + 1;
+$paymentMethodSelectionEnabled = payment_method_selection_enabled($pdo);
 
 $scopeSql = '';
 $params = [];
@@ -44,6 +45,7 @@ $collectionsStmt = $pdo->prepare(
     "SELECT
         MAX(col.id) AS latest_id,
         MAX(col.collected_on) AS collected_on,
+        MAX(col.created_at) AS collected_at,
         l.loan_number,
         c.full_name,
         MAX(u.full_name) AS collected_by_name,
@@ -68,7 +70,7 @@ $collections = $hasMore ? array_slice($collectionsRaw, 0, $perPage) : $collectio
 ob_start();
 if (!$collections):
 ?>
-<tr><td colspan="7">No collections yet.</td></tr>
+<tr><td colspan="<?= $paymentMethodSelectionEnabled ? '7' : '6' ?>">No collections yet.</td></tr>
 <?php
 else:
     foreach ($collections as $item):
@@ -79,12 +81,14 @@ else:
         }
 ?>
 <tr>
-    <td><?= e(display_date((string) $item['collected_on'])) ?></td>
+    <td><?= e(display_datetime((string) ($item['collected_at'] ?? ''), display_date((string) $item['collected_on']))) ?></td>
     <td><?= e($item['loan_number']) ?></td>
     <td><?= e($item['full_name']) ?></td>
     <td><?= e((string) ($item['collected_by_name'] ?? '-')) ?></td>
-    <td><?= e($item['method']) ?></td>
-    <td><?= e($note) ?></td>
+    <?php if ($paymentMethodSelectionEnabled): ?>
+        <td><?= e($item['method']) ?></td>
+    <?php endif; ?>
+    <td class="collection-history-note"><?= e($note) ?></td>
     <td class="text-right"><?= e(money_label($pdo, (float) $item['amount'])) ?></td>
 </tr>
 <?php

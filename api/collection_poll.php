@@ -32,6 +32,9 @@ if (!in_array($selectedDateMode, ['today', 'tomorrow', 'day_after_tomorrow', 'cu
 if (!in_array($selectedCollectionStatus, ['pending', 'collected'], true)) {
     $selectedCollectionStatus = 'pending';
 }
+if ($selectedDateMode !== 'today') {
+    $selectedCollectionStatus = 'pending';
+}
 
 $selectedDate = match ($selectedDateMode) {
     'today' => $todayDate,

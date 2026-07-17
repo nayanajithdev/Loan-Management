@@ -55,6 +55,14 @@ require __DIR__ . '/../includes/layout_start.php';
                 </select>
             </div>
             <div class="field">
+                <label>Payment Method Selection</label>
+                <?php $paymentMethodSelection = $get('payment_method_selection_enabled', '1'); ?>
+                <select name="payment_method_selection_enabled" required<?= $disabledAttr ?>>
+                    <option value="1" <?= $paymentMethodSelection !== '0' ? 'selected' : '' ?>>Enabled</option>
+                    <option value="0" <?= $paymentMethodSelection === '0' ? 'selected' : '' ?>>Disabled</option>
+                </select>
+            </div>
+            <div class="field">
                 <label>Live Update Interval (seconds)</label>
                 <input type="number" min="3" max="60" name="poll_interval_seconds" value="<?= e($get('poll_interval_seconds', '10')) ?>" required<?= $disabledAttr ?>>
             </div>

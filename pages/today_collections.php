@@ -24,6 +24,9 @@ if (!in_array($selectedDateMode, ['today', 'tomorrow', 'day_after_tomorrow'], tr
 if (!in_array($selectedCollectionStatus, ['pending', 'collected'], true)) {
     $selectedCollectionStatus = 'pending';
 }
+if ($selectedDateMode !== 'today') {
+    $selectedCollectionStatus = 'pending';
+}
 
 $selectedDate = match ($selectedDateMode) {
     'today' => $todayDate,
@@ -48,6 +51,7 @@ $collectedInstallments = $selectedCollectionStatus === 'collected'
     : [];
 $displayInstallments = $selectedCollectionStatus === 'collected' ? $collectedInstallments : $pendingInstallments;
 $autoFillAmountReceived = system_setting($pdo, 'auto_fill_amount_received', '1') !== '0';
+$paymentMethodSelectionEnabled = payment_method_selection_enabled($pdo);
 
 $selectedInstallment = null;
 foreach ($pendingInstallments as $item) {
@@ -138,13 +142,16 @@ require __DIR__ . '/../includes/layout_start.php';
                     <option value="day_after_tomorrow" <?= $selectedDateMode === 'day_after_tomorrow' ? 'selected' : '' ?>>Day After Tomorrow</option>
                 </select>
             </div>
-            <div class="field collection-status-field">
+            <div class="field collection-status-field" <?= $selectedDateMode === 'today' ? '' : 'hidden' ?>>
                 <label class="sr-only">Collection Status</label>
-                <select name="collection_status" id="collection-status-select">
+                <select name="collection_status" id="collection-status-select" <?= $selectedDateMode === 'today' ? '' : 'disabled' ?>>
                     <option value="pending" <?= $selectedCollectionStatus === 'pending' ? 'selected' : '' ?>>Pending</option>
                     <option value="collected" <?= $selectedCollectionStatus === 'collected' ? 'selected' : '' ?>>Collected</option>
                 </select>
             </div>
+            <?php if ($selectedDateMode !== 'today'): ?>
+                <input type="hidden" name="collection_status" value="pending">
+            <?php endif; ?>
             <div class="field collection-search-field">
                 <label class="sr-only">Search installments</label>
                 <div class="search-control">
@@ -357,13 +364,15 @@ require __DIR__ . '/../includes/layout_start.php';
                     <label>Amount Received</label>
                     <div class="readonly-value"><?= e(money_label($pdo, $selectedCollectionAmount)) ?></div>
                 </div>
-                <div class="field">
-                    <label>Method</label>
-                    <div class="readonly-value"><?= e($hasSelectedCollection ? ucfirst((string) $selectedCollection['method']) : '-') ?></div>
-                </div>
+                <?php if ($paymentMethodSelectionEnabled): ?>
+                    <div class="field">
+                        <label>Method</label>
+                        <div class="readonly-value"><?= e($hasSelectedCollection ? ucfirst((string) $selectedCollection['method']) : '-') ?></div>
+                    </div>
+                <?php endif; ?>
                 <div class="field">
                     <label>Collected On</label>
-                    <div class="readonly-value"><?= e($hasSelectedCollection ? display_date((string) $selectedCollection['collected_on']) : '-') ?></div>
+                    <div class="readonly-value"><?= e($hasSelectedCollection ? display_datetime((string) ($selectedCollection['collected_at'] ?? ''), display_date((string) $selectedCollection['collected_on'])) : '-') ?></div>
                 </div>
                 <div class="field">
                     <label>Collected By</label>
@@ -416,14 +425,16 @@ require __DIR__ . '/../includes/layout_start.php';
                     <label>Amount Received</label>
                     <input type="number" name="amount" step="0.01" min="0.01" value="<?= e(($hasSelectedInstallment && $autoFillAmountReceived) ? (string) $selectedBalance : '') ?>" <?= $canCollectSelectedInstallment ? 'required' : 'disabled' ?>>
                 </div>
-                <div class="field">
-                    <label>Method</label>
-                    <select name="method" <?= $canCollectSelectedInstallment ? '' : 'disabled' ?>>
-                        <option value="cash">Cash</option>
-                        <option value="bank">Bank Transfer</option>
-                        <option value="online">Online</option>
-                    </select>
-                </div>
+                <?php if ($paymentMethodSelectionEnabled): ?>
+                    <div class="field">
+                        <label>Method</label>
+                        <select name="method" <?= $canCollectSelectedInstallment ? '' : 'disabled' ?>>
+                            <option value="cash">Cash</option>
+                            <option value="bank">Bank Transfer</option>
+                            <option value="online">Online</option>
+                        </select>
+                    </div>
+                <?php endif; ?>
                 <?php if ($canBackdatePaid): ?>
                     <div class="field full">
                         <label class="choice-check">
@@ -439,29 +450,28 @@ require __DIR__ . '/../includes/layout_start.php';
                         <input type="date" name="paid_on_date" id="paid-on-date-input" value="<?= e($hasSelectedInstallment ? (string) $selectedInstallment['due_date'] : $effectiveCollectedOn) ?>" max="<?= e($effectiveCollectedOn) ?>" <?= ($canCollectSelectedInstallment && $canUseBackdatedEntryForSelection) ? '' : 'disabled' ?>>
                     </div>
                 <?php endif; ?>
-                <div class="field full">
-                    <label class="choice-check">
-                        <input type="checkbox" name="schedule_next_payment" id="schedule-next-payment-toggle" value="1" <?= ($canCollectSelectedInstallment && $canScheduleNextPayment) ? '' : 'disabled' ?>>
-                        <span class="choice-check-box" aria-hidden="true">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-check-icon lucide-check"><path d="M20 6 9 17l-5-5"/></svg>
-                        </span>
-                        <span class="choice-check-label">Schedule Next Payment</span>
-                    </label>
-                    <?php if (!$canScheduleNextPayment): ?>
-                        <small>You do not have permission to schedule payments.</small>
-                    <?php endif; ?>
-                </div>
-                <div class="field" id="next-payment-date-field" style="display:none;">
-                    <label>Next Payment Date</label>
-                    <input
-                        type="date"
-                        name="next_payment_date"
-                        id="next-payment-date-input"
-                        value="<?= e($nextPaymentDefault) ?>"
-                        min="<?= e($tomorrowDate) ?>"
-                        <?= ($canCollectSelectedInstallment && $canScheduleNextPayment) ? '' : 'disabled' ?>
-                    >
-                </div>
+                <?php if ($canScheduleNextPayment): ?>
+                    <div class="field full">
+                        <label class="choice-check">
+                            <input type="checkbox" name="schedule_next_payment" id="schedule-next-payment-toggle" value="1" <?= $canCollectSelectedInstallment ? '' : 'disabled' ?>>
+                            <span class="choice-check-box" aria-hidden="true">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-check-icon lucide-check"><path d="M20 6 9 17l-5-5"/></svg>
+                            </span>
+                            <span class="choice-check-label">Schedule Next Payment</span>
+                        </label>
+                    </div>
+                    <div class="field" id="next-payment-date-field" style="display:none;">
+                        <label>Next Payment Date</label>
+                        <input
+                            type="date"
+                            name="next_payment_date"
+                            id="next-payment-date-input"
+                            value="<?= e($nextPaymentDefault) ?>"
+                            min="<?= e($tomorrowDate) ?>"
+                            <?= $canCollectSelectedInstallment ? '' : 'disabled' ?>
+                        >
+                    </div>
+                <?php endif; ?>
                 <div class="field full">
                     <label>Note</label>
                     <textarea name="note" placeholder="Optional" <?= $canCollectSelectedInstallment ? '' : 'disabled' ?>></textarea>

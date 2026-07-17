@@ -391,7 +391,13 @@
     };
 
     if (dateModeSelect) {
-        dateModeSelect.addEventListener('change', () => submitParentForm(dateModeSelect));
+        dateModeSelect.addEventListener('change', () => {
+            if (collectionStatusSelect instanceof HTMLSelectElement && dateModeSelect.value !== 'today') {
+                collectionStatusSelect.value = 'pending';
+                collectionStatusSelect.disabled = true;
+            }
+            submitParentForm(dateModeSelect);
+        });
     }
     if (collectionStatusSelect) {
         collectionStatusSelect.addEventListener('change', () => submitParentForm(collectionStatusSelect));
