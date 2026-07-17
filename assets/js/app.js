@@ -620,7 +620,6 @@
     const isEditLoanForm = Boolean(form.querySelector('[name="loan_id"]'));
     const repaymentLocked = form.getAttribute('data-repayment-locked') === '1';
     const inlineCustomerToggle = document.querySelector('[data-inline-customer-toggle]');
-    const inlineCustomerCancel = form.querySelector('[data-inline-customer-cancel]');
     const inlineCustomerPanel = form.querySelector('[data-inline-customer-panel]');
     const inlineCustomerFlag = form.querySelector('[data-inline-customer-flag]');
     const inlineCustomerRequiredFields = Array.from(form.querySelectorAll('[data-inline-customer-required]'));
@@ -638,24 +637,30 @@
         if (!(inlineCustomerPanel instanceof HTMLElement) || !(inlineCustomerFlag instanceof HTMLInputElement)) {
             return;
         }
+        const forceNewCustomer = inlineCustomerToggle instanceof HTMLButtonElement
+            && inlineCustomerToggle.getAttribute('data-inline-customer-force-new') === '1';
+        const shouldEnable = forceNewCustomer ? true : enabled;
 
-        inlineCustomerPanel.hidden = !enabled;
-        inlineCustomerFlag.value = enabled ? '1' : '0';
+        inlineCustomerPanel.hidden = !shouldEnable;
+        inlineCustomerFlag.value = shouldEnable ? '1' : '0';
+        if (inlineCustomerToggle instanceof HTMLButtonElement) {
+            inlineCustomerToggle.setAttribute('aria-pressed', shouldEnable ? 'true' : 'false');
+        }
         inlineCustomerRequiredFields.forEach((field) => {
             if (field instanceof HTMLInputElement || field instanceof HTMLTextAreaElement || field instanceof HTMLSelectElement) {
-                field.required = enabled;
+                field.required = shouldEnable;
             }
         });
 
         if (customerValueInput instanceof HTMLInputElement) {
-            customerValueInput.disabled = enabled;
-            if (enabled) {
+            customerValueInput.disabled = shouldEnable;
+            if (shouldEnable) {
                 customerValueInput.value = '';
             }
         }
         if (customerSearchInput instanceof HTMLInputElement) {
-            customerSearchInput.disabled = enabled;
-            if (enabled) {
+            customerSearchInput.disabled = shouldEnable;
+            if (shouldEnable) {
                 customerSearchInput.value = '';
                 customerSearchInput.placeholder = 'New customer will be used';
             } else {
@@ -669,11 +674,9 @@
     }
 
     if (inlineCustomerToggle instanceof HTMLButtonElement) {
-        inlineCustomerToggle.addEventListener('click', () => setInlineCustomerMode(true));
-    }
-
-    if (inlineCustomerCancel instanceof HTMLButtonElement) {
-        inlineCustomerCancel.addEventListener('click', () => setInlineCustomerMode(false));
+        inlineCustomerToggle.addEventListener('click', () => {
+            setInlineCustomerMode(inlineCustomerFlag instanceof HTMLInputElement && inlineCustomerFlag.value !== '1');
+        });
     }
 
     const toNumber = (value) => {
@@ -852,6 +855,10 @@
         }
 
         const enabled = roundedToggle.checked;
+        const roundingRow = roundedToggle.closest('.loan-rounding-row');
+        if (roundingRow instanceof HTMLElement) {
+            roundingRow.classList.toggle('is-checked', enabled);
+        }
         roundedAmountInput.disabled = !enabled;
         roundedAmountInput.required = enabled;
         if (!enabled) {

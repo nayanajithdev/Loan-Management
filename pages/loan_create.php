@@ -41,9 +41,15 @@ require __DIR__ . '/../includes/layout_start.php';
 <div class="create-loan-actionbar">
     <div class="panel-head-actions">
         <?php if ($canCreateCustomer): ?>
-            <button class="btn" type="button" data-inline-customer-toggle>
-                <span class="btn-icon-inline" aria-hidden="true">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-square-check-icon lucide-square-check"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="m9 12 2 2 4-4"/></svg>
+            <button
+                class="btn inline-customer-toggle"
+                type="button"
+                aria-pressed="<?= !$customers ? 'true' : 'false' ?>"
+                data-inline-customer-toggle
+                data-inline-customer-force-new="<?= !$customers ? '1' : '0' ?>"
+            >
+                <span class="inline-customer-checkbox" aria-hidden="true">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
                 </span>
                 New Customer
             </button>
@@ -80,9 +86,6 @@ require __DIR__ . '/../includes/layout_start.php';
                         <section class="inline-customer-panel" data-inline-customer-panel <?= $customers ? 'hidden' : '' ?>>
                             <div class="inline-customer-panel-head">
                                 <h3>Customer Personal Info</h3>
-                                <?php if ($customers): ?>
-                                    <button type="button" class="btn" data-inline-customer-cancel>Use Existing Customer</button>
-                                <?php endif; ?>
                             </div>
                             <div class="form-grid inline-customer-grid">
                                 <div class="field">
@@ -189,7 +192,9 @@ require __DIR__ . '/../includes/layout_start.php';
                         <div class="loan-rounding-row">
                             <label class="checkline loan-rounding-toggle">
                                 <input type="checkbox" name="use_rounded_installment" value="1" id="use-rounded-installment">
-                                <span>Make installment amount round</span>
+                                <span class="loan-rounding-checkbox" aria-hidden="true">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+                                </span>
                             </label>
                             <input type="number" step="0.01" min="0.01" name="rounded_installment_amount" id="rounded-installment-amount" placeholder="Installment amount" disabled>
                         </div>

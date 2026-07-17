@@ -1970,6 +1970,8 @@ function dashboard_stats(PDO $pdo, ?array $viewer = null): array
         'outstanding_principal' => 0.0,
         'closed_loans_profit' => 0.0,
         'expected_open_profit' => 0.0,
+        'daily_collected_amount' => 0.0,
+        'daily_profit' => 0.0,
         'total_disbursed' => 0.0,
         'total_collected' => 0.0,
     ];
@@ -1982,6 +1984,24 @@ function dashboard_stats(PDO $pdo, ?array $viewer = null): array
         $totals['expected_open_profit'] = (float) $pdo->query("SELECT COALESCE(SUM(total_amount - principal_amount), 0) FROM loans WHERE status <> 'closed'")->fetchColumn();
         $totals['total_disbursed'] = (float) $pdo->query('SELECT COALESCE(SUM(principal_amount), 0) FROM loans')->fetchColumn();
         $totals['total_collected'] = (float) $pdo->query('SELECT COALESCE(SUM(amount), 0) FROM collections')->fetchColumn();
+        $stmt = $pdo->prepare(
+            "SELECT
+                COALESCE(SUM(c.amount), 0) AS collected_amount,
+                COALESCE(SUM(
+                    CASE
+                        WHEN l.total_amount > 0
+                        THEN c.amount * ((l.total_amount - l.principal_amount) / l.total_amount)
+                        ELSE 0
+                    END
+                ), 0) AS profit_amount
+             FROM collections c
+             JOIN loans l ON l.id = c.loan_id
+             WHERE c.collected_on = :today"
+        );
+        $stmt->execute(['today' => today()]);
+        $dailyProfitRow = $stmt->fetch() ?: [];
+        $totals['daily_collected_amount'] = (float) ($dailyProfitRow['collected_amount'] ?? 0);
+        $totals['daily_profit'] = (float) ($dailyProfitRow['profit_amount'] ?? 0);
 
     } else {
         $scope = 'l.assigned_user_id = :viewer_user_id';
@@ -2013,6 +2033,27 @@ function dashboard_stats(PDO $pdo, ?array $viewer = null): array
         $stmt = $pdo->prepare("SELECT COALESCE(SUM(col.amount), 0) FROM collections col JOIN loans l ON l.id = col.loan_id WHERE {$scope}");
         $stmt->execute(['viewer_user_id' => $viewerId]);
         $totals['total_collected'] = (float) $stmt->fetchColumn();
+        $stmt = $pdo->prepare(
+            "SELECT
+                COALESCE(SUM(col.amount), 0) AS collected_amount,
+                COALESCE(SUM(
+                    CASE
+                        WHEN l.total_amount > 0
+                        THEN col.amount * ((l.total_amount - l.principal_amount) / l.total_amount)
+                        ELSE 0
+                    END
+                ), 0) AS profit_amount
+             FROM collections col
+             JOIN loans l ON l.id = col.loan_id
+             WHERE col.collected_on = :today AND {$scope}"
+        );
+        $stmt->execute([
+            'today' => today(),
+            'viewer_user_id' => $viewerId,
+        ]);
+        $dailyProfitRow = $stmt->fetch() ?: [];
+        $totals['daily_collected_amount'] = (float) ($dailyProfitRow['collected_amount'] ?? 0);
+        $totals['daily_profit'] = (float) ($dailyProfitRow['profit_amount'] ?? 0);
 
     }
 

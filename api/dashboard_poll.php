@@ -16,11 +16,8 @@ $todayGoal = today_collection_goal($pdo, $viewer);
 $todayCollectedTotal = today_collected_total($pdo, $viewer);
 $collectionsTrend = collections_total_chart($pdo, $viewer, $chartMode);
 $userGoals = dashboard_user_goals($pdo, $viewer);
-$closedProfitValue = (float) $stats['closed_loans_profit'];
-$openProjectedProfitValue = (float) $stats['expected_open_profit'];
-$profitTotal = $closedProfitValue + $openProjectedProfitValue;
-$closedProfitPct = $profitTotal > 0 ? ($closedProfitValue / $profitTotal) * 100 : 0;
-$openProjectedPct = $profitTotal > 0 ? ($openProjectedProfitValue / $profitTotal) * 100 : 0;
+$dailyProfitValue = (float) $stats['daily_profit'];
+$dailyCollectedValue = (float) $stats['daily_collected_amount'];
 $isTodayTargetCompleted = (float) $todayGoal['target'] > 0 && $todayCollectedTotal >= (float) $todayGoal['target'];
 $todayGoalMetaText = 'Target: ' . money_label($pdo, (float) $todayGoal['target']);
 
@@ -77,13 +74,9 @@ ob_start();
 
 <?php if (!$isCollectorScope): ?>
     <article class="stat-card dashboard-card-profit">
-        <p class="stat-label">Profit (Closed Loans)</p>
-        <p class="stat-value"><?= e(money_label($pdo, $closedProfitValue)) ?></p>
-        <p class="trend-meta"><?= e(money_label($pdo, $openProjectedProfitValue)) ?> projected from open loans</p>
-        <div class="dual-progress" aria-hidden="true">
-            <span class="dual-progress-closed" style="width: <?= e(number_format($closedProfitPct, 2, '.', '')) ?>%"></span>
-            <span class="dual-progress-open" style="width: <?= e(number_format($openProjectedPct, 2, '.', '')) ?>%"></span>
-        </div>
+        <p class="stat-label">Daily Profit</p>
+        <p class="stat-value"><?= e(money_label($pdo, $dailyProfitValue)) ?></p>
+        <p class="trend-meta"><?= e(money_label($pdo, $dailyCollectedValue)) ?> collected today</p>
     </article>
 <?php endif; ?>
 <?php
