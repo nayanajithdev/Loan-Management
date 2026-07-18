@@ -153,6 +153,9 @@ $businessName = trim((string) ($businessSettings['business_name'] ?? 'Loan Manag
 $businessAddress = trim((string) ($businessSettings['business_address'] ?? ''));
 $businessPhone = trim((string) ($businessSettings['business_phone'] ?? ''));
 $dailyCollectionFileName = 'daily-collections-' . $selectedDate;
+$profitPrintFileName = $profitMode === 'monthly'
+    ? 'profit-' . $profitFrom . '-to-' . $profitTo
+    : 'profit-' . $profitDate;
 
 require __DIR__ . '/../includes/layout_start.php';
 ?>
@@ -376,6 +379,9 @@ require __DIR__ . '/../includes/layout_start.php';
                             </table>
                         <?php endif; ?>
                     </div>
+                    <div class="reports-print-actions">
+                        <button type="button" class="btn btn-primary" data-print-profit-report data-print-filename="<?= e($profitPrintFileName) ?>">Print</button>
+                    </div>
                 </section>
             </div>
         </section>
@@ -430,6 +436,73 @@ require __DIR__ . '/../includes/layout_start.php';
     <div class="daily-print-total">
         <span>Collected total</span>
         <strong><?= e(money_label($pdo, $collectedTotal)) ?></strong>
+    </div>
+</section>
+
+<section class="profit-print-report" id="profit-print-report" aria-hidden="true">
+    <header class="print-report-header">
+        <h1><?= e($businessName) ?></h1>
+        <?php if ($businessAddress !== ''): ?>
+            <p><?= e($businessAddress) ?></p>
+        <?php endif; ?>
+        <?php if ($businessPhone !== ''): ?>
+            <p class="print-report-contact">
+                <em>Tel:</em> <?= e($businessPhone) ?>
+            </p>
+        <?php endif; ?>
+    </header>
+
+    <div class="print-report-rule"></div>
+
+    <div class="daily-print-meta">
+        <span><?= $profitMode === 'monthly' ? 'Monthly Profit' : 'Daily Profit' ?></span>
+        <strong>
+            <?= $profitMode === 'monthly'
+                ? e(display_date($profitFrom) . ' - ' . display_date($profitTo))
+                : e(display_date($profitDate)) ?>
+        </strong>
+    </div>
+
+    <table class="daily-collections-print-table profit-print-table">
+        <thead>
+            <tr>
+                <?php if ($profitMode === 'monthly'): ?>
+                    <th>Date</th>
+                    <th>Collected Amount</th>
+                    <th>Profit</th>
+                <?php else: ?>
+                    <th>Loan no</th>
+                    <th>Collected Amount</th>
+                    <th>Profit</th>
+                <?php endif; ?>
+            </tr>
+        </thead>
+        <tbody>
+            <?php if (!$profitRows): ?>
+                <tr>
+                    <td colspan="3"><?= $profitMode === 'monthly' ? 'No profit records found for selected range.' : 'No profit records found for selected date.' ?></td>
+                </tr>
+            <?php else: ?>
+                <?php foreach ($profitRows as $row): ?>
+                    <tr>
+                        <?php if ($profitMode === 'monthly'): ?>
+                            <td><?= e(display_date((string) $row['report_date'])) ?></td>
+                        <?php else: ?>
+                            <td><?= e((string) $row['loan_number']) ?></td>
+                        <?php endif; ?>
+                        <td><?= e(money_label($pdo, (float) $row['collected_amount'])) ?></td>
+                        <td><?= e(money_label($pdo, (float) $row['profit_amount'])) ?></td>
+                    </tr>
+                <?php endforeach; ?>
+            <?php endif; ?>
+        </tbody>
+    </table>
+
+    <div class="daily-print-total">
+        <span>Collected amount</span>
+        <strong><?= e(money_label($pdo, $profitCollectedTotal)) ?></strong>
+        <span>Profit</span>
+        <strong><?= e(money_label($pdo, $profitTotal)) ?></strong>
     </div>
 </section>
 

@@ -165,9 +165,6 @@ $printReportFileName = trim($printReportFileName, '-_');
 if ($printReportFileName === '') {
     $printReportFileName = 'collection-report';
 }
-$loanTotalInterest = max(0.0, $loanTotalRepayable - (float) ($loan['principal_amount'] ?? 0));
-$paidInterest = $loanTotalRepayable > 0 ? min($loanTotalInterest, $loanTotalCollected * ($loanTotalInterest / $loanTotalRepayable)) : 0.0;
-$paidPrincipal = max(0.0, $loanTotalCollected - $paidInterest);
 $reportGeneratedDate = display_date(today());
 
 require __DIR__ . '/../includes/layout_start.php';
@@ -182,6 +179,9 @@ require __DIR__ . '/../includes/layout_start.php';
                 </span>
                 Back to Loan List
             </a>
+            <?php if (can('today_collections.view')): ?>
+                <a class="btn" href="<?= e(url('pages/today_collections.php')) ?>">Today Collection</a>
+            <?php endif; ?>
         </div>
         <div class="panel-head-actions">
             <?php if ($canViewCustomer): ?>
@@ -557,9 +557,24 @@ require __DIR__ . '/../includes/layout_start.php';
         <div class="print-customer-block">
             <div class="print-customer-details">
                 <div class="print-info-row">
+                    <strong>Loan no</strong>
+                    <span>:</span>
+                    <p><?= e($reportLoanNumber) ?></p>
+                </div>
+                <div class="print-info-row">
                     <strong>Name</strong>
                     <span>:</span>
                     <p><?= e((string) $loan['full_name']) ?></p>
+                </div>
+                <div class="print-info-row">
+                    <strong>Address</strong>
+                    <span>:</span>
+                    <p><?= e(trim((string) ($loan['customer_address'] ?? '')) !== '' ? (string) $loan['customer_address'] : '-') ?></p>
+                </div>
+                <div class="print-info-row">
+                    <strong>Tel</strong>
+                    <span>:</span>
+                    <p><?= e(trim((string) ($loan['customer_phone'] ?? '')) !== '' ? (string) $loan['customer_phone'] : '-') ?></p>
                 </div>
                 <div class="print-info-row">
                     <strong>NIC</strong>
@@ -567,38 +582,24 @@ require __DIR__ . '/../includes/layout_start.php';
                     <p><?= e($customerNicNumber) ?></p>
                 </div>
                 <div class="print-info-row">
-                    <strong>Tel No.</strong>
-                    <span>:</span>
-                    <p><?= e(trim((string) ($loan['customer_phone'] ?? '')) !== '' ? (string) $loan['customer_phone'] : '-') ?></p>
-                </div>
-                <div class="print-info-row">
-                    <strong>Address</strong>
-                    <span>:</span>
-                    <p><?= e(trim((string) ($loan['customer_address'] ?? '')) !== '' ? (string) $loan['customer_address'] : '-') ?></p>
-                </div>
-            </div>
-
-            <div class="print-left-divider"></div>
-
-            <div class="print-loan-details">
-                <div class="print-info-row">
-                    <strong>Loan no</strong>
-                    <span>:</span>
-                    <p><?= e($reportLoanNumber) ?></p>
-                </div>
-                <div class="print-info-row">
                     <strong>Loan amount</strong>
                     <span>:</span>
                     <p><?= e(money_label($pdo, (float) $loan['principal_amount'])) ?></p>
+                </div>
+                <div class="print-info-row">
+                    <strong>Issue date</strong>
+                    <span>:</span>
+                    <p><?= e(display_date($issuedDate)) ?></p>
+                </div>
+                <div class="print-info-row">
+                    <strong>Loan End Date</strong>
+                    <span>:</span>
+                    <p><?= e($loanEndDate !== '' ? display_date($loanEndDate) : '-') ?></p>
                 </div>
             </div>
         </div>
 
         <div class="print-amount-summary">
-            <div>
-                <span>Installation</span>
-                <strong><?= e(money_label($pdo, (float) $loan['installment_amount'])) ?></strong>
-            </div>
             <div>
                 <span>Total Loan</span>
                 <strong><?= e(money_label($pdo, $loanTotalRepayable)) ?></strong>
@@ -610,14 +611,6 @@ require __DIR__ . '/../includes/layout_start.php';
             <div class="print-balance-row">
                 <span>Balance</span>
                 <strong><?= e(money_label($pdo, $loanBalance)) ?></strong>
-            </div>
-            <div>
-                <span>Interest</span>
-                <strong><?= e(money_label($pdo, $paidInterest)) ?></strong>
-            </div>
-            <div>
-                <span>Non Interest</span>
-                <strong><?= e(money_label($pdo, $paidPrincipal)) ?></strong>
             </div>
         </div>
     </section>

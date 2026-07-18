@@ -50,7 +50,7 @@ require __DIR__ . '/../includes/layout_start.php';
             </div>
         </div>
 
-        <form method="post" action="<?= e(url('pages/holiday_mode.php')) ?>" class="form-grid holiday-form">
+        <form method="post" action="<?= e(url('pages/holiday_mode.php')) ?>" class="form-grid holiday-form" data-confirm="Turn on Holiday Mode for the selected date? Unpaid schedules due on or after this date will be moved forward." data-inline-confirm="1">
             <?= csrf_input() ?>
             <div class="field full">
                 <label>Holiday Date</label>

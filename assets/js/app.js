@@ -444,28 +444,49 @@
             return;
         }
 
-        const printButton = target.closest('[data-print-loan-collection-report], [data-print-daily-collections-report]');
+        const printButton = target.closest('[data-print-loan-collection-report], [data-print-daily-collections-report], [data-print-profit-report]');
         if (!printButton) {
             return;
         }
 
+        const printReportSelector = printButton.hasAttribute('data-print-loan-collection-report')
+            ? '.loan-collection-print-report'
+            : printButton.hasAttribute('data-print-daily-collections-report')
+                ? '.daily-collections-print-report'
+                : '.profit-print-report';
+        const printReport = document.querySelector(printReportSelector);
+        if (!printReport) {
+            return;
+        }
+
+        document.querySelectorAll('.loan-collection-print-report, .daily-collections-print-report, .profit-print-report').forEach((report) => {
+            report.classList.remove('is-print-active');
+        });
+        printReport.classList.add('is-print-active');
+
         const originalTitle = document.title;
         const printFileName = (printButton.getAttribute('data-print-filename') || '').trim();
         let restoreTitleTimer = null;
-        const restoreTitle = () => {
+        const restoreTitleOnly = () => {
             if (restoreTitleTimer !== null) {
                 window.clearTimeout(restoreTitleTimer);
                 restoreTitleTimer = null;
             }
             document.title = originalTitle;
-            window.removeEventListener('afterprint', restoreTitle);
+        };
+        const restorePrintState = () => {
+            restoreTitleOnly();
+            document.querySelectorAll('.loan-collection-print-report, .daily-collections-print-report, .profit-print-report').forEach((report) => {
+                report.classList.remove('is-print-active');
+            });
+            window.removeEventListener('afterprint', restorePrintState);
         };
 
         if (printFileName !== '') {
             document.title = printFileName;
-            window.addEventListener('afterprint', restoreTitle, { once: true });
-            restoreTitleTimer = window.setTimeout(restoreTitle, 3000);
         }
+        window.addEventListener('afterprint', restorePrintState, { once: true });
+        restoreTitleTimer = window.setTimeout(restoreTitleOnly, 3000);
 
         window.print();
     });

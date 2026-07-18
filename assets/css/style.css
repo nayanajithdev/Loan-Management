@@ -34,15 +34,18 @@
         visibility: hidden !important;
     }
 
-    .loan-collection-print-report,
-    .loan-collection-print-report *,
-    .daily-collections-print-report,
-    .daily-collections-print-report * {
+    .loan-collection-print-report.is-print-active,
+    .loan-collection-print-report.is-print-active *,
+    .daily-collections-print-report.is-print-active,
+    .daily-collections-print-report.is-print-active *,
+    .profit-print-report.is-print-active,
+    .profit-print-report.is-print-active * {
         visibility: visible !important;
     }
 
-    .loan-collection-print-report,
-    .daily-collections-print-report {
+    .loan-collection-print-report.is-print-active,
+    .daily-collections-print-report.is-print-active,
+    .profit-print-report.is-print-active {
         display: block !important;
         position: absolute;
         top: 0;
@@ -129,12 +132,6 @@
         overflow-wrap: anywhere;
     }
 
-    .print-left-divider {
-        margin: 6mm 0 7mm;
-        border-top: 1.5px solid #9aa9bf;
-    }
-
-    .print-loan-details .print-info-row:last-child,
     .print-customer-details .print-info-row:last-child {
         margin-bottom: 0;
     }
@@ -298,6 +295,11 @@
     }
 
     .daily-collections-print-table td:last-child {
+        text-align: right;
+    }
+
+    .profit-print-table td:nth-child(2),
+    .profit-print-table td:nth-child(3) {
         text-align: right;
     }
 
@@ -1590,7 +1592,8 @@ button {
 }
 
 .loan-collection-print-report,
-.daily-collections-print-report {
+.daily-collections-print-report,
+.profit-print-report {
     display: none;
 }
 
@@ -2312,6 +2315,15 @@ textarea {
     background: var(--accent);
     border-color: var(--accent);
     color: #121212;
+    font-weight: 700;
+}
+
+.btn[data-print-loan-collection-report],
+.btn[data-print-daily-collections-report],
+.btn[data-print-profit-report] {
+    background: #2563eb;
+    box-shadow: inset 0 0 0 1px rgba(147, 197, 253, 0.35);
+    color: #ffffff;
     font-weight: 700;
 }
 
@@ -4090,15 +4102,34 @@ textarea {
         grid-template-columns: 1fr;
     }
 
-    .loan-edit-actionbar,
     .create-loan-actionbar {
         align-items: flex-start;
         flex-direction: column;
     }
 
-    .loan-edit-actionbar .panel-head-actions,
     .create-loan-actionbar .panel-head-actions {
         flex-wrap: wrap;
+    }
+
+    .loan-edit-actionbar {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+        align-items: stretch;
+    }
+
+    .loan-edit-actionbar .panel-head-actions {
+        display: contents;
+    }
+
+    .loan-edit-actionbar .btn,
+    .loan-edit-actionbar .inline-form {
+        width: 100%;
+        min-width: 0;
+    }
+
+    .loan-edit-actionbar .inline-form .btn {
+        width: 100%;
     }
 
     .loan-collect-panel {
@@ -4587,8 +4618,9 @@ textarea {
         grid-template-columns: 1fr;
     }
 
-    .combo-field {
-        grid-template-columns: 1fr;
+    .combo-field,
+    .combo-field-interest {
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     }
 
     .collection-filter-grid {
