@@ -14,6 +14,7 @@ $settings = system_settings_all($pdo);
 $get = static fn(string $key, string $default = ''): string => $settings[$key] ?? $default;
 $defaultLoanCollectorId = default_loan_collector_id($pdo);
 $loanDefaultCollectors = assignable_collector_rows($pdo, $defaultLoanCollectorId);
+$bulkLoanCollectors = assignable_collector_rows($pdo);
 
 require __DIR__ . '/../includes/layout_start.php';
 ?>
@@ -123,6 +124,36 @@ require __DIR__ . '/../includes/layout_start.php';
 
     <div class="form-actions" style="margin-top: 12px;">
         <button type="submit" class="btn btn-primary customer-submit-btn"<?= $canEditSystemSettings ? '' : ' disabled' ?>>Save System Settings</button>
+    </div>
+</form>
+
+<form method="post" action="<?= e(url('actions/loan_bulk_assign.php')) ?>">
+    <?= csrf_input() ?>
+    <div class="settings-col">
+        <h3 class="settings-subtitle">Bulk Loan Assignment</h3>
+        <div class="form-grid settings-loan-default-grid">
+            <div class="field">
+                <label>Assign All Loans To Collector</label>
+                <select name="assigned_user_id" required<?= $disabledAttr ?>>
+                    <option value="0">All users</option>
+                    <?php foreach ($bulkLoanCollectors as $collector): ?>
+                        <?php
+                        $collectorId = (int) ($collector['id'] ?? 0);
+                        $collectorName = trim((string) ($collector['full_name'] ?? ''));
+                        if ($collectorName === '') {
+                            $collectorName = (string) ($collector['username'] ?? ('User #' . $collectorId));
+                        }
+                        ?>
+                        <option value="<?= e((string) $collectorId) ?>">
+                            <?= e($collectorName . ' (' . role_display_name((string) ($collector['role'] ?? 'collector')) . ')') ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+        </div>
+        <div class="form-actions" style="margin-top: 12px;">
+            <button type="submit" class="btn btn-primary customer-submit-btn"<?= $canEditSystemSettings ? '' : ' disabled' ?>>Assign All Loans</button>
+        </div>
     </div>
 </form>
 
