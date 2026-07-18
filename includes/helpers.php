@@ -2362,12 +2362,11 @@ function ensure_loan_assignment_schema(PDO $pdo): void
     if (!$col) {
         $pdo->exec('ALTER TABLE loans ADD COLUMN assigned_user_id INT NULL AFTER customer_id');
         $pdo->exec('ALTER TABLE loans ADD INDEX idx_loans_assigned_user (assigned_user_id)');
-    }
-
-    $ownerId = owner_user_id($pdo);
-    if ($ownerId > 0) {
-        $stmt = $pdo->prepare('UPDATE loans SET assigned_user_id = :owner_id WHERE assigned_user_id IS NULL');
-        $stmt->execute(['owner_id' => $ownerId]);
+        $ownerId = owner_user_id($pdo);
+        if ($ownerId > 0) {
+            $stmt = $pdo->prepare('UPDATE loans SET assigned_user_id = :owner_id WHERE assigned_user_id IS NULL');
+            $stmt->execute(['owner_id' => $ownerId]);
+        }
     }
 }
 
