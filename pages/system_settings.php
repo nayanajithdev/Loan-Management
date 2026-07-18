@@ -103,6 +103,7 @@ require __DIR__ . '/../includes/layout_start.php';
             <div class="field">
                 <label>Collector</label>
                 <select name="default_loan_collector_id" required<?= $disabledAttr ?>>
+                    <option value="0" <?= $defaultLoanCollectorId <= 0 ? 'selected' : '' ?>>All users</option>
                     <?php foreach ($loanDefaultCollectors as $collector): ?>
                         <?php
                         $collectorId = (int) ($collector['id'] ?? 0);

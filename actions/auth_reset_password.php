@@ -56,6 +56,7 @@ $updateStmt->execute([
 ]);
 
 mark_password_reset_token_used($pdo, (int) $tokenRow['id'], $userId);
+remember_forget_user($pdo, $userId);
 
 log_activity($pdo, 'auth.password_reset_completed', 'Password reset completed.', [
     'user_id' => $userId,

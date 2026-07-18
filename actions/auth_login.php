@@ -17,6 +17,7 @@ if (!has_superadmin($pdo)) {
 
 $username = trim((string) ($_POST['username'] ?? ''));
 $password = (string) ($_POST['password'] ?? '');
+$stayLoggedIn = (string) ($_POST['stay_logged_in'] ?? '') === '1';
 
 // Check lockout before running password verification.
 $lockStatus = auth_login_lock_status($username);
@@ -71,10 +72,15 @@ if ((string) ($user['status'] ?? 'active') !== 'active') {
 
 auth_login_clear_failures($username);
 login_user($user);
+if ($stayLoggedIn) {
+    remember_store_login($pdo, (int) $user['id']);
+} else {
+    remember_forget_current($pdo);
+}
 log_activity($pdo, 'auth.login', 'User logged in.', [
     'user_id' => (int) $user['id'],
     'username' => (string) $user['username'],
     'role' => role_display_name((string) $user['role']),
 ], (int) $user['id']);
 set_flash('success', 'Login successful.');
-redirect('index.php');
+redirect(authenticated_landing_path($user));

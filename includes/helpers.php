@@ -331,6 +331,16 @@ function require_csrf(string $redirectPath = 'index.php'): void
     }
 }
 
+function app_cookie_path(): string
+{
+    return '/';
+}
+
+function app_cookie_secure(): bool
+{
+    return !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off';
+}
+
 function redirect(string $path): void
 {
     header('Location: ' . url($path));
@@ -998,7 +1008,7 @@ function collection_due_installments_for_date(PDO $pdo, string $selectedDate, st
     }
 
     if (is_collector_role($currentRole)) {
-        $sql .= ' AND l.assigned_user_id = :assigned_user_id';
+        $sql .= ' AND ' . collector_assignment_scope_sql('l', 'assigned_user_id');
         $params['assigned_user_id'] = $currentUserId;
     }
 
@@ -1113,7 +1123,7 @@ function collection_collected_installments_for_date(PDO $pdo, string $selectedDa
     $params = ['selected_date' => $selectedDate];
 
     if (is_collector_role($currentRole)) {
-        $sql .= ' AND l.assigned_user_id = :assigned_user_id';
+        $sql .= ' AND ' . collector_assignment_scope_sql('l', 'assigned_user_id');
         $params['assigned_user_id'] = $currentUserId;
     }
 
@@ -1958,7 +1968,7 @@ function dashboard_stats(PDO $pdo, ?array $viewer = null): array
         $totals['daily_profit'] = (float) ($dailyProfitRow['profit_amount'] ?? 0);
 
     } else {
-        $scope = 'l.assigned_user_id = :viewer_user_id';
+        $scope = collector_assignment_scope_sql('l', 'viewer_user_id');
 
         $stmt = $pdo->prepare("SELECT COUNT(DISTINCT l.customer_id) FROM loans l WHERE {$scope}");
         $stmt->execute(['viewer_user_id' => $viewerId]);
@@ -2190,6 +2200,26 @@ function ensure_password_reset_tokens_schema(PDO $pdo): void
             INDEX idx_password_reset_tokens_user_id (user_id),
             INDEX idx_password_reset_tokens_expires_at (expires_at),
             CONSTRAINT fk_password_reset_tokens_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        )"
+    );
+}
+
+function ensure_remember_tokens_schema(PDO $pdo): void
+{
+    $pdo->exec(
+        "CREATE TABLE IF NOT EXISTS remember_tokens (
+            id BIGINT AUTO_INCREMENT PRIMARY KEY,
+            user_id INT NOT NULL,
+            token_hash CHAR(64) NOT NULL,
+            expires_at DATETIME NOT NULL,
+            user_agent VARCHAR(255) NULL,
+            ip_address VARCHAR(45) NULL,
+            last_used_at DATETIME NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE KEY uq_remember_tokens_token_hash (token_hash),
+            INDEX idx_remember_tokens_user_id (user_id),
+            INDEX idx_remember_tokens_expires_at (expires_at),
+            CONSTRAINT fk_remember_tokens_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
         )"
     );
 }
@@ -2989,6 +3019,21 @@ function is_logged_in(): bool
     return current_user() !== null;
 }
 
+function authenticated_landing_path(?array $viewer = null): string
+{
+    $viewer = $viewer ?? current_user();
+
+    if (can('dashboard.view', $viewer)) {
+        return 'index.php';
+    }
+
+    if (can('today_collections.view', $viewer)) {
+        return 'pages/today_collections.php';
+    }
+
+    return 'pages/about.php';
+}
+
 function login_user(array $user): void
 {
     session_regenerate_id(true);
@@ -3001,6 +3046,135 @@ function login_user(array $user): void
         'status' => isset($user['status']) ? (string) $user['status'] : 'active',
         'avatar_path' => isset($user['avatar_path']) ? (string) $user['avatar_path'] : '',
     ];
+}
+
+function remember_cookie_name(): string
+{
+    return 'loan_remember_token';
+}
+
+function remember_lifetime_seconds(): int
+{
+    return 60 * 60 * 24 * 30;
+}
+
+function remember_clear_cookie(): void
+{
+    setcookie(remember_cookie_name(), '', [
+        'expires' => time() - 3600,
+        'path' => app_cookie_path(),
+        'secure' => app_cookie_secure(),
+        'httponly' => true,
+        'samesite' => 'Lax',
+    ]);
+    unset($_COOKIE[remember_cookie_name()]);
+}
+
+function remember_store_login(PDO $pdo, int $userId): void
+{
+    if ($userId <= 0) {
+        return;
+    }
+
+    try {
+        $rawToken = bin2hex(random_bytes(32));
+    } catch (Throwable) {
+        $rawToken = hash('sha256', uniqid('remember_', true) . mt_rand());
+    }
+
+    $expiresAt = (new DateTimeImmutable('now'))
+        ->add(new DateInterval('PT' . remember_lifetime_seconds() . 'S'))
+        ->format('Y-m-d H:i:s');
+    $tokenHash = hash('sha256', $rawToken);
+    $userAgent = mb_substr((string) ($_SERVER['HTTP_USER_AGENT'] ?? ''), 0, 255);
+
+    $pdo->prepare('DELETE FROM remember_tokens WHERE user_id = :user_id AND expires_at < NOW()')->execute(['user_id' => $userId]);
+    $stmt = $pdo->prepare(
+        'INSERT INTO remember_tokens (user_id, token_hash, expires_at, user_agent, ip_address)
+         VALUES (:user_id, :token_hash, :expires_at, :user_agent, :ip_address)'
+    );
+    $stmt->execute([
+        'user_id' => $userId,
+        'token_hash' => $tokenHash,
+        'expires_at' => $expiresAt,
+        'user_agent' => $userAgent,
+        'ip_address' => client_ip_address(),
+    ]);
+
+    setcookie(remember_cookie_name(), $rawToken, [
+        'expires' => time() + remember_lifetime_seconds(),
+        'path' => app_cookie_path(),
+        'secure' => app_cookie_secure(),
+        'httponly' => true,
+        'samesite' => 'Lax',
+    ]);
+    $_COOKIE[remember_cookie_name()] = $rawToken;
+}
+
+function remember_forget_current(PDO $pdo): void
+{
+    $rawToken = (string) ($_COOKIE[remember_cookie_name()] ?? '');
+    if ($rawToken !== '') {
+        $pdo->prepare('DELETE FROM remember_tokens WHERE token_hash = :token_hash')->execute([
+            'token_hash' => hash('sha256', $rawToken),
+        ]);
+    }
+
+    remember_clear_cookie();
+}
+
+function remember_forget_user(PDO $pdo, int $userId): void
+{
+    if ($userId <= 0) {
+        return;
+    }
+
+    $pdo->prepare('DELETE FROM remember_tokens WHERE user_id = :user_id')->execute(['user_id' => $userId]);
+
+    $current = current_user();
+    if ((int) ($current['id'] ?? 0) === $userId) {
+        remember_clear_cookie();
+    }
+}
+
+function remember_login_from_cookie(PDO $pdo): bool
+{
+    if (is_logged_in()) {
+        return true;
+    }
+
+    $rawToken = (string) ($_COOKIE[remember_cookie_name()] ?? '');
+    if ($rawToken === '' || !ctype_xdigit($rawToken) || strlen($rawToken) !== 64) {
+        if ($rawToken !== '') {
+            remember_clear_cookie();
+        }
+        return false;
+    }
+
+    $pdo->prepare('DELETE FROM remember_tokens WHERE expires_at < NOW()')->execute();
+
+    $stmt = $pdo->prepare(
+        "SELECT rt.id AS remember_id, u.id, u.full_name, u.username, u.email, u.role, u.status, u.avatar_path
+         FROM remember_tokens rt
+         JOIN users u ON u.id = rt.user_id
+         WHERE rt.token_hash = :token_hash
+           AND rt.expires_at > NOW()
+         LIMIT 1"
+    );
+    $stmt->execute(['token_hash' => hash('sha256', $rawToken)]);
+    $user = $stmt->fetch();
+
+    if (!$user || (string) ($user['status'] ?? 'active') !== 'active') {
+        remember_forget_current($pdo);
+        return false;
+    }
+
+    login_user($user);
+    $pdo->prepare('UPDATE remember_tokens SET last_used_at = NOW() WHERE id = :id')->execute([
+        'id' => (int) $user['remember_id'],
+    ]);
+
+    return true;
 }
 
 function create_password_reset_token(PDO $pdo, int $userId): ?string
@@ -3449,6 +3623,10 @@ function owner_user_id(PDO $pdo): int
 function default_loan_collector_id(PDO $pdo): int
 {
     $configuredCollectorId = (int) system_setting($pdo, 'default_loan_collector_id', '0');
+    if ($configuredCollectorId <= 0) {
+        return 0;
+    }
+
     if ($configuredCollectorId > 0 && is_assignable_collector($pdo, $configuredCollectorId)) {
         return $configuredCollectorId;
     }
@@ -3621,6 +3799,11 @@ function is_collector_role(?string $role): bool
     return (string) $role === 'collector';
 }
 
+function collector_assignment_scope_sql(string $loanAlias = 'l', string $paramName = 'assigned_user_id'): string
+{
+    return '(' . $loanAlias . '.assigned_user_id = :' . $paramName . ' OR ' . $loanAlias . '.assigned_user_id IS NULL)';
+}
+
 function can_view_all_customers(?array $viewer = null): bool
 {
     return can('customers.view_all', $viewer);
@@ -3659,7 +3842,7 @@ function can_access_customer(PDO $pdo, int $customerId, ?array $viewer = null): 
                     SELECT 1
                     FROM loans l_assigned
                     WHERE l_assigned.customer_id = c.id
-                      AND l_assigned.assigned_user_id = :viewer_user_id
+                      AND " . collector_assignment_scope_sql('l_assigned', 'viewer_user_id') . "
                 )
                 OR NOT EXISTS (
                     SELECT 1
@@ -3726,7 +3909,7 @@ function today_collection_goal(PDO $pdo, ?array $viewer = null): array
     ];
 
     if ($isCollectorScope) {
-        $paidTargetSql .= ' AND l.assigned_user_id = :viewer_user_id';
+        $paidTargetSql .= ' AND ' . collector_assignment_scope_sql('l', 'viewer_user_id');
         $paidTargetParams['viewer_user_id'] = $viewerId;
     }
 
@@ -3783,7 +3966,7 @@ function today_collected_total(PDO $pdo, ?array $viewer = null): float
          FROM collections c
          JOIN loans l ON l.id = c.loan_id
          WHERE c.collected_on = :today
-           AND l.assigned_user_id = :viewer_user_id"
+           AND " . collector_assignment_scope_sql('l', 'viewer_user_id')
     );
     $stmt->execute([
         'today' => $todayDate,
@@ -3836,7 +4019,7 @@ function collections_total_chart(PDO $pdo, ?array $viewer = null, string $mode =
 
     if ($isCollectorScope) {
         $joins = ' JOIN loans l ON l.id = c.loan_id';
-        $scope = ' AND l.assigned_user_id = :viewer_user_id';
+        $scope = ' AND ' . collector_assignment_scope_sql('l', 'viewer_user_id');
         $params['viewer_user_id'] = $viewerId;
     }
 
@@ -3956,7 +4139,7 @@ function dashboard_user_goals(PDO $pdo, ?array $viewer = null): array
              JOIN loans l ON l.id = li.loan_id
              WHERE li.due_date <= CURDATE()
                AND li.status IN ('pending', 'partial', 'overdue')
-               AND l.assigned_user_id = :viewer_user_id
+               AND " . collector_assignment_scope_sql('l', 'viewer_user_id') . "
              GROUP BY l.assigned_user_id"
         );
         $remainingStmt->execute(['viewer_user_id' => $viewerId]);
@@ -3988,7 +4171,7 @@ function dashboard_user_goals(PDO $pdo, ?array $viewer = null): array
              JOIN loans l ON l.id = c.loan_id
              WHERE c.collected_on = CURDATE()
                AND li.due_date <= CURDATE()
-               AND l.assigned_user_id = :viewer_user_id
+               AND " . collector_assignment_scope_sql('l', 'viewer_user_id') . "
              GROUP BY l.assigned_user_id"
         );
         $collectedStmt->execute(['viewer_user_id' => $viewerId]);

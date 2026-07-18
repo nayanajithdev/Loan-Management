@@ -102,6 +102,7 @@ try {
 
     // Reassign linked loans before deleting so no loan loses its collector.
     $reassignedLoanCount = fallback_loan_assignments_to_owner($pdo, $userId);
+    remember_forget_user($pdo, $userId);
 
     $deleteStmt = $pdo->prepare('DELETE FROM users WHERE id = :id');
     $deleteStmt->execute(['id' => $userId]);

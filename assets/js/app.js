@@ -1,4 +1,37 @@
 (function () {
+    const applyNumericKeyboardHints = () => {
+        const numericNames = new Set([
+            'loan_number',
+            'installment_no',
+            'installment_count',
+            'timeframe_value',
+            'interest_rate_months',
+            'live_update_interval_seconds',
+        ]);
+        const decimalNamePattern = /(amount|principal|interest|rate|total|balance|payment|received|paid)/i;
+
+        document.querySelectorAll('input').forEach((input) => {
+            if (!(input instanceof HTMLInputElement)) {
+                return;
+            }
+
+            const name = input.name || '';
+            if (numericNames.has(name)) {
+                input.setAttribute('inputmode', 'numeric');
+                input.setAttribute('pattern', '[0-9]*');
+                return;
+            }
+
+            if (input.type === 'number' || decimalNamePattern.test(name)) {
+                input.setAttribute('inputmode', 'decimal');
+            }
+        });
+    };
+
+    applyNumericKeyboardHints();
+})();
+
+(function () {
     const applyMobileTableStack = () => {
         const tables = document.querySelectorAll('.table-wrap table');
         tables.forEach((table) => {

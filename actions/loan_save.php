@@ -25,8 +25,9 @@ $useRoundedInstallment = (int) ($_POST['use_rounded_installment'] ?? 0) === 1;
 $roundedInstallmentAmount = round((float) ($_POST['rounded_installment_amount'] ?? 0), 2);
 $canAssignLoan = can('loans.assign');
 $canCreateCustomer = can('customers.create');
+$postedAssignedUserId = (int) ($_POST['assigned_user_id'] ?? 0);
 $assignedUserId = $canAssignLoan
-    ? assignable_collector_id_or_default($pdo, (int) ($_POST['assigned_user_id'] ?? 0))
+    ? ($postedAssignedUserId > 0 ? assignable_collector_id_or_default($pdo, $postedAssignedUserId) : null)
     : default_loan_collector_id($pdo);
 $notes = trim((string) ($_POST['notes'] ?? ''));
 $createNewCustomer = (string) ($_POST['create_new_customer'] ?? '0') === '1';
@@ -101,7 +102,7 @@ if (!$createNewCustomer) {
     }
 }
 
-if ($assignedUserId <= 0) {
+if ($assignedUserId !== null && $assignedUserId <= 0) {
     set_flash('error', 'Owner account is required before creating loans.');
     redirect('pages/loan_create.php');
 }

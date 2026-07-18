@@ -53,6 +53,7 @@ $updateStmt->execute([
     'password_hash' => password_hash($newPassword, PASSWORD_DEFAULT),
     'id' => (int) $current['id'],
 ]);
+remember_forget_user($pdo, (int) $current['id']);
 
 log_activity($pdo, 'profile.password_changed', 'User changed account password.', [
     'user_id' => (int) $current['id'],

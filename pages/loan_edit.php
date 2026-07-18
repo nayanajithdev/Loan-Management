@@ -32,12 +32,10 @@ if (!$loan) {
 }
 
 $currentAssignedUserId = (int) ($loan['loan_assigned_user_id'] ?? 0);
-if ($currentAssignedUserId <= 0) {
-    $currentAssignedUserId = default_loan_collector_id($pdo);
-}
 
 $customers = $pdo->query("SELECT id, customer_code, full_name, nic FROM customers WHERE status = 'active' ORDER BY full_name ASC")->fetchAll();
-$users = assignable_collector_rows($pdo, $currentAssignedUserId);
+$users = assignable_collector_rows($pdo, $currentAssignedUserId > 0 ? $currentAssignedUserId : null);
+$canEditLoan = can('loans.edit');
 $canEditAssignment = can('loans.assign');
 $canScheduleNextPayment = can('collections.schedule');
 $canDeleteLoan = can('loans.delete');
@@ -209,6 +207,36 @@ require __DIR__ . '/../includes/layout_start.php';
         </div>
     </div>
 
+    <section class="loan-progress-panel" aria-label="Loan progress">
+        <div class="loan-progress-head">
+            <div>
+                <h2 class="loan-progress-title">Loan Progress</h2>
+            </div>
+            <span class="loan-progress-pill"><?= e($loanProgressLabel) ?></span>
+        </div>
+        <div class="loan-progress-track" aria-hidden="true">
+            <div class="loan-progress-fill" style="--loan-progress: <?= e($loanProgressStyleValue) ?>%;"></div>
+        </div>
+        <div class="loan-progress-stats">
+            <div class="loan-progress-stat">
+                <span>Total Repayable</span>
+                <strong><?= e(money_label($pdo, $loanTotalRepayable)) ?></strong>
+            </div>
+            <div class="loan-progress-stat is-collected">
+                <span>Collected</span>
+                <strong><?= e(money_label($pdo, $loanTotalCollected)) ?></strong>
+            </div>
+            <div class="loan-progress-stat is-balance">
+                <span>Balance</span>
+                <strong><?= e(money_label($pdo, $loanBalance)) ?></strong>
+            </div>
+            <div class="loan-progress-stat is-arrears <?= $loanArrearsCount > 0 ? 'has-arrears' : '' ?>">
+                <span>Arrears</span>
+                <strong><?= e($loanArrearsLabel) ?></strong>
+            </div>
+        </div>
+    </section>
+
     <div class="loan-tab-frame">
     <div class="loan-tab-nav" role="tablist" aria-label="Loan edit sections">
         <button type="button" class="loan-tab-button is-active" data-loan-tab-open="details" role="tab" aria-selected="true">Loan Details</button>
@@ -255,7 +283,7 @@ require __DIR__ . '/../includes/layout_start.php';
 
         <div class="field">
             <label>Loan Issued Date</label>
-            <input type="date" name="issued_date" value="<?= e($issuedDate) ?>" required>
+            <input type="date" name="issued_date" value="<?= e($issuedDate) ?>" required <?= $canEditLoan ? '' : 'disabled' ?>>
         </div>
 
         <div class="loan-form-divider">Terms &amp; Repayment</div>
@@ -315,6 +343,7 @@ require __DIR__ . '/../includes/layout_start.php';
         <div class="field">
             <label>Assign Loan To Collector</label>
             <select name="assigned_user_id" <?= $canEditAssignment ? '' : 'disabled' ?>>
+                <option value="0" <?= $currentAssignedUserId <= 0 ? 'selected' : '' ?>>All users</option>
                 <?php foreach ($users as $user): ?>
                     <option value="<?= e((string) $user['id']) ?>" <?= $currentAssignedUserId === (int) $user['id'] ? 'selected' : '' ?>>
                         <?= e($user['full_name'] . ' (' . $user['username'] . ' - ' . role_display_name((string) $user['role']) . ((string) ($user['status'] ?? 'active') !== 'active' ? ', inactive' : '') . ')') ?>
@@ -367,49 +396,21 @@ require __DIR__ . '/../includes/layout_start.php';
                     <h3><span id="preview-end-date"><?= e($loanEndDate !== '' ? display_date($loanEndDate) : '-') ?></span></h3>
                 </div>
             </div>
-            <button type="submit" class="btn btn-primary create-loan-submit-btn">Update Loan</button>
+            <?php if ($canEditLoan): ?>
+                <button type="submit" class="btn btn-primary create-loan-submit-btn">Update Loan</button>
+            <?php endif; ?>
         </aside>
         </div>
         </form>
     </div>
 
-    <div class="loan-tab-panel" data-loan-tab-panel="collections" role="tabpanel" hidden>
+    <div class="loan-tab-panel loan-collections-tab-panel" data-loan-tab-panel="collections" role="tabpanel" hidden>
         <section class="loan-payment-layout">
             <div class="loan-history-column">
-                <section class="loan-progress-panel" aria-label="Loan progress">
-                    <div class="loan-progress-head">
-                        <div>
-                            <h2 class="loan-progress-title">Loan Progress</h2>
-                            <p class="loan-progress-subtitle">Track repayment progress for this loan.</p>
-                        </div>
-                        <span class="loan-progress-pill"><?= e($loanProgressLabel) ?></span>
-                    </div>
-                    <div class="loan-progress-track" aria-hidden="true">
-                        <div class="loan-progress-fill" style="--loan-progress: <?= e($loanProgressStyleValue) ?>%;"></div>
-                    </div>
-                    <div class="loan-progress-stats">
-                        <div class="loan-progress-stat">
-                            <span>Total Repayable</span>
-                            <strong><?= e(money_label($pdo, $loanTotalRepayable)) ?></strong>
-                        </div>
-                        <div class="loan-progress-stat is-collected">
-                            <span>Collected</span>
-                            <strong><?= e(money_label($pdo, $loanTotalCollected)) ?></strong>
-                        </div>
-                        <div class="loan-progress-stat is-balance">
-                            <span>Balance</span>
-                            <strong><?= e(money_label($pdo, $loanBalance)) ?></strong>
-                        </div>
-                        <div class="loan-progress-stat is-arrears <?= $loanArrearsCount > 0 ? 'has-arrears' : '' ?>">
-                            <span>Arrears</span>
-                            <strong><?= e($loanArrearsLabel) ?></strong>
-                        </div>
-                    </div>
-                </section>
-
     <div class="panel loan-history-panel">
         <div class="panel-head">
             <h2 class="panel-title">Collection History</h2>
+            <button type="button" class="btn btn-primary loan-mobile-collect-open" data-loan-collect-open aria-controls="loan-collect-panel" aria-expanded="false">Collect Payment</button>
         </div>
         <div class="table-wrap">
             <table>
@@ -417,7 +418,7 @@ require __DIR__ . '/../includes/layout_start.php';
                     <tr>
                         <th>Date</th>
                         <th>Inst.</th>
-                        <th>Collected By</th>
+                        <th>By</th>
                         <?php if ($paymentMethodSelectionEnabled): ?>
                             <th>Method</th>
                         <?php endif; ?>
@@ -441,16 +442,19 @@ require __DIR__ . '/../includes/layout_start.php';
                             }
                             $collectedAt = (string) ($history['collected_at'] ?? '');
                             $collectedDisplay = $collectedAt !== '' ? display_datetime($collectedAt) : '-';
+                            $collectorName = trim((string) ($history['collected_by_name'] ?? 'Unknown'));
+                            $collectorNameParts = preg_split('/\s+/', $collectorName);
+                            $collectorFirstName = (string) ($collectorNameParts[0] ?? $collectorName);
                             ?>
                             <tr>
-                                <td><?= e($collectedDisplay) ?></td>
-                                <td><?= e($installments) ?></td>
-                                <td><?= e((string) ($history['collected_by_name'] ?? 'Unknown')) ?></td>
+                                <td data-label="Date"><?= e($collectedDisplay) ?></td>
+                                <td data-label="Inst."><?= e($installments) ?></td>
+                                <td data-label="By"><?= e($collectorFirstName !== '' ? $collectorFirstName : 'Unknown') ?></td>
                                 <?php if ($paymentMethodSelectionEnabled): ?>
-                                    <td><?= e(ucfirst((string) ($history['method'] ?? 'cash'))) ?></td>
+                                    <td data-label="Method"><?= e(ucfirst((string) ($history['method'] ?? 'cash'))) ?></td>
                                 <?php endif; ?>
-                                <td><?= e($noteText === '' ? '-' : $noteText) ?></td>
-                                <td class="text-right"><?= e(money_label($pdo, (float) $history['amount'])) ?></td>
+                                <td data-label="Note" class="<?= $noteText === '' ? 'is-empty-note' : '' ?>"><?= e($noteText === '' ? '-' : $noteText) ?></td>
+                                <td class="text-right" data-label="Amount"><?= e(money_label($pdo, (float) $history['amount'])) ?></td>
                             </tr>
                         <?php endforeach; ?>
                     <?php endif; ?>
@@ -463,66 +467,70 @@ require __DIR__ . '/../includes/layout_start.php';
     </div>
     </div>
 
-    <aside class="panel loan-collect-panel">
-        <div class="panel-head">
-            <h2 class="panel-title">Collect Payment</h2>
-        </div>
-
-        <?php if (!$canRecordCollection): ?>
-            <p class="loan-collect-empty">You do not have permission to record collections.</p>
-        <?php elseif ((string) $loan['status'] === 'closed'): ?>
-            <p class="loan-collect-empty">This loan is closed.</p>
-        <?php elseif (!$currentCollectible): ?>
-            <p class="loan-collect-empty">No pending installments available for this loan.</p>
-        <?php else: ?>
-            <p class="loan-collect-empty">Record any payment amount for the next installment.</p>
-            <div class="loan-collect-summary">
-                <div class="loan-collect-item">
-                    <span>Loan</span>
-                    <strong><?= e($loanDisplayNumber) ?></strong>
-                </div>
-                <div class="loan-collect-item">
-                    <span>Customer</span>
-                    <strong><?= e((string) $loan['full_name']) ?></strong>
-                </div>
-                <div class="loan-collect-item">
-                    <span>Installment</span>
-                    <strong>#<?= e((string) $currentCollectible['installment_no']) ?> | <?= e(display_date((string) $currentCollectible['due_date'])) ?></strong>
-                </div>
-                <div class="loan-collect-item">
-                    <span>Due Amount</span>
-                    <strong><?= e(money_label($pdo, $collectibleBalance)) ?></strong>
-                </div>
+    <aside class="panel loan-collect-panel" id="loan-collect-panel" data-loan-collect-panel aria-labelledby="loan-collect-title">
+        <div class="loan-collect-dialog">
+            <div class="panel-head">
+                <h2 class="panel-title" id="loan-collect-title">Collect Payment</h2>
+                <button type="button" class="btn btn-icon-only loan-mobile-collect-close" data-loan-collect-close aria-label="Close collect payment">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                </button>
             </div>
 
-            <form class="loan-collect-form" method="post" action="<?= e(url('actions/collection_save.php')) ?>" data-confirm="Confirm this collection payment?" data-inline-confirm="1">
-                <?= csrf_input() ?>
-                <input type="hidden" name="loan_id" value="<?= e((string) $loanId) ?>">
-                <input type="hidden" name="installment_id" value="<?= e((string) $currentCollectible['id']) ?>">
-                <input type="hidden" name="collected_on" value="<?= e(today()) ?>">
-                <input type="hidden" name="return_to" value="<?= e('pages/loan_edit.php?loan_id=' . $loanId . '#collections') ?>">
-
-                <div class="field">
-                    <label>Amount Received</label>
-                    <input type="number" step="0.01" min="0.01" name="amount" value="<?= e($autoFillAmountReceived ? number_format($collectibleBalance, 2, '.', '') : '') ?>" required>
-                </div>
-                <?php if ($paymentMethodSelectionEnabled): ?>
-                    <div class="field">
-                        <label>Method</label>
-                        <select name="method">
-                            <option value="cash">Cash</option>
-                            <option value="bank">Bank</option>
-                            <option value="online">Online</option>
-                        </select>
+            <?php if (!$canRecordCollection): ?>
+                <p class="loan-collect-empty">You do not have permission to record collections.</p>
+            <?php elseif ((string) $loan['status'] === 'closed'): ?>
+                <p class="loan-collect-empty">This loan is closed.</p>
+            <?php elseif (!$currentCollectible): ?>
+                <p class="loan-collect-empty">No pending installments available for this loan.</p>
+            <?php else: ?>
+                <div class="loan-collect-summary">
+                    <div class="loan-collect-item">
+                        <span>Loan</span>
+                        <strong><?= e($loanDisplayNumber) ?></strong>
                     </div>
-                <?php endif; ?>
-                <div class="field">
-                    <label>Note</label>
-                    <textarea name="note" placeholder="Optional"></textarea>
+                    <div class="loan-collect-item">
+                        <span>Customer</span>
+                        <strong><?= e((string) $loan['full_name']) ?></strong>
+                    </div>
+                    <div class="loan-collect-item">
+                        <span>Installment</span>
+                        <strong>#<?= e((string) $currentCollectible['installment_no']) ?> | <?= e(display_date((string) $currentCollectible['due_date'])) ?></strong>
+                    </div>
+                    <div class="loan-collect-item">
+                        <span>Due Amount</span>
+                        <strong><?= e(money_label($pdo, $collectibleBalance)) ?></strong>
+                    </div>
                 </div>
-                <button class="btn btn-primary" type="submit">Save Collection</button>
-            </form>
-        <?php endif; ?>
+
+                <form class="loan-collect-form" method="post" action="<?= e(url('actions/collection_save.php')) ?>" data-confirm="Confirm this collection payment?" data-inline-confirm="1">
+                    <?= csrf_input() ?>
+                    <input type="hidden" name="loan_id" value="<?= e((string) $loanId) ?>">
+                    <input type="hidden" name="installment_id" value="<?= e((string) $currentCollectible['id']) ?>">
+                    <input type="hidden" name="collected_on" value="<?= e(today()) ?>">
+                    <input type="hidden" name="return_to" value="<?= e('pages/loan_edit.php?loan_id=' . $loanId . '#collections') ?>">
+
+                    <div class="field">
+                        <label>Amount Received</label>
+                        <input type="number" step="0.01" min="0.01" name="amount" value="<?= e($autoFillAmountReceived ? number_format($collectibleBalance, 2, '.', '') : '') ?>" required>
+                    </div>
+                    <?php if ($paymentMethodSelectionEnabled): ?>
+                        <div class="field">
+                            <label>Method</label>
+                            <select name="method">
+                                <option value="cash">Cash</option>
+                                <option value="bank">Bank</option>
+                                <option value="online">Online</option>
+                            </select>
+                        </div>
+                    <?php endif; ?>
+                    <div class="field">
+                        <label>Note</label>
+                        <textarea name="note" placeholder="Optional"></textarea>
+                    </div>
+                    <button class="btn btn-primary loan-collect-save-button" type="submit">Save Collection</button>
+                </form>
+            <?php endif; ?>
+        </div>
     </aside>
 </section>
     </div>
@@ -706,6 +714,46 @@ require __DIR__ . '/../includes/layout_start.php';
 
     scheduleToggle.addEventListener('change', syncSchedule);
     syncSchedule();
+})();
+
+(() => {
+    const openButton = document.querySelector('[data-loan-collect-open]');
+    const panel = document.querySelector('[data-loan-collect-panel]');
+    const closeButton = document.querySelector('[data-loan-collect-close]');
+    if (!openButton || !panel || !closeButton) {
+        return;
+    }
+
+    const openPanel = () => {
+        panel.classList.add('is-mobile-open');
+        document.body.classList.add('loan-collect-modal-open');
+        panel.setAttribute('role', 'dialog');
+        panel.setAttribute('aria-modal', 'true');
+        openButton.setAttribute('aria-expanded', 'true');
+        closeButton.focus();
+    };
+
+    const closePanel = () => {
+        panel.classList.remove('is-mobile-open');
+        document.body.classList.remove('loan-collect-modal-open');
+        panel.removeAttribute('role');
+        panel.removeAttribute('aria-modal');
+        openButton.setAttribute('aria-expanded', 'false');
+        openButton.focus();
+    };
+
+    openButton.addEventListener('click', openPanel);
+    closeButton.addEventListener('click', closePanel);
+    panel.addEventListener('click', (event) => {
+        if (event.target === panel) {
+            closePanel();
+        }
+    });
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape' && panel.classList.contains('is-mobile-open')) {
+            closePanel();
+        }
+    });
 })();
 </script>
 

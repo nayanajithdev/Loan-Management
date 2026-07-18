@@ -32,7 +32,7 @@ if (!in_array($defaultTimeframeUnit, ['days', 'months'], true)) {
     $defaultTimeframeUnit = 'days';
 }
 
-if (!is_assignable_collector($pdo, $defaultLoanCollectorId)) {
+if ($defaultLoanCollectorId > 0 && !is_assignable_collector($pdo, $defaultLoanCollectorId)) {
     $defaultLoanCollectorId = default_loan_collector_id($pdo);
 }
 

@@ -5,11 +5,15 @@ declare(strict_types=1);
 require_once __DIR__ . '/includes/bootstrap.php';
 
 if (is_logged_in()) {
-    redirect('index.php');
+    redirect(authenticated_landing_path());
 }
 
 $superadminAvailable = has_superadmin($pdo);
 $faviconPath = business_icon_path($pdo);
+$loginBusinessName = trim(system_setting($pdo, 'business_name', APP_NAME));
+if ($loginBusinessName === '') {
+    $loginBusinessName = APP_NAME;
+}
 ?>
 <!doctype html>
 <html lang="en">
@@ -28,7 +32,7 @@ $faviconPath = business_icon_path($pdo);
 <body class="auth-body">
 <div class="auth-shell">
     <section class="auth-card">
-        <h1><?= e(APP_NAME) ?></h1>
+        <h1><?= e($loginBusinessName) ?></h1>
         <p class="auth-sub">Login to continue</p>
 
         <?php if ($flash): ?>
@@ -50,6 +54,13 @@ $faviconPath = business_icon_path($pdo);
                     <input type="password" name="password" required>
                 </div>
                 <div class="field full auth-links-row">
+                    <label class="choice-check auth-stay-check">
+                        <input type="checkbox" name="stay_logged_in" value="1">
+                        <span class="choice-check-box" aria-hidden="true">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+                        </span>
+                        <span class="choice-check-label">Stay logged in</span>
+                    </label>
                     <a class="auth-link" href="<?= e(url('forgot_password.php')) ?>">Forgot password?</a>
                 </div>
                 <div class="field full" style="align-self:end;">

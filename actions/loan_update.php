@@ -27,8 +27,9 @@ $scheduleNextPayment = (int) ($_POST['schedule_next_payment'] ?? 0) === 1;
 $nextPaymentDateInput = trim((string) ($_POST['next_payment_date'] ?? ''));
 $canEditAssignment = can('loans.assign');
 $canScheduleNextPayment = can('collections.schedule');
+$postedAssignedUserId = (int) ($_POST['assigned_user_id'] ?? 0);
 $assignedUserId = $canEditAssignment
-    ? assignable_collector_id_or_default($pdo, (int) ($_POST['assigned_user_id'] ?? 0))
+    ? ($postedAssignedUserId > 0 ? assignable_collector_id_or_default($pdo, $postedAssignedUserId) : null)
     : 0;
 
 if ($loanId <= 0) {
@@ -88,7 +89,7 @@ if (!$customerStmt->fetch()) {
     redirect('pages/loan_edit.php?loan_id=' . $loanId);
 }
 
-if ($canEditAssignment && $assignedUserId <= 0) {
+if ($canEditAssignment && $assignedUserId !== null && $assignedUserId <= 0) {
     set_flash('error', 'Owner account is required before assigning loans.');
     redirect('pages/loan_edit.php?loan_id=' . $loanId);
 }
@@ -243,7 +244,11 @@ try {
 
     if ($canEditAssignment) {
         $assignStmt = $pdo->prepare('UPDATE loans SET assigned_user_id = :assigned_user_id WHERE id = :loan_id');
-        $assignStmt->bindValue(':assigned_user_id', $assignedUserId, PDO::PARAM_INT);
+        if ($assignedUserId === null) {
+            $assignStmt->bindValue(':assigned_user_id', null, PDO::PARAM_NULL);
+        } else {
+            $assignStmt->bindValue(':assigned_user_id', $assignedUserId, PDO::PARAM_INT);
+        }
         $assignStmt->bindValue(':loan_id', $loanId, PDO::PARAM_INT);
         $assignStmt->execute();
     }

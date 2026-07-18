@@ -73,7 +73,7 @@ $renderLoansBody = static function (array $loans, PDO $pdo): string {
                     <?php if (!empty($loan['assigned_user_name'])): ?>
                         <?= e($loan['assigned_user_name']) ?>
                     <?php else: ?>
-                        <span class="badge badge-info">Owner</span>
+                        <span class="badge badge-info">All users</span>
                     <?php endif; ?>
                 </td>
             </tr>

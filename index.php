@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/includes/bootstrap.php';
 
-require_permission('dashboard.view', 'pages/about.php');
+if (!can('dashboard.view')) {
+    redirect(authenticated_landing_path());
+}
 
 $pageTitle = 'Dashboard';
 $activePage = 'dashboard';

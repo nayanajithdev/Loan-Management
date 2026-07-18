@@ -23,7 +23,7 @@ $paymentMethodSelectionEnabled = payment_method_selection_enabled($pdo);
 $scopeSql = '';
 $params = [];
 if (is_collector_role($currentRole)) {
-    $scopeSql = ' WHERE l.assigned_user_id = :assigned_user_id';
+    $scopeSql = ' WHERE ' . collector_assignment_scope_sql('l', 'assigned_user_id');
     $params['assigned_user_id'] = $currentUserId;
 }
 

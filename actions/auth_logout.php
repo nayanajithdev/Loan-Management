@@ -17,6 +17,7 @@ if ($current) {
     ], (int) $current['id']);
 }
 
+remember_forget_current($pdo);
 logout_user();
 
 header('Location: ' . url('login.php'));

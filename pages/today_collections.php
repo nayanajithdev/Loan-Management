@@ -92,7 +92,7 @@ if (is_collector_role($currentRole)) {
          FROM collections col
          JOIN loans l ON l.id = col.loan_id
          WHERE col.collected_on = :selected_date
-           AND l.assigned_user_id = :assigned_user_id"
+           AND " . collector_assignment_scope_sql('l', 'assigned_user_id')
     );
     $selectedCollectionTotalStmt->execute([
         'selected_date' => $selectedDate,
@@ -123,8 +123,31 @@ $baseQueryParams = [
 if ($search !== '') {
     $baseQueryParams['q'] = $search;
 }
-$listViewUrl = url('pages/today_collections.php?' . http_build_query($baseQueryParams));
-$returnTo = 'pages/today_collections.php?' . http_build_query($baseQueryParams);
+$collectionPageSize = 25;
+$collectionTotalCount = count($displayInstallments);
+$collectionTotalPages = max(1, (int) ceil($collectionTotalCount / $collectionPageSize));
+$collectionPage = max(1, (int) ($_GET['page'] ?? 1));
+if ($collectionPage > $collectionTotalPages) {
+    $collectionPage = $collectionTotalPages;
+}
+$collectionOffset = ($collectionPage - 1) * $collectionPageSize;
+$pagedDisplayInstallments = array_slice($displayInstallments, $collectionOffset, $collectionPageSize);
+$collectionPageStart = $collectionTotalCount > 0 ? $collectionOffset + 1 : 0;
+$collectionPageEnd = min($collectionOffset + $collectionPageSize, $collectionTotalCount);
+$pageQueryParams = $baseQueryParams;
+if ($collectionPage > 1) {
+    $pageQueryParams['page'] = $collectionPage;
+}
+$paginationUrl = static function (int $page) use ($baseQueryParams): string {
+    $params = $baseQueryParams;
+    if ($page > 1) {
+        $params['page'] = $page;
+    }
+
+    return url('pages/today_collections.php?' . http_build_query($params));
+};
+$listViewUrl = url('pages/today_collections.php?' . http_build_query($pageQueryParams));
+$returnTo = 'pages/today_collections.php?' . http_build_query($pageQueryParams);
 
 require __DIR__ . '/../includes/layout_start.php';
 ?>
@@ -170,7 +193,7 @@ require __DIR__ . '/../includes/layout_start.php';
             </div>
             <div class="metric-box">
                 <p><?= $selectedCollectionStatus === 'collected' ? 'Collected Count (Selected Date)' : 'Pending Count (Selected Date)' ?></p>
-                <h3><?= e((string) count($displayInstallments)) ?></h3>
+                <h3><?= e((string) $collectionTotalCount) ?></h3>
             </div>
         </div>
         <div class="collection-summary-divider" aria-hidden="true"></div>
@@ -189,10 +212,10 @@ require __DIR__ . '/../includes/layout_start.php';
                 </tr>
                 </thead>
                 <tbody id="collection-due-table-body">
-                <?php if (!$displayInstallments): ?>
+                <?php if (!$pagedDisplayInstallments): ?>
                     <tr><td colspan="7"><?= $selectedCollectionStatus === 'collected' ? 'No collected installments for selected date.' : 'No due installments for selected date.' ?></td></tr>
                 <?php else: ?>
-                    <?php foreach ($displayInstallments as $item): ?>
+                    <?php foreach ($pagedDisplayInstallments as $item): ?>
                         <?php $balance = round((float) $item['due_amount'] - (float) $item['paid_amount'], 2); ?>
                         <?php
                         $displayStatus = $selectedCollectionStatus === 'collected' ? 'paid' : $item['status'];
@@ -213,6 +236,9 @@ require __DIR__ . '/../includes/layout_start.php';
                             'collection_status' => $selectedCollectionStatus,
                             'q' => $search,
                         ];
+                        if ($collectionPage > 1) {
+                            $selectParams['page'] = $collectionPage;
+                        }
                         if ($selectedCollectionStatus === 'collected') {
                             $selectParams['selected_collection'] = $itemCollectionId;
                         } else {
@@ -238,13 +264,26 @@ require __DIR__ . '/../includes/layout_start.php';
             </table>
         </div>
 
+        <?php if ($collectionTotalPages > 1): ?>
+            <nav class="pagination-bar" aria-label="Collection pagination">
+                <p class="pagination-info">Showing <?= e((string) $collectionPageStart) ?>-<?= e((string) $collectionPageEnd) ?> of <?= e((string) $collectionTotalCount) ?></p>
+                <div class="pagination-links">
+                    <a class="btn pagination-link <?= $collectionPage <= 1 ? 'is-disabled' : '' ?>" href="<?= e($paginationUrl(max(1, $collectionPage - 1))) ?>">Prev</a>
+                    <?php for ($pageNumber = 1; $pageNumber <= $collectionTotalPages; $pageNumber++): ?>
+                        <a class="btn pagination-link <?= $pageNumber === $collectionPage ? 'is-current' : '' ?>" href="<?= e($paginationUrl($pageNumber)) ?>"><?= e((string) $pageNumber) ?></a>
+                    <?php endfor; ?>
+                    <a class="btn pagination-link <?= $collectionPage >= $collectionTotalPages ? 'is-disabled' : '' ?>" href="<?= e($paginationUrl(min($collectionTotalPages, $collectionPage + 1))) ?>">Next</a>
+                </div>
+            </nav>
+        <?php endif; ?>
+
     </section>
 
     <div class="due-installment-cards">
-        <?php if (!$displayInstallments): ?>
+        <?php if (!$pagedDisplayInstallments): ?>
             <div class="due-installment-empty"><?= $selectedCollectionStatus === 'collected' ? 'No collected installments for selected date.' : 'No due installments for selected date.' ?></div>
         <?php else: ?>
-            <?php foreach ($displayInstallments as $item): ?>
+            <?php foreach ($pagedDisplayInstallments as $item): ?>
                 <?php
                 $balance = round((float) $item['due_amount'] - (float) $item['paid_amount'], 2);
                 $displayStatus = $selectedCollectionStatus === 'collected' ? 'paid' : $item['status'];
@@ -264,6 +303,9 @@ require __DIR__ . '/../includes/layout_start.php';
                     'q' => $search,
                     'mobile_record' => 1,
                 ];
+                if ($collectionPage > 1) {
+                    $mobileSelectParams['page'] = $collectionPage;
+                }
                 if ($selectedCollectionStatus === 'collected') {
                     $mobileSelectParams['selected_collection'] = $itemCollectionId;
                 } else {

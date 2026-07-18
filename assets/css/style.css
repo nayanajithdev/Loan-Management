@@ -385,16 +385,43 @@ body {
     grid-column: span 12;
 }
 
-.auth-links-row {
-    display: flex;
+.field.auth-links-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
-    justify-content: space-between;
-    gap: 10px;
+    column-gap: 12px;
+    width: 100%;
+    margin-top: 12px;
+    margin-bottom: 2px;
+}
+
+.auth-stay-check {
+    justify-self: start;
+    min-width: 0;
+}
+
+.auth-stay-check .choice-check-label {
+    font-size: 13px;
+    color: #dbe3ea;
+    white-space: nowrap;
+}
+
+.auth-stay-check .choice-check-box {
+    width: 16px;
+    height: 16px;
+    border-radius: 4px;
+}
+
+.auth-stay-check .choice-check-box svg {
+    width: 11px;
+    height: 11px;
 }
 
 .auth-link {
     color: #cfcfcf;
     font-size: 13px;
+    justify-self: end;
+    white-space: nowrap;
 }
 
 .auth-link:hover {
@@ -1334,6 +1361,7 @@ button {
     display: flex;
     align-items: flex-end;
     margin: 0;
+    gap: 8px;
     border-bottom: 0;
 }
 
@@ -1390,6 +1418,7 @@ button {
         linear-gradient(135deg, rgba(255, 122, 26, 0.05), rgba(12, 28, 39, 0.35)),
         var(--surface-2);
     box-shadow: inset 0 0 0 1px var(--edge);
+    margin-bottom: 20px;
 }
 
 .loan-progress-head {
@@ -1490,6 +1519,11 @@ button {
 .loan-collect-panel {
     position: sticky;
     top: 88px;
+}
+
+.loan-mobile-collect-open,
+.loan-mobile-collect-close {
+    display: none;
 }
 
 .loan-collect-summary {
@@ -3994,6 +4028,21 @@ textarea {
         width: 100%;
     }
 
+    .today-collections-layout.mobile-record-mode .today-collections-record-panel > .metric-row {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+    }
+
+    .today-collections-layout.mobile-record-mode .today-collections-record-panel > .metric-row .metric-box {
+        min-width: 0;
+        padding: 8px 10px;
+    }
+
+    .today-collections-layout.mobile-record-mode .today-collections-record-panel > .metric-row .metric-box h3 {
+        overflow-wrap: anywhere;
+        word-break: break-word;
+    }
+
     .today-collections-layout.mobile-record-mode .record-back-link {
         order: 1;
     }
@@ -4049,7 +4098,117 @@ textarea {
     }
 
     .loan-collect-panel {
-        position: static;
+        position: fixed;
+        inset: 0;
+        z-index: 1300;
+        display: none;
+        flex-direction: column;
+        justify-content: flex-end;
+        align-items: flex-end;
+        margin: 0;
+        padding: 16px;
+        border-radius: 0;
+        background: rgba(2, 6, 23, 0.68);
+        box-shadow: none;
+        overflow-x: hidden;
+        overflow-y: auto;
+    }
+
+    .loan-collect-panel.is-mobile-open {
+        display: flex;
+    }
+
+    .loan-collect-panel::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+    }
+
+    .loan-collect-panel > * {
+        position: relative;
+        z-index: 1;
+    }
+
+    .loan-collect-dialog {
+        width: 100%;
+        max-width: min(430px, calc(100vw - 32px));
+        max-height: calc(100vh - 32px);
+        max-height: calc(100dvh - 32px);
+        margin-right: auto;
+        margin-left: auto;
+        overflow-x: hidden;
+        overflow-y: auto;
+        border-radius: 12px;
+        background: rgba(20, 32, 42, 0.98);
+        box-shadow: inset 0 0 0 1px var(--edge);
+    }
+
+    .loan-collect-panel .panel-head {
+        margin-bottom: 0;
+        padding: 16px 16px 12px;
+        box-shadow: none;
+    }
+
+    .loan-collect-panel .loan-collect-empty {
+        margin: 0;
+        padding: 0 16px 14px;
+    }
+
+    .loan-collect-panel .loan-collect-summary {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+        margin-top: 0;
+        margin-bottom: 0;
+        padding: 12px 16px;
+    }
+
+    .loan-collect-panel .loan-collect-form {
+        display: block;
+        padding: 0 16px 16px;
+    }
+
+    .loan-collect-panel .loan-collect-form .field {
+        margin-bottom: 12px;
+    }
+
+    .loan-collect-panel .loan-collect-save-button,
+    .loan-collect-panel .inline-confirm-actions {
+        margin-top: 0px;
+        width: 100%;
+    }
+
+    .loan-collect-panel .loan-collect-form input,
+    .loan-collect-panel .loan-collect-form select,
+    .loan-collect-panel .loan-collect-form textarea {
+        max-width: 100%;
+    }
+
+    .loan-collect-panel .inline-confirm-actions {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+        width: 100%;
+        max-width: 100%;
+    }
+
+    .loan-collect-panel .inline-confirm-actions .btn {
+        width: 100%;
+        min-width: 0;
+    }
+
+    body.loan-collect-modal-open {
+        overflow: hidden;
+    }
+
+    .loan-mobile-collect-open {
+        display: inline-flex;
+        min-height: 34px;
+        padding: 8px 12px;
+        font-size: 13px;
+    }
+
+    .loan-mobile-collect-close {
+        display: inline-flex;
     }
 
     .sidebar-toggle-btn {
@@ -4105,13 +4264,17 @@ textarea {
         font-size: 14px;
     }
 
-    .loan-collect-panel {
-        position: static;
+    .loan-collections-tab-panel {
+        margin: -16px;
+    }
+
+    .loan-collections-tab-panel .loan-payment-layout {
+        display: block;
     }
 
     .loan-progress-stats {
-        grid-template-columns: 1fr;
-        gap: 12px;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 14px 18px;
     }
 
     .loan-progress-stat,
@@ -4120,12 +4283,200 @@ textarea {
         border-left: 0;
     }
 
-    .loan-collect-summary {
+    .loan-history-column {
+        display: block;
+        gap: 0;
+    }
+
+    .loan-progress-panel {
+        padding: 14px 14px 16px;
+        border-radius: 10px;
+        box-shadow: none;
+        overflow: hidden;
+    }
+
+    .loan-progress-head {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 12px;
+    }
+
+    .loan-progress-pill {
+        display: inline-flex;
+        margin-top: 0;
+    }
+
+    .loan-progress-track {
+        margin: 12px 0 18px;
+    }
+
+    .loan-history-panel {
+        margin: 0;
+        padding: 14px;
+        border-radius: 0;
+        background: transparent;
+        box-shadow: inset 0 1px 0 var(--edge);
+        overflow: hidden;
+    }
+
+    .loan-history-panel .panel-head {
+        margin-bottom: 12px;
+    }
+
+    .loan-history-panel .table-wrap {
+        max-width: 100%;
+        overflow: hidden;
+    }
+
+    .loan-history-panel table,
+    .loan-history-panel thead,
+    .loan-history-panel tbody,
+    .loan-history-panel tr,
+    .loan-history-panel th,
+    .loan-history-panel td {
+        display: block;
+        width: 100%;
+        min-width: 0;
+        max-width: 100%;
+    }
+
+    .loan-history-panel table {
+        min-width: 0 !important;
+    }
+
+    .loan-history-panel thead {
+        display: none;
+    }
+
+    .loan-history-panel tbody {
+        display: grid;
+        gap: 12px;
+    }
+
+    .loan-history-panel tbody tr {
+        display: grid;
+        grid-template-columns: minmax(0, 1.35fr) minmax(0, 0.8fr);
+        column-gap: 0;
+        row-gap: 0;
+        max-width: 100%;
+        min-width: 0;
+        border: 1px solid var(--edge);
+        border-radius: 10px;
+        background: rgba(10, 19, 27, 0.62);
+        padding: 10px 12px;
+    }
+
+    .loan-history-panel tbody td {
+        display: grid;
+        grid-template-columns: max-content minmax(0, 1fr);
+        gap: 7px;
+        align-items: center;
+        border: 0;
+        padding: 7px 0;
+        text-align: left !important;
+        font-size: 12px;
+        line-height: 1.25;
+        overflow-wrap: anywhere;
+        word-break: break-word;
+    }
+
+    .loan-history-panel tbody td[data-label="Date"] {
+        grid-column: 1;
+        grid-row: 1;
+        padding-right: 10px;
+    }
+
+    .loan-history-panel tbody td[data-label="Inst."] {
+        grid-column: 2;
+        grid-row: 1;
+        padding-left: 12px;
+        border-left: 1px solid rgba(148, 184, 213, 0.12);
+    }
+
+    .loan-history-panel tbody td[data-label="Amount"] {
+        grid-column: 1;
+        grid-row: 2;
+        padding-right: 10px;
+        border-top: 1px solid rgba(148, 184, 213, 0.12);
+        font-weight: 800;
+    }
+
+    .loan-history-panel tbody td[data-label="By"] {
+        grid-column: 2;
+        grid-row: 2;
+        padding-left: 12px;
+        border-top: 1px solid rgba(148, 184, 213, 0.12);
+        border-left: 1px solid rgba(148, 184, 213, 0.12);
+    }
+
+    .loan-history-panel tbody td[data-label="Method"] {
+        display: none;
+    }
+
+    .loan-history-panel tbody td[data-label="Note"] {
+        grid-column: 1 / -1;
+        grid-row: 3;
+        border-top: 1px solid rgba(148, 184, 213, 0.12);
+    }
+
+    .loan-history-panel tbody td:not([data-label]) {
+        grid-column: 1 / -1;
+    }
+
+    .loan-history-panel tbody td::before {
+        content: attr(data-label);
+        color: var(--muted);
+        font-size: 9px;
+        font-weight: 800;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+    }
+
+    .loan-history-panel tbody td[data-label="Date"] {
+        grid-template-columns: 42px minmax(0, 1fr);
+    }
+
+    .loan-history-panel tbody td[data-label="Amount"] {
+        grid-template-columns: 42px minmax(0, 1fr);
+    }
+
+    .loan-history-panel tbody td[data-label="Inst."] {
+        grid-template-columns: 38px minmax(0, 1fr);
+    }
+
+    .loan-history-panel tbody td[data-label="By"] {
+        grid-template-columns: 28px minmax(0, 1fr);
+    }
+
+    .loan-history-panel tbody td[data-label="Note"] {
+        grid-template-columns: 42px minmax(0, 1fr);
+    }
+
+    .loan-history-panel tbody td.is-empty-note {
+        display: none;
+    }
+
+    .loan-history-panel tbody td[data-label="Inst."],
+    .loan-history-panel tbody td[data-label="By"],
+    .loan-history-panel tbody td[data-label="Amount"] {
+        font-weight: 700;
+    }
+
+    .loan-history-print-actions {
+        margin-top: 12px;
+    }
+
+    .loan-history-print-btn {
+        width: 100%;
+    }
+
+    .loan-payment-layout > .loan-collect-panel:not(.is-mobile-open) .loan-collect-summary {
         grid-template-columns: 1fr;
     }
 
-    .loan-collect-form .btn {
-        width: 100%;
+    .loan-collect-panel.is-mobile-open .loan-collect-summary {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
     .topbar-right {

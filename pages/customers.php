@@ -70,7 +70,7 @@ if (can_view_all_customers()) {
                     SELECT 1
                     FROM loans l_assigned
                     WHERE l_assigned.customer_id = c.id
-                      AND l_assigned.assigned_user_id = :uid
+                      AND " . collector_assignment_scope_sql('l_assigned', 'uid') . "
                 )
                 OR NOT EXISTS (
                     SELECT 1

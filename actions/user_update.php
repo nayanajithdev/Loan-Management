@@ -170,6 +170,7 @@ if ($password !== '' || $confirmPassword !== '') {
         'password_hash' => password_hash($password, PASSWORD_DEFAULT),
         'id' => $userId,
     ]);
+    remember_forget_user($pdo, $userId);
 } else {
     $updateStmt = $pdo->prepare(
         'UPDATE users SET full_name = :full_name, username = :username, email = :email, role = :role, status = :status WHERE id = :id'
@@ -182,6 +183,10 @@ if ($password !== '' || $confirmPassword !== '') {
         'status' => $status,
         'id' => $userId,
     ]);
+}
+
+if ($status !== 'active') {
+    remember_forget_user($pdo, $userId);
 }
 
 if ($isSelf) {

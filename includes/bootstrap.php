@@ -25,6 +25,7 @@ try {
     ensure_user_profile_schema($pdo);
     ensure_user_status_schema($pdo);
     ensure_password_reset_tokens_schema($pdo);
+    ensure_remember_tokens_schema($pdo);
     ensure_collection_user_schema($pdo);
     ensure_collection_payment_ref_schema($pdo);
     ensure_flexible_collection_schema($pdo);
@@ -49,6 +50,7 @@ if ($configuredTimezone !== '' && in_array($configuredTimezone, timezone_identif
     date_default_timezone_set($configuredTimezone);
     sync_mysql_session_timezone($pdo, $configuredTimezone);
 }
+remember_login_from_cookie($pdo);
 $flash = get_flash();
 
 $scriptBaseName = basename((string) ($_SERVER['SCRIPT_NAME'] ?? ''));
@@ -77,12 +79,14 @@ if (!in_array($scriptBaseName, $publicScripts, true)) {
     $latestUser = $refreshStmt->fetch();
 
     if (!$latestUser) {
+        remember_forget_user($pdo, (int) $current['id']);
         logout_user();
         set_flash('error', 'Your account was removed. Please login again.');
         redirect('login.php');
     }
 
     if ((string) ($latestUser['status'] ?? 'active') !== 'active') {
+        remember_forget_user($pdo, (int) $latestUser['id']);
         logout_user();
         set_flash('error', 'Your account is inactive. Please contact owner.');
         redirect('login.php');

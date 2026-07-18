@@ -177,6 +177,7 @@ require __DIR__ . '/../includes/layout_start.php';
                         <div class="field">
                             <label>Assign Loan To Collector</label>
                             <select name="assigned_user_id" required>
+                                <option value="0">All users</option>
                                 <?php foreach ($collectors as $collector): ?>
                                     <?php $collectorId = (int) $collector['id']; ?>
                                     <option value="<?= e((string) $collectorId) ?>" <?= $collectorId === $defaultCollectorId ? 'selected' : '' ?>>

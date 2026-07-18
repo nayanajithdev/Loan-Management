@@ -53,7 +53,6 @@ if (can('reports.view')) {
 }
 
 $menuItems[] = ['key' => 'menu_divider'];
-$menuItems[] = ['key' => 'about', 'label' => 'About', 'path' => 'pages/about.php'];
 
 /** @var array<int, array{key:string,label:string,path:string}> $settingsChildren */
 $settingsChildren = [];
