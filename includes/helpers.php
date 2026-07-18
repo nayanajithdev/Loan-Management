@@ -236,8 +236,8 @@ function display_date(string $dateValue, ?string $fallback = null): string
 {
     static $format = null;
     if ($format === null) {
-        $saved = trim(system_setting(db(), 'date_format', 'd M Y'));
-        $format = $saved !== '' ? $saved : 'd M Y';
+        $saved = trim(system_setting(db(), 'date_format', 'd/m/Y'));
+        $format = $saved !== '' ? $saved : 'd/m/Y';
     }
 
     $date = DateTimeImmutable::createFromFormat('Y-m-d', $dateValue);
@@ -252,8 +252,8 @@ function display_datetime(string $dateTimeValue, ?string $fallback = null): stri
 {
     static $dateTimeFormat = null;
     if ($dateTimeFormat === null) {
-        $saved = trim(system_setting(db(), 'date_format', 'd M Y'));
-        $dateTimeFormat = ($saved !== '' ? $saved : 'd M Y') . ' H:i:s';
+        $saved = trim(system_setting(db(), 'date_format', 'd/m/Y'));
+        $dateTimeFormat = ($saved !== '' ? $saved : 'd/m/Y') . ' H:i:s';
     }
 
     try {
@@ -2501,6 +2501,13 @@ function ensure_system_settings_schema(PDO $pdo): void
             CONSTRAINT fk_system_settings_updated_by FOREIGN KEY (updated_by_user_id) REFERENCES users(id) ON DELETE SET NULL
         )"
     );
+
+    $pdo->exec(
+        "UPDATE system_settings
+         SET setting_value = 'd/m/Y'
+         WHERE setting_key = 'date_format'
+           AND (setting_value IS NULL OR setting_value = '' OR setting_value = 'd M Y')"
+    );
 }
 
 function ensure_holidays_schema(PDO $pdo): void
@@ -3996,7 +4003,7 @@ function collections_total_chart(PDO $pdo, ?array $viewer = null, string $mode =
 
         $groupExpression = 'c.collected_on';
         $title = 'Weekly Collections';
-        $subtitle = $startDate->format('M j') . ' - ' . $endDate->format('M j, Y');
+        $subtitle = display_date($startDate->format('Y-m-d')) . ' - ' . display_date($endDate->format('Y-m-d'));
         $pillSuffix = 'selected week';
     } else {
         $startDate = $today->setDate((int) $today->format('Y'), 1, 1);

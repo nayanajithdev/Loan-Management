@@ -168,7 +168,7 @@ if ($printReportFileName === '') {
 $loanTotalInterest = max(0.0, $loanTotalRepayable - (float) ($loan['principal_amount'] ?? 0));
 $paidInterest = $loanTotalRepayable > 0 ? min($loanTotalInterest, $loanTotalCollected * ($loanTotalInterest / $loanTotalRepayable)) : 0.0;
 $paidPrincipal = max(0.0, $loanTotalCollected - $paidInterest);
-$reportGeneratedDate = date('l, F j, Y');
+$reportGeneratedDate = display_date(today());
 
 require __DIR__ . '/../includes/layout_start.php';
 ?>

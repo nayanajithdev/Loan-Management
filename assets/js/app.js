@@ -806,15 +806,9 @@
             return '-';
         }
 
-        const [year, month, day] = isoDate.split('-').map(Number);
-        const date = new Date(Date.UTC(year, month - 1, day));
+        const [year, month, day] = isoDate.split('-');
 
-        return new Intl.DateTimeFormat('en-GB', {
-            day: '2-digit',
-            month: 'short',
-            year: 'numeric',
-            timeZone: 'UTC',
-        }).format(date);
+        return `${day}/${month}/${year}`;
     };
 
     const nextCollectibleDate = (isoDate) => {

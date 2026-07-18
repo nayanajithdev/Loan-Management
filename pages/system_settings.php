@@ -37,7 +37,7 @@ require __DIR__ . '/../includes/layout_start.php';
             </div>
             <div class="field">
                 <label>Date Format (Display)</label>
-                <input type="text" name="date_format" maxlength="20" value="<?= e($get('date_format', 'd M Y')) ?>" required<?= $disabledAttr ?>>
+                <input type="text" name="date_format" maxlength="20" value="<?= e($get('date_format', 'd/m/Y')) ?>" required<?= $disabledAttr ?>>
             </div>
             <div class="field">
                 <label>Allow Overpayment</label>
@@ -127,7 +127,7 @@ require __DIR__ . '/../includes/layout_start.php';
     </div>
 </form>
 
-<form method="post" action="<?= e(url('actions/loan_bulk_assign.php')) ?>" data-confirm="Assign all loans to the selected collector? This will update every loan." data-inline-confirm="1" data-inline-confirm-label="Assign All">
+<form class="bulk-loan-assignment-form" method="post" action="<?= e(url('actions/loan_bulk_assign.php')) ?>" data-confirm="Assign all loans to the selected collector? This will update every loan." data-inline-confirm="1" data-inline-confirm-label="Assign All">
     <?= csrf_input() ?>
     <div class="settings-col">
         <h3 class="settings-subtitle">Bulk Loan Assignment</h3>

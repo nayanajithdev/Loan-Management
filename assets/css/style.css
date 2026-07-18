@@ -2371,6 +2371,10 @@ textarea {
     width: auto;
 }
 
+.bulk-loan-assignment-form .inline-confirm-actions {
+    justify-content: flex-end;
+}
+
 .inline-confirm-button {
     display: inline-flex;
     align-items: center;
