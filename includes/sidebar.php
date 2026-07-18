@@ -52,8 +52,6 @@ if (can('reports.view')) {
     $menuItems[] = ['key' => 'reports', 'label' => 'Reports', 'path' => 'pages/reports.php'];
 }
 
-$menuItems[] = ['key' => 'menu_divider'];
-
 /** @var array<int, array{key:string,label:string,path:string}> $settingsChildren */
 $settingsChildren = [];
 if (can('backup.manage')) {
@@ -73,6 +71,7 @@ if (can('system_settings.view')) {
 }
 
 if ($settingsChildren !== []) {
+    $menuItems[] = ['key' => 'menu_divider'];
     $menuItems[] = ['key' => 'settings_group', 'label' => 'Settings', 'children' => $settingsChildren];
 }
 

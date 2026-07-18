@@ -127,7 +127,7 @@ require __DIR__ . '/../includes/layout_start.php';
     </div>
 </form>
 
-<form method="post" action="<?= e(url('actions/loan_bulk_assign.php')) ?>">
+<form method="post" action="<?= e(url('actions/loan_bulk_assign.php')) ?>" data-confirm="Assign all loans to the selected collector? This will update every loan." data-inline-confirm="1" data-inline-confirm-label="Assign All">
     <?= csrf_input() ?>
     <div class="settings-col">
         <h3 class="settings-subtitle">Bulk Loan Assignment</h3>
