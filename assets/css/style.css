@@ -3510,6 +3510,54 @@ textarea {
     width: 150px;
 }
 
+.collections-history-table {
+    min-width: 1280px;
+}
+
+.collections-history-table th:nth-child(1),
+.collections-history-table td:nth-child(1) {
+    width: 190px;
+}
+
+.collections-history-table th:nth-child(2),
+.collections-history-table td:nth-child(2) {
+    width: 130px;
+}
+
+.collections-history-table th:nth-child(3),
+.collections-history-table td:nth-child(3) {
+    width: 230px;
+}
+
+.collections-history-table th:nth-child(4),
+.collections-history-table td:nth-child(4) {
+    width: 190px;
+}
+
+.collections-history-table th:nth-child(5),
+.collections-history-table td:nth-child(5) {
+    width: 210px;
+}
+
+.collections-history-table th:nth-child(6),
+.collections-history-table td:nth-child(6) {
+    width: 250px;
+}
+
+.collections-history-table th:nth-child(7),
+.collections-history-table td:nth-child(7) {
+    width: 220px;
+}
+
+.collections-history-table.is-method-hidden {
+    min-width: 1180px;
+}
+
+.collections-history-table.is-method-hidden th:nth-child(6),
+.collections-history-table.is-method-hidden td:nth-child(6) {
+    width: 290px;
+}
+
 .collection-history-note {
     max-width: 0;
     overflow: hidden;

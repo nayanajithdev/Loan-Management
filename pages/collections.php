@@ -102,18 +102,18 @@ require __DIR__ . '/../includes/layout_start.php';
         </div>
     </form>
     <div class="table-wrap">
-        <table class="collection-history-table <?= $paymentMethodSelectionEnabled ? '' : 'is-method-hidden' ?>">
+        <table class="collection-history-table collections-history-table <?= $paymentMethodSelectionEnabled ? '' : 'is-method-hidden' ?>">
             <thead>
             <tr>
                 <th>Date &amp; Time</th>
                 <th>Loan</th>
                 <th>Customer</th>
+                <th>Amount</th>
                 <th>Collected By</th>
                 <?php if ($paymentMethodSelectionEnabled): ?>
                     <th>Method</th>
                 <?php endif; ?>
                 <th>Note</th>
-                <th class="text-right">Amount</th>
             </tr>
             </thead>
             <tbody id="collection-history-table-body">
@@ -132,12 +132,12 @@ require __DIR__ . '/../includes/layout_start.php';
                         <td><?= e(display_datetime((string) ($item['collected_at'] ?? ''), display_date((string) $item['collected_on']))) ?></td>
                         <td><?= e($item['loan_number']) ?></td>
                         <td><?= e($item['full_name']) ?></td>
+                        <td><?= e(money_label($pdo, (float) $item['amount'])) ?></td>
                         <td><?= e((string) ($item['collected_by_name'] ?? '-')) ?></td>
                         <?php if ($paymentMethodSelectionEnabled): ?>
                             <td><?= e($item['method']) ?></td>
                         <?php endif; ?>
                         <td class="collection-history-note"><?= e($note) ?></td>
-                        <td class="text-right"><?= e(money_label($pdo, (float) $item['amount'])) ?></td>
                     </tr>
                 <?php endforeach; ?>
             <?php endif; ?>
