@@ -156,6 +156,8 @@ $businessSettings = system_settings_all($pdo);
 $businessName = trim((string) ($businessSettings['business_name'] ?? 'Loan Manager'));
 $businessAddress = trim((string) ($businessSettings['business_address'] ?? ''));
 $businessPhone = trim((string) ($businessSettings['business_phone'] ?? ''));
+$businessNote = trim((string) ($businessSettings['business_note'] ?? ''));
+$businessIconPath = business_icon_path($pdo);
 $reportLoanNumber = trim($loanDisplayNumber) !== '' ? $loanDisplayNumber : ('#' . $loanId);
 $customerNicNumber = customer_id_no_label((string) ($loan['customer_nic'] ?? ''));
 $customerFirstNameParts = preg_split('/\s+/', trim((string) $loan['full_name']));
@@ -540,15 +542,23 @@ require __DIR__ . '/../includes/layout_start.php';
 
 <section class="loan-collection-print-report" id="loan-collection-print-report" aria-hidden="true">
     <header class="print-report-header">
-        <h1><?= e($businessName) ?></h1>
-        <?php if ($businessAddress !== ''): ?>
-            <p><?= e($businessAddress) ?></p>
-        <?php endif; ?>
-        <?php if ($businessPhone !== ''): ?>
-            <p class="print-report-contact">
-                <em>Tel:</em> <?= e($businessPhone) ?>
-            </p>
-        <?php endif; ?>
+        <div class="print-report-logo-slot">
+            <?php if ($businessIconPath !== ''): ?>
+                <img src="<?= e(url($businessIconPath)) ?>" alt="">
+            <?php endif; ?>
+        </div>
+        <div class="print-report-title-block">
+            <h1><?= e($businessName) ?></h1>
+            <?php if ($businessAddress !== ''): ?>
+                <p><?= e($businessAddress) ?></p>
+            <?php endif; ?>
+            <?php if ($businessPhone !== ''): ?>
+                <p class="print-report-contact">
+                    <em>Tel:</em> <?= e($businessPhone) ?>
+                </p>
+            <?php endif; ?>
+        </div>
+        <div class="print-report-note"><?= $businessNote !== '' ? nl2br(e($businessNote)) : '' ?></div>
     </header>
 
     <div class="print-report-rule"></div>

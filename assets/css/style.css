@@ -63,9 +63,40 @@
     }
 
     .print-report-header {
-        text-align: center;
+        display: grid;
+        grid-template-columns: 32mm minmax(0, 1fr) 48mm;
+        gap: 7mm;
+        align-items: center;
         color: #09245a;
         padding-top: 2mm;
+    }
+
+    .print-report-title-block {
+        text-align: center;
+        min-width: 0;
+    }
+
+    .print-report-logo-slot {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 26mm;
+    }
+
+    .print-report-logo-slot img {
+        display: block;
+        max-width: 28mm;
+        max-height: 26mm;
+        object-fit: contain;
+    }
+
+    .print-report-note {
+        color: #09245a;
+        font-size: 13pt;
+        font-weight: 800;
+        line-height: 1.25;
+        text-align: right;
+        overflow-wrap: anywhere;
     }
 
     .print-report-header h1 {
