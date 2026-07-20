@@ -411,6 +411,7 @@ require __DIR__ . '/../includes/layout_start.php';
     <table class="daily-collections-print-table">
         <thead>
             <tr>
+                <th>Collector</th>
                 <th>Time</th>
                 <th>Loan no</th>
                 <th>Amount</th>
@@ -419,11 +420,12 @@ require __DIR__ . '/../includes/layout_start.php';
         <tbody>
             <?php if (!$collections): ?>
                 <tr>
-                    <td colspan="3">No collections found for selected date.</td>
+                    <td colspan="4">No collections found for selected date.</td>
                 </tr>
             <?php else: ?>
                 <?php foreach ($collections as $row): ?>
                     <tr>
+                        <td><?= e((string) $row['collected_by']) ?></td>
                         <td><?= e(date('H:i:s', strtotime((string) $row['collected_at']))) ?></td>
                         <td><?= e((string) $row['loan_number']) ?></td>
                         <td><?= e(money_label($pdo, (float) $row['amount'])) ?></td>
