@@ -4114,111 +4114,57 @@ function dashboard_user_goals(PDO $pdo, ?array $viewer = null): array
     $isCollectorScope = is_collector_role($viewerRole) && $viewerId > 0;
 
     if ($isCollectorScope) {
-        $usersStmt = $pdo->prepare("SELECT id, full_name, username, role FROM users WHERE id = :id LIMIT 1");
-        $usersStmt->execute(['id' => $viewerId]);
-        $users = $usersStmt->fetchAll();
+        $collectedStmt = $pdo->prepare(
+            "SELECT
+                u.id,
+                u.full_name,
+                u.username,
+                u.role,
+                COALESCE(SUM(c.amount), 0) AS collected
+             FROM collections c
+             JOIN users u ON u.id = c.collected_by_user_id
+             JOIN loans l ON l.id = c.loan_id
+             WHERE c.collected_on = CURDATE()
+               AND c.collected_by_user_id = :collector_user_id
+               AND " . collector_assignment_scope_sql('l', 'viewer_user_id') . "
+             GROUP BY u.id, u.full_name, u.username, u.role
+             HAVING collected > 0
+             ORDER BY collected DESC, u.full_name ASC"
+        );
+        $collectedStmt->execute([
+            'collector_user_id' => $viewerId,
+            'viewer_user_id' => $viewerId,
+        ]);
     } else {
-        $users = $pdo->query("SELECT id, full_name, username, role FROM users WHERE role IN ('superadmin', 'admin', 'collector') ORDER BY FIELD(role, 'collector', 'admin', 'superadmin'), full_name ASC")->fetchAll();
+        $collectedStmt = $pdo->query(
+            "SELECT
+                u.id,
+                u.full_name,
+                u.username,
+                u.role,
+                COALESCE(SUM(c.amount), 0) AS collected
+             FROM collections c
+             JOIN users u ON u.id = c.collected_by_user_id
+             WHERE c.collected_on = CURDATE()
+             GROUP BY u.id, u.full_name, u.username, u.role
+             HAVING collected > 0
+             ORDER BY collected DESC, u.full_name ASC"
+        );
     }
 
-    $goalRows = [];
-    foreach ($users as $user) {
-        $uid = (int) $user['id'];
-        $goalRows['user_' . $uid] = [
-            'id' => $uid,
+    $users = $collectedStmt ? $collectedStmt->fetchAll() : [];
+    $users = array_map(static function (array $user): array {
+        return [
+            'id' => (int) $user['id'],
             'full_name' => (string) $user['full_name'],
             'role' => (string) $user['role'],
             'role_label' => role_display_name((string) $user['role']),
-            'remaining' => 0.0,
-            'collected' => 0.0,
-            'target' => 0.0,
-            'percentage' => 0.0,
+            'collected' => (float) $user['collected'],
         ];
-    }
-
-    $ownerKey = 'user_' . owner_user_id($pdo);
-
-    if ($isCollectorScope) {
-        $remainingStmt = $pdo->prepare(
-            "SELECT l.assigned_user_id, COALESCE(SUM(li.due_amount - li.paid_amount), 0) AS remaining
-             FROM loan_installments li
-             JOIN loans l ON l.id = li.loan_id
-             WHERE li.due_date <= CURDATE()
-               AND li.status IN ('pending', 'partial', 'overdue')
-               AND " . collector_assignment_scope_sql('l', 'viewer_user_id') . "
-             GROUP BY l.assigned_user_id"
-        );
-        $remainingStmt->execute(['viewer_user_id' => $viewerId]);
-        $remainingRows = $remainingStmt->fetchAll();
-    } else {
-        $remainingRows = $pdo->query(
-            "SELECT l.assigned_user_id, COALESCE(SUM(li.due_amount - li.paid_amount), 0) AS remaining
-             FROM loan_installments li
-             JOIN loans l ON l.id = li.loan_id
-             WHERE li.due_date <= CURDATE()
-               AND li.status IN ('pending', 'partial', 'overdue')
-             GROUP BY l.assigned_user_id"
-        )->fetchAll();
-    }
-
-    foreach ($remainingRows as $row) {
-        $key = $row['assigned_user_id'] === null ? $ownerKey : 'user_' . (int) $row['assigned_user_id'];
-        if (!isset($goalRows[$key])) {
-            continue;
-        }
-        $goalRows[$key]['remaining'] = (float) $row['remaining'];
-    }
-
-    if ($isCollectorScope) {
-        $collectedStmt = $pdo->prepare(
-            "SELECT l.assigned_user_id, COALESCE(SUM(c.amount), 0) AS collected
-             FROM collections c
-             JOIN loan_installments li ON li.id = c.installment_id
-             JOIN loans l ON l.id = c.loan_id
-             WHERE c.collected_on = CURDATE()
-               AND li.due_date <= CURDATE()
-               AND " . collector_assignment_scope_sql('l', 'viewer_user_id') . "
-             GROUP BY l.assigned_user_id"
-        );
-        $collectedStmt->execute(['viewer_user_id' => $viewerId]);
-        $collectedRows = $collectedStmt->fetchAll();
-    } else {
-        $collectedRows = $pdo->query(
-            "SELECT l.assigned_user_id, COALESCE(SUM(c.amount), 0) AS collected
-             FROM collections c
-             JOIN loan_installments li ON li.id = c.installment_id
-             JOIN loans l ON l.id = c.loan_id
-             WHERE c.collected_on = CURDATE()
-               AND li.due_date <= CURDATE()
-             GROUP BY l.assigned_user_id"
-        )->fetchAll();
-    }
-
-    foreach ($collectedRows as $row) {
-        $key = $row['assigned_user_id'] === null ? $ownerKey : 'user_' . (int) $row['assigned_user_id'];
-        if (!isset($goalRows[$key])) {
-            continue;
-        }
-        $goalRows[$key]['collected'] = (float) $row['collected'];
-    }
-
-    $totalTarget = 0.0;
-    foreach ($goalRows as $key => $goal) {
-        $target = (float) $goal['remaining'] + (float) $goal['collected'];
-        $percentage = $target > 0 ? min(100, (((float) $goal['collected']) / $target) * 100) : 0.0;
-        $goalRows[$key]['target'] = $target;
-        $goalRows[$key]['percentage'] = $percentage;
-        $totalTarget += $target;
-        unset($goalRows[$key]['remaining']);
-    }
-
-    $goals = array_values($goalRows);
-    usort($goals, static function (array $a, array $b): int {
-        return $b['percentage'] <=> $a['percentage'];
-    });
+    }, $users);
 
     return [
-        'total_target' => $totalTarget,
-        'users' => $goals,
+        'total_collected' => array_sum(array_column($users, 'collected')),
+        'users' => $users,
     ];
 }

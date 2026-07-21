@@ -103,7 +103,7 @@ require __DIR__ . '/includes/layout_start.php';
                 </div>
                 <div class="user-goals-list">
                     <?php if (empty($userGoals['users'])): ?>
-                        <p class="muted-block">No users available.</p>
+                        <p class="muted-block">No collections today.</p>
                     <?php else: ?>
                         <?php foreach ($userGoals['users'] as $user): ?>
                             <?php
@@ -121,10 +121,6 @@ require __DIR__ . '/includes/layout_start.php';
                                     </div>
                                     <div class="user-goal-money"><?= e(money_label($pdo, (float) $user['collected'])) ?></div>
                                 </div>
-                                <div class="goal-progress user-goal-progress">
-                                    <span style="width: <?= e((string) $user['percentage']) ?>%"></span>
-                                </div>
-                                <p class="user-goal-target">Target: <?= e(money_label($pdo, (float) $user['target'])) ?></p>
                             </div>
                         <?php endforeach; ?>
                     <?php endif; ?>

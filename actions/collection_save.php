@@ -111,6 +111,12 @@ if ($backdatedEntry) {
 
     $paidOnDate = $paidOnDateInput;
 }
+$reportCollectedOn = $backdatedEntry ? $paidOnDate : $collectedOn;
+$collectionNote = $note;
+if ($backdatedEntry) {
+    $backdatedNote = 'Backdated entry date: ' . display_date($paidOnDate);
+    $collectionNote = trim($collectionNote === '' ? $backdatedNote : $collectionNote . ' | ' . $backdatedNote);
+}
 
 if ($scheduleNextPayment && !$canScheduleNextPayment) {
     set_flash('error', 'You do not have permission to schedule the next payment.');
@@ -205,10 +211,10 @@ try {
         $loan,
         $oldestCollectibleId,
         $amount,
-        $collectedOn,
+        $reportCollectedOn,
         $paidOnDate,
         $method,
-        $note === '' ? null : $note,
+        $collectionNote === '' ? null : $collectionNote,
         $collectedByUserId > 0 ? $collectedByUserId : null,
         $paymentRef,
         $allowOverpayment
@@ -262,7 +268,8 @@ try {
         'loan_id' => $loanId,
         'loan_number' => $loanNumber,
         'amount' => $amount,
-        'collected_on' => $collectedOn,
+        'collected_on' => $reportCollectedOn,
+        'entry_date' => $collectedOn,
         'method' => $method,
         'payment_ref' => $paymentRef,
         'backdated_entry' => $backdatedEntry ? 1 : 0,
@@ -288,7 +295,7 @@ try {
     log_activity($pdo, 'collection.failed', 'Collection failed: ' . $e->getMessage(), [
         'loan_id' => $loanId,
         'amount' => $amount,
-        'collected_on' => $collectedOn,
+        'collected_on' => $reportCollectedOn ?? $collectedOn,
     ]);
     $userError = $e instanceof RuntimeException
         ? $e->getMessage()
