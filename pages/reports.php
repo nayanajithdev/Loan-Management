@@ -55,6 +55,10 @@ $collectionsSql = "SELECT
         MAX(c.method) AS method,
         MAX(c.note) AS note,
         SUM(c.amount) AS amount,
+        MAX(CASE WHEN l.status = 'closed'
+                  AND lc.latest_collection_date = :closed_report_date
+                  AND lc.latest_collection_id = c.id
+                 THEN 1 ELSE 0 END) AS closed_this_payment,
         GROUP_CONCAT(DISTINCT CONCAT('#', li.installment_no) ORDER BY li.installment_no SEPARATOR ', ') AS installments,
         MIN(CASE WHEN l.loan_number REGEXP '^[0-9]+$' THEN CAST(l.loan_number AS UNSIGNED) ELSE l.id END) AS loan_sort
      FROM collections c
@@ -62,11 +66,19 @@ $collectionsSql = "SELECT
      JOIN customers cu ON cu.id = l.customer_id
      LEFT JOIN loan_installments li ON li.id = c.installment_id
      LEFT JOIN users u ON u.id = c.collected_by_user_id
+     LEFT JOIN (
+        SELECT loan_id, MAX(id) AS latest_collection_id, MAX(collected_on) AS latest_collection_date
+        FROM collections
+        GROUP BY loan_id
+     ) lc ON lc.loan_id = l.id
      WHERE c.collected_on = :selected_date
      GROUP BY COALESCE(c.payment_ref, CONCAT('legacy-', c.id))
      ORDER BY {$orderBy}";
 $collectionsStmt = $pdo->prepare($collectionsSql);
-$collectionsStmt->execute(['selected_date' => $selectedDate]);
+$collectionsStmt->execute([
+    'selected_date' => $selectedDate,
+    'closed_report_date' => $selectedDate,
+]);
 $collections = $collectionsStmt->fetchAll();
 
 $collectedTotal = (float) ($collectionTotals['collected_total'] ?? 0);
@@ -241,8 +253,9 @@ require __DIR__ . '/../includes/layout_start.php';
                                     $noteParts = collection_note_split((string) ($row['note'] ?? ''));
                                     $noteText = trim((string) ($noteParts['public'] ?? ''));
                                     $installments = trim((string) ($row['installments'] ?? ''));
+                                    $isClosedPayment = (int) ($row['closed_this_payment'] ?? 0) === 1;
                                     ?>
-                                    <tr>
+                                    <tr class="<?= $isClosedPayment ? 'is-closed-loan-row' : '' ?>">
                                         <td><?= e(display_datetime((string) $row['collected_at'])) ?></td>
                                         <td><?= e((string) $row['loan_number']) ?></td>
                                         <td><?= e((string) $row['customer_name']) ?></td>
@@ -434,11 +447,17 @@ require __DIR__ . '/../includes/layout_start.php';
                 </tr>
             <?php else: ?>
                 <?php foreach ($collections as $row): ?>
+                    <?php
+                    $amountLabel = money_label($pdo, (float) $row['amount']);
+                    if ((int) ($row['closed_this_payment'] ?? 0) === 1) {
+                        $amountLabel = 'Closed - ' . $amountLabel;
+                    }
+                    ?>
                     <tr>
                         <td><?= e((string) $row['collected_by']) ?></td>
                         <td><?= e(date('H:i:s', strtotime((string) $row['collected_at']))) ?></td>
                         <td><?= e((string) $row['loan_number']) ?></td>
-                        <td><?= e(money_label($pdo, (float) $row['amount'])) ?></td>
+                        <td><?= e($amountLabel) ?></td>
                     </tr>
                 <?php endforeach; ?>
             <?php endif; ?>

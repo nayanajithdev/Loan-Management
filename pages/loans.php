@@ -21,7 +21,8 @@ $assignedUsers = assignable_collector_rows($pdo, $assignedUserId > 0 ? $assigned
 
 $sql = "SELECT l.*, c.full_name, l.assigned_user_id, u.full_name AS assigned_user_name, u.username AS assigned_username, u.role AS assigned_role,
             COALESCE((SELECT SUM(li.due_amount - li.paid_amount) FROM loan_installments li WHERE li.loan_id = l.id AND li.status IN ('pending', 'partial', 'overdue')), 0) AS outstanding_amount,
-            COALESCE((SELECT COUNT(*) FROM loan_installments li WHERE li.loan_id = l.id AND li.status IN ('pending', 'partial', 'overdue')), 0) AS remaining_installment_count
+            COALESCE((SELECT COUNT(*) FROM loan_installments li WHERE li.loan_id = l.id AND li.status IN ('pending', 'partial', 'overdue')), 0) AS remaining_installment_count,
+            (SELECT MAX(co.collected_on) FROM collections co WHERE co.loan_id = l.id) AS closed_on
         FROM loans l
         JOIN customers c ON c.id = l.customer_id
         LEFT JOIN users u ON u.id = l.assigned_user_id
@@ -45,15 +46,62 @@ $stmt->execute($params);
 $loans = $stmt->fetchAll();
 $canCreateLoan = can('loans.create');
 
-$renderLoansBody = static function (array $loans, PDO $pdo): string {
+$renderAssignedHeader = static function (array $assignedUsers, int $assignedUserId): string {
+    ob_start(); ?>
+    <div class="table-header-filter" data-table-filter-menu>
+        <button type="button" class="table-header-filter-toggle <?= $assignedUserId > 0 ? 'is-active' : '' ?>" data-table-filter-toggle aria-expanded="false">
+            <span>Assigned To</span>
+            <span class="table-header-filter-chevron" aria-hidden="true">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-down-icon lucide-chevron-down"><path d="m6 9 6 6 6-6"/></svg>
+            </span>
+        </button>
+        <div class="table-header-filter-menu" data-table-filter-options hidden>
+            <button type="button" data-assigned-filter-value="0" class="<?= $assignedUserId === 0 ? 'is-selected' : '' ?>">All Assigned Users</button>
+            <?php foreach ($assignedUsers as $assignedUser): ?>
+                <?php
+                $userId = (int) ($assignedUser['id'] ?? 0);
+                $label = trim((string) ($assignedUser['full_name'] ?? ''));
+                if ($label === '') {
+                    $label = (string) ($assignedUser['username'] ?? ('User #' . $userId));
+                }
+                ?>
+                <button type="button" data-assigned-filter-value="<?= e((string) $userId) ?>" class="<?= $assignedUserId === $userId ? 'is-selected' : '' ?>"><?= e($label) ?></button>
+            <?php endforeach; ?>
+        </div>
+    </div>
+    <?php return (string) ob_get_clean();
+};
+
+$renderLoansHead = static function (string $status, array $assignedUsers, int $assignedUserId) use ($renderAssignedHeader): string {
+    ob_start(); ?>
+    <tr>
+        <th>Loan No</th>
+        <th>Customer</th>
+        <th>Principal</th>
+        <th>Total</th>
+        <th>Collected</th>
+        <?php if ($status === 'closed'): ?>
+            <th>Loan Closed Date</th>
+        <?php else: ?>
+            <th>Balance</th>
+            <th>Inst. Left</th>
+        <?php endif; ?>
+        <th><?= $renderAssignedHeader($assignedUsers, $assignedUserId) ?></th>
+    </tr>
+    <?php return (string) ob_get_clean();
+};
+
+$renderLoansBody = static function (array $loans, PDO $pdo, string $status): string {
+    $columnCount = $status === 'closed' ? 7 : 8;
     ob_start();
     if (!$loans): ?>
-        <tr><td colspan="8">No loans yet.</td></tr>
+        <tr><td colspan="<?= e((string) $columnCount) ?>">No loans yet.</td></tr>
     <?php else: ?>
         <?php foreach ($loans as $loan): ?>
             <?php $balance = max(0, (float) $loan['outstanding_amount']); ?>
             <?php $collectedAmount = max(0, round((float) $loan['total_amount'] - $balance, 2)); ?>
             <?php $remainingInstallments = (int) ($loan['remaining_installment_count'] ?? 0); ?>
+            <?php $closedOn = trim((string) ($loan['closed_on'] ?? '')); ?>
             <?php $selectUrl = url('pages/loan_edit.php?loan_id=' . (int) $loan['id']); ?>
             <tr class="table-row-clickable" data-select-url="<?= e($selectUrl) ?>">
                 <td><?= e($loan['loan_number']) ?></td>
@@ -61,14 +109,18 @@ $renderLoansBody = static function (array $loans, PDO $pdo): string {
                 <td><?= e(money_label($pdo, (float) $loan['principal_amount'])) ?></td>
                 <td><?= e(money_label($pdo, (float) $loan['total_amount'])) ?></td>
                 <td><?= e(money_label($pdo, $collectedAmount)) ?></td>
-                <td><?= $balance <= 0 ? '---' : e(money_label($pdo, $balance)) ?></td>
-                <td>
-                    <?php if ($remainingInstallments <= 0): ?>
-                        <span class="badge badge-success">Completed</span>
-                    <?php else: ?>
-                        <?= e((string) $remainingInstallments) ?> left (<?= e((string) $loan['installment_frequency']) ?>)
-                    <?php endif; ?>
-                </td>
+                <?php if ($status === 'closed'): ?>
+                    <td><?= e($closedOn !== '' ? display_date($closedOn) : '-') ?></td>
+                <?php else: ?>
+                    <td><?= $balance <= 0 ? '---' : e(money_label($pdo, $balance)) ?></td>
+                    <td>
+                        <?php if ($remainingInstallments <= 0): ?>
+                            <span class="badge badge-success">Completed</span>
+                        <?php else: ?>
+                            <?= e((string) $remainingInstallments) ?> left (<?= e((string) $loan['installment_frequency']) ?>)
+                        <?php endif; ?>
+                    </td>
+                <?php endif; ?>
                 <td>
                     <?php if (!empty($loan['assigned_user_name'])): ?>
                         <?= e($loan['assigned_user_name']) ?>
@@ -91,7 +143,8 @@ if ($isAjax) {
     header('Content-Type: application/json; charset=utf-8');
     echo json_encode([
         'targets' => [
-            '#loans-table-body' => $renderLoansBody($loans, $pdo),
+            '#loans-table-head' => $renderLoansHead($status, $assignedUsers, $assignedUserId),
+            '#loans-table-body' => $renderLoansBody($loans, $pdo, $status),
         ],
     ], JSON_UNESCAPED_UNICODE);
     exit;
@@ -132,42 +185,11 @@ require __DIR__ . '/../includes/layout_start.php';
     </div>
     <div class="table-wrap">
         <table class="zebra-table loans-table">
-            <thead>
-            <tr>
-                <th>Loan No</th>
-                <th>Customer</th>
-                <th>Principal</th>
-                <th>Total</th>
-                <th>Collected</th>
-                <th>Balance</th>
-                <th>Inst. Left</th>
-                <th>
-                    <div class="table-header-filter" data-table-filter-menu>
-                        <button type="button" class="table-header-filter-toggle <?= $assignedUserId > 0 ? 'is-active' : '' ?>" data-table-filter-toggle aria-expanded="false">
-                            <span>Assigned To</span>
-                            <span class="table-header-filter-chevron" aria-hidden="true">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-down-icon lucide-chevron-down"><path d="m6 9 6 6 6-6"/></svg>
-                            </span>
-                        </button>
-                        <div class="table-header-filter-menu" data-table-filter-options hidden>
-                            <button type="button" data-assigned-filter-value="0" class="<?= $assignedUserId === 0 ? 'is-selected' : '' ?>">All Assigned Users</button>
-                            <?php foreach ($assignedUsers as $assignedUser): ?>
-                                <?php
-                                $userId = (int) ($assignedUser['id'] ?? 0);
-                                $label = trim((string) ($assignedUser['full_name'] ?? ''));
-                                if ($label === '') {
-                                    $label = (string) ($assignedUser['username'] ?? ('User #' . $userId));
-                                }
-                                ?>
-                                <button type="button" data-assigned-filter-value="<?= e((string) $userId) ?>" class="<?= $assignedUserId === $userId ? 'is-selected' : '' ?>"><?= e($label) ?></button>
-                            <?php endforeach; ?>
-                        </div>
-                    </div>
-                </th>
-            </tr>
+            <thead id="loans-table-head">
+            <?= $renderLoansHead($status, $assignedUsers, $assignedUserId) ?>
             </thead>
             <tbody id="loans-table-body">
-            <?= $renderLoansBody($loans, $pdo) ?>
+            <?= $renderLoansBody($loans, $pdo, $status) ?>
             </tbody>
         </table>
     </div>
@@ -180,7 +202,6 @@ require __DIR__ . '/../includes/layout_start.php';
   const assigned = document.getElementById('loan-assigned-filter');
   const tbody = document.getElementById('loans-table-body');
   if (!form || !status || !assigned || !tbody) return;
-  const filterMenus = Array.from(document.querySelectorAll('[data-table-filter-menu]'));
 
   const loadRows = async () => {
     const params = new URLSearchParams(new FormData(form));
@@ -196,6 +217,11 @@ require __DIR__ . '/../includes/layout_start.php';
       if (!res.ok) return;
       const data = await res.json();
       if (data && data.targets && data.targets['#loans-table-body'] !== undefined) {
+        const tableHead = document.getElementById('loans-table-head');
+        if (tableHead && data.targets['#loans-table-head'] !== undefined) {
+          tableHead.innerHTML = String(data.targets['#loans-table-head']);
+          bindFilterMenus();
+        }
         tbody.innerHTML = String(data.targets['#loans-table-body']);
         if (typeof window.applyMobileTableStack === 'function') window.applyMobileTableStack();
       }
@@ -209,41 +235,48 @@ require __DIR__ . '/../includes/layout_start.php';
     status.classList.toggle('is-closed', status.value === 'closed');
     loadRows();
   });
-  filterMenus.forEach((menu) => {
-    const toggle = menu.querySelector('[data-table-filter-toggle]');
-    const options = menu.querySelector('[data-table-filter-options]');
-    if (!(toggle instanceof HTMLButtonElement) || !(options instanceof HTMLElement)) return;
+  const bindFilterMenus = () => {
+    const menus = Array.from(document.querySelectorAll('[data-table-filter-menu]'));
+    menus.forEach((menu) => {
+      const toggle = menu.querySelector('[data-table-filter-toggle]');
+      const options = menu.querySelector('[data-table-filter-options]');
+      if (!(toggle instanceof HTMLButtonElement) || !(options instanceof HTMLElement)) return;
+      if (menu.dataset.boundTableFilter === '1') return;
+      menu.dataset.boundTableFilter = '1';
 
-    toggle.addEventListener('click', (event) => {
-      event.stopPropagation();
-      const willOpen = options.hidden;
-      filterMenus.forEach((otherMenu) => {
-        const otherOptions = otherMenu.querySelector('[data-table-filter-options]');
-        const otherToggle = otherMenu.querySelector('[data-table-filter-toggle]');
-        if (otherOptions instanceof HTMLElement) otherOptions.hidden = true;
-        if (otherToggle instanceof HTMLElement) otherToggle.setAttribute('aria-expanded', 'false');
-      });
-      options.hidden = !willOpen;
-      toggle.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
-    });
-
-    options.querySelectorAll('[data-assigned-filter-value]').forEach((option) => {
-      option.addEventListener('click', () => {
-        const selectedValue = option.getAttribute('data-assigned-filter-value') || '0';
-        assigned.value = selectedValue;
-        options.querySelectorAll('[data-assigned-filter-value]').forEach((item) => {
-          item.classList.toggle('is-selected', item === option);
+      toggle.addEventListener('click', (event) => {
+        event.stopPropagation();
+        const willOpen = options.hidden;
+        Array.from(document.querySelectorAll('[data-table-filter-menu]')).forEach((otherMenu) => {
+          const otherOptions = otherMenu.querySelector('[data-table-filter-options]');
+          const otherToggle = otherMenu.querySelector('[data-table-filter-toggle]');
+          if (otherOptions instanceof HTMLElement) otherOptions.hidden = true;
+          if (otherToggle instanceof HTMLElement) otherToggle.setAttribute('aria-expanded', 'false');
         });
-        toggle.classList.toggle('is-active', selectedValue !== '0');
-        options.hidden = true;
-        toggle.setAttribute('aria-expanded', 'false');
-        loadRows();
+        options.hidden = !willOpen;
+        toggle.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+      });
+
+      options.querySelectorAll('[data-assigned-filter-value]').forEach((option) => {
+        option.addEventListener('click', () => {
+          const selectedValue = option.getAttribute('data-assigned-filter-value') || '0';
+          assigned.value = selectedValue;
+          options.querySelectorAll('[data-assigned-filter-value]').forEach((item) => {
+            item.classList.toggle('is-selected', item === option);
+          });
+          toggle.classList.toggle('is-active', selectedValue !== '0');
+          options.hidden = true;
+          toggle.setAttribute('aria-expanded', 'false');
+          loadRows();
+        });
       });
     });
-  });
+  };
+
+  bindFilterMenus();
 
   document.addEventListener('click', () => {
-    filterMenus.forEach((menu) => {
+    Array.from(document.querySelectorAll('[data-table-filter-menu]')).forEach((menu) => {
       const options = menu.querySelector('[data-table-filter-options]');
       const toggle = menu.querySelector('[data-table-filter-toggle]');
       if (options instanceof HTMLElement) options.hidden = true;

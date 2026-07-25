@@ -3488,6 +3488,14 @@ textarea {
     background: transparent;
 }
 
+.collection-history-table tbody tr.is-closed-loan-row {
+    background: rgba(52, 211, 153, 0.13);
+}
+
+.collection-history-table tbody tr.is-closed-loan-row td {
+    color: #dfffee;
+}
+
 .collection-history-table {
     min-width: 1040px;
     table-layout: fixed;
