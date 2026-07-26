@@ -193,6 +193,11 @@ $currentRole = (string) ($current['role'] ?? '');
 $currentUserName = (string) ($current['full_name'] ?? 'Unknown');
 $allowOverpayment = system_setting($pdo, 'allow_overpayment', '1') !== '0';
 
+if (!is_owner($current)) {
+    set_flash('error', 'Only owner can edit collection history.');
+    redirect($returnTo);
+}
+
 try {
     $pdo->beginTransaction();
 

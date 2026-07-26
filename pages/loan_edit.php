@@ -35,13 +35,15 @@ $currentAssignedUserId = (int) ($loan['loan_assigned_user_id'] ?? 0);
 
 $customers = $pdo->query("SELECT id, customer_code, full_name, nic FROM customers WHERE status = 'active' ORDER BY full_name ASC")->fetchAll();
 $users = assignable_collector_rows($pdo, $currentAssignedUserId > 0 ? $currentAssignedUserId : null);
+$current = current_user();
+$isSystemOwner = is_owner($current);
 $canEditLoan = can('loans.edit');
 $canEditAssignment = can('loans.assign');
 $canScheduleNextPayment = can('collections.schedule');
 $canDeleteLoan = can('loans.delete');
 $canViewCustomer = can('customers.view');
 $canRecordCollection = can('collections.record');
-$canEditCollection = $canRecordCollection && can('collections.undo');
+$canEditCollection = $isSystemOwner;
 $paymentMethodSelectionEnabled = payment_method_selection_enabled($pdo);
 
 $collectionCountStmt = $pdo->prepare('SELECT COUNT(*) FROM collections WHERE loan_id = :loan_id');
@@ -100,7 +102,6 @@ $collectionHistoryStmt = $pdo->prepare(
 );
 $collectionHistoryStmt->execute(['loan_id' => $loanId]);
 $loanCollectionHistory = $collectionHistoryStmt->fetchAll();
-$loanCollectionHistoryCount = count($loanCollectionHistory);
 $collectionReportHistoryStmt = $pdo->prepare(
     "SELECT
         COALESCE(col.payment_ref, CONCAT('legacy-', col.id)) AS payment_ref,
@@ -115,6 +116,7 @@ $collectionReportHistoryStmt = $pdo->prepare(
 );
 $collectionReportHistoryStmt->execute(['loan_id' => $loanId]);
 $loanCollectionReportHistory = $collectionReportHistoryStmt->fetchAll();
+$loanCollectionHistoryCount = count($loanCollectionReportHistory);
 $loanTotalRepayable = (float) ($loan['total_amount'] ?? 0);
 $loanCollectedStmt = $pdo->prepare('SELECT COALESCE(SUM(amount), 0) FROM collections WHERE loan_id = :loan_id');
 $loanCollectedStmt->execute(['loan_id' => $loanId]);
@@ -423,8 +425,17 @@ require __DIR__ . '/../includes/layout_start.php';
             <div class="loan-history-column">
     <div class="panel loan-history-panel">
         <div class="panel-head">
-            <h2 class="panel-title">Collection History</h2>
-            <button type="button" class="btn btn-primary loan-mobile-collect-open" data-loan-collect-open aria-controls="loan-collect-panel" aria-expanded="false">Collect Payment</button>
+            <h2 class="panel-title loan-history-title">Collection History</h2>
+            <div class="panel-head-actions loan-history-panel-actions">
+                <?php if ($canEditCollection): ?>
+                    <label class="edit-mode-switch" for="loan-collection-edit-switch" title="Enable or disable collection edit mode">
+                        <input type="checkbox" id="loan-collection-edit-switch" data-collection-edit-toggle>
+                        <span class="edit-mode-slider"></span>
+                        <span class="edit-mode-label" data-collection-edit-toggle-label>Edit Off</span>
+                    </label>
+                <?php endif; ?>
+                <button type="button" class="btn btn-primary loan-mobile-collect-open" data-loan-collect-open aria-controls="loan-collect-panel" aria-expanded="false">Collect Payment</button>
+            </div>
         </div>
         <div class="table-wrap">
             <table>
@@ -458,9 +469,9 @@ require __DIR__ . '/../includes/layout_start.php';
                             $collectorFirstName = (string) ($collectorNameParts[0] ?? $collectorName);
                             ?>
                             <tr
-                                class="<?= $canEditCollection ? 'table-row-clickable collection-edit-row' : '' ?>"
+                                class="<?= $canEditCollection ? 'collection-edit-row' : '' ?>"
                                 <?php if ($canEditCollection): ?>
-                                    tabindex="0"
+                                    tabindex="-1"
                                     data-collection-edit-row
                                     data-collection-id="<?= e((string) $history['latest_id']) ?>"
                                     data-collection-date="<?= e($collectedOn) ?>"
@@ -496,11 +507,7 @@ require __DIR__ . '/../includes/layout_start.php';
             <div class="panel-head">
                 <div>
                     <h2 class="panel-title" id="loan-collect-title" data-loan-collect-title>Collect Payment</h2>
-                    <p class="loan-collect-mode-summary" data-loan-collect-mode-summary hidden></p>
                 </div>
-                <button type="button" class="btn btn-icon-only loan-mobile-collect-close" data-loan-collect-close aria-label="Close collect payment">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
-                </button>
             </div>
 
             <?php if (!$canRecordCollection): ?>
@@ -764,14 +771,14 @@ require __DIR__ . '/../includes/layout_start.php';
     const panel = document.querySelector('[data-loan-collect-panel]');
     const form = document.querySelector('[data-loan-collection-form]');
     const rows = Array.from(document.querySelectorAll('[data-collection-edit-row]'));
+    const editToggle = document.querySelector('[data-collection-edit-toggle]');
+    const editToggleLabel = document.querySelector('[data-collection-edit-toggle-label]');
     if (!(panel instanceof HTMLElement) || !(form instanceof HTMLFormElement) || rows.length === 0) {
         return;
     }
 
     const title = panel.querySelector('[data-loan-collect-title]');
-    const modeSummary = panel.querySelector('[data-loan-collect-mode-summary]');
     const emptyMessage = panel.querySelector('[data-loan-collect-empty]');
-    const closeButton = panel.querySelector('[data-loan-collect-close]');
     const installmentIdInput = form.querySelector('[data-loan-collect-installment-id]');
     const collectionIdInput = form.querySelector('[data-loan-edit-collection-id]');
     const dateInput = form.querySelector('[data-loan-collect-date]');
@@ -790,6 +797,7 @@ require __DIR__ . '/../includes/layout_start.php';
     const editAction = form.getAttribute('data-edit-action') || form.action;
     const collectConfirm = form.getAttribute('data-collect-confirm') || 'Confirm this collection payment?';
     const editConfirm = form.getAttribute('data-edit-confirm') || 'Update this collection?';
+    let collectionEditModeEnabled = editToggle instanceof HTMLInputElement && editToggle.checked;
     const defaults = {
         date: dateInput instanceof HTMLInputElement ? dateInput.value : '',
         amount: amountInput instanceof HTMLInputElement ? amountInput.value : '',
@@ -809,6 +817,7 @@ require __DIR__ . '/../includes/layout_start.php';
         document.body.classList.add('loan-collect-modal-open');
         panel.setAttribute('role', 'dialog');
         panel.setAttribute('aria-modal', 'true');
+        panel.dispatchEvent(new CustomEvent('loan-collect-mobile-open'));
     };
 
     const clearInlineConfirm = () => {
@@ -830,10 +839,6 @@ require __DIR__ . '/../includes/layout_start.php';
 
         if (title instanceof HTMLElement) {
             title.textContent = 'Collect Payment';
-        }
-        if (modeSummary instanceof HTMLElement) {
-            modeSummary.hidden = true;
-            modeSummary.textContent = '';
         }
         if (emptyMessage instanceof HTMLElement) {
             emptyMessage.hidden = canCollectCurrent;
@@ -876,15 +881,34 @@ require __DIR__ . '/../includes/layout_start.php';
             submitButton.textContent = 'Save Collection';
             submitButton.disabled = !canCollectCurrent;
         }
+        panel.dispatchEvent(new CustomEvent('loan-collect-edit-close'));
+    };
+
+    const syncCollectionEditMode = () => {
+        collectionEditModeEnabled = editToggle instanceof HTMLInputElement && editToggle.checked;
+        rows.forEach((row) => {
+            row.classList.toggle('table-row-clickable', collectionEditModeEnabled);
+            row.tabIndex = collectionEditModeEnabled ? 0 : -1;
+            if (!collectionEditModeEnabled && document.activeElement === row) {
+                row.blur();
+            }
+        });
+        if (editToggleLabel instanceof HTMLElement) {
+            editToggleLabel.textContent = collectionEditModeEnabled ? 'Edit On' : 'Edit Off';
+        }
+        if (!collectionEditModeEnabled) {
+            setCollectMode();
+        }
     };
 
     const selectRow = (row) => {
-        if (!(row instanceof HTMLElement)) {
+        if (!(row instanceof HTMLElement) || !collectionEditModeEnabled) {
             return;
         }
 
         rows.forEach((candidate) => candidate.classList.toggle('row-selected', candidate === row));
         panel.classList.add('is-editing');
+        panel.dispatchEvent(new CustomEvent('loan-collect-edit-open'));
         clearInlineConfirm();
         form.hidden = false;
         form.action = editAction;
@@ -892,12 +916,6 @@ require __DIR__ . '/../includes/layout_start.php';
 
         if (title instanceof HTMLElement) {
             title.textContent = 'Edit Collection';
-        }
-        if (modeSummary instanceof HTMLElement) {
-            const installments = row.getAttribute('data-collection-installments') || '-';
-            const amountLabelText = row.getAttribute('data-collection-amount-label') || '';
-            modeSummary.textContent = `${installments} | ${amountLabelText}`;
-            modeSummary.hidden = false;
         }
         if (emptyMessage instanceof HTMLElement) {
             emptyMessage.hidden = true;
@@ -948,54 +966,102 @@ require __DIR__ . '/../includes/layout_start.php';
     rows.forEach((row) => {
         row.addEventListener('click', () => selectRow(row));
         row.addEventListener('keydown', (event) => {
-            if (event.key === 'Enter' || event.key === ' ') {
+            if (collectionEditModeEnabled && (event.key === 'Enter' || event.key === ' ')) {
                 event.preventDefault();
                 selectRow(row);
             }
         });
     });
 
-    if (closeButton instanceof HTMLButtonElement) {
-        closeButton.addEventListener('click', (event) => {
-            if (!panel.classList.contains('is-editing')) {
-                return;
-            }
-
-            event.preventDefault();
-            event.stopImmediatePropagation();
-            setCollectMode();
-        });
+    if (editToggle instanceof HTMLInputElement) {
+        editToggle.addEventListener('change', syncCollectionEditMode);
     }
+
+    panel.addEventListener('loan-collect-reset', setCollectMode);
+    syncCollectionEditMode();
 })();
 
 (() => {
     const openButton = document.querySelector('[data-loan-collect-open]');
     const panel = document.querySelector('[data-loan-collect-panel]');
-    const closeButton = document.querySelector('[data-loan-collect-close]');
-    if (!openButton || !panel || !closeButton) {
+    const panelHead = panel instanceof HTMLElement ? panel.querySelector('.panel-head') : null;
+    let closeButton = null;
+    if (!openButton || !panel) {
         return;
     }
 
-    const openPanel = () => {
-        panel.classList.add('is-mobile-open');
-        document.body.classList.add('loan-collect-modal-open');
-        panel.setAttribute('role', 'dialog');
-        panel.setAttribute('aria-modal', 'true');
-        openButton.setAttribute('aria-expanded', 'true');
-        closeButton.focus();
-    };
-
     const closePanel = () => {
+        if (panel.classList.contains('is-editing')) {
+            panel.dispatchEvent(new CustomEvent('loan-collect-reset'));
+        }
         panel.classList.remove('is-mobile-open');
         document.body.classList.remove('loan-collect-modal-open');
         panel.removeAttribute('role');
         panel.removeAttribute('aria-modal');
         openButton.setAttribute('aria-expanded', 'false');
         openButton.focus();
+        removeCloseButton();
+    };
+
+    const closeFromButton = () => {
+        if (panel.classList.contains('is-mobile-open')) {
+            closePanel();
+            return;
+        }
+
+        if (panel.classList.contains('is-editing')) {
+            panel.dispatchEvent(new CustomEvent('loan-collect-reset'));
+            removeCloseButton();
+        }
+    };
+
+    const removeCloseButton = () => {
+        if (closeButton instanceof HTMLButtonElement) {
+            closeButton.remove();
+        }
+        closeButton = null;
+    };
+
+    const ensureCloseButton = () => {
+        if (closeButton instanceof HTMLButtonElement) {
+            return closeButton;
+        }
+        if (!(panelHead instanceof HTMLElement)) {
+            return null;
+        }
+
+        closeButton = document.createElement('button');
+        closeButton.type = 'button';
+        closeButton.className = 'btn btn-icon-only loan-collect-close-button';
+        closeButton.setAttribute('data-loan-collect-close', '');
+        closeButton.setAttribute('aria-label', 'Close collect payment');
+        closeButton.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>';
+        closeButton.addEventListener('click', closeFromButton);
+        panelHead.appendChild(closeButton);
+
+        return closeButton;
+    };
+
+    const openPanel = () => {
+        const mobileCloseButton = ensureCloseButton();
+        panel.classList.add('is-mobile-open');
+        document.body.classList.add('loan-collect-modal-open');
+        panel.setAttribute('role', 'dialog');
+        panel.setAttribute('aria-modal', 'true');
+        openButton.setAttribute('aria-expanded', 'true');
+        if (mobileCloseButton instanceof HTMLButtonElement) {
+            mobileCloseButton.focus();
+        }
     };
 
     openButton.addEventListener('click', openPanel);
-    closeButton.addEventListener('click', closePanel);
+    panel.addEventListener('loan-collect-mobile-open', ensureCloseButton);
+    panel.addEventListener('loan-collect-edit-open', ensureCloseButton);
+    panel.addEventListener('loan-collect-edit-close', () => {
+        if (!panel.classList.contains('is-mobile-open')) {
+            removeCloseButton();
+        }
+    });
     panel.addEventListener('click', (event) => {
         if (event.target === panel) {
             closePanel();

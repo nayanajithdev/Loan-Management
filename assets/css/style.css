@@ -1579,20 +1579,8 @@ button {
     top: 88px;
 }
 
-.loan-mobile-collect-open,
-.loan-mobile-collect-close {
+.loan-mobile-collect-open {
     display: none;
-}
-
-.loan-collect-panel.is-editing .loan-mobile-collect-close {
-    display: inline-flex;
-}
-
-.loan-collect-mode-summary {
-    margin: 4px 0 0;
-    color: var(--muted);
-    font-size: 12px;
-    line-height: 1.35;
 }
 
 .loan-collect-summary {
@@ -1655,7 +1643,7 @@ button {
     line-height: 1.45;
 }
 
-.collection-edit-row:focus {
+.collection-edit-row.table-row-clickable:focus {
     outline: 2px solid rgba(255, 122, 26, 0.55);
     outline-offset: -2px;
 }
@@ -4384,10 +4372,6 @@ textarea {
         font-size: 15px;
     }
 
-    .loan-mobile-collect-close {
-        display: inline-flex;
-    }
-
     .sidebar-toggle-btn {
         display: inline-flex;
     }
@@ -4499,6 +4483,15 @@ textarea {
 
     .loan-history-panel .panel-head {
         margin-bottom: 12px;
+    }
+
+    .loan-history-panel .loan-history-title {
+        display: none;
+    }
+
+    .loan-history-panel-actions {
+        width: 100%;
+        justify-content: space-between;
     }
 
     .loan-history-panel .table-wrap {
