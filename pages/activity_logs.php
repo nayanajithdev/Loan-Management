@@ -60,7 +60,9 @@ function activity_action_label(string $actionKey): string
         'loan.updated' => 'Loan updated',
         'loan.deleted' => 'Loan deleted',
         'collection.recorded' => 'Payment collected',
+        'collection.updated' => 'Payment updated',
         'collection.failed' => 'Payment failed',
+        'collection.update_failed' => 'Payment update failed',
         'backup.download' => 'Backup downloaded',
         'backup.restore' => 'Backup restored',
         'backup.restore_failed' => 'Backup restore failed',
@@ -88,6 +90,7 @@ function activity_description_for_user(string $actionKey, string $description): 
         'customer.update_failed' => 'Customer could not be updated.',
         'customer.delete_failed' => 'Customer could not be deleted.',
         'collection.failed' => 'Payment could not be saved.',
+        'collection.update_failed' => 'Payment could not be updated.',
         'backup.restore_failed' => 'Backup could not be restored.',
         'holiday.enable_failed' => 'Holiday mode could not be enabled.',
     ];

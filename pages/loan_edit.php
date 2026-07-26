@@ -41,6 +41,7 @@ $canScheduleNextPayment = can('collections.schedule');
 $canDeleteLoan = can('loans.delete');
 $canViewCustomer = can('customers.view');
 $canRecordCollection = can('collections.record');
+$canEditCollection = $canRecordCollection && can('collections.undo');
 $paymentMethodSelectionEnabled = payment_method_selection_enabled($pdo);
 
 $collectionCountStmt = $pdo->prepare('SELECT COUNT(*) FROM collections WHERE loan_id = :loan_id');
@@ -80,6 +81,7 @@ $collectionHistoryStmt = $pdo->prepare(
     "SELECT
         COALESCE(col.payment_ref, CONCAT('legacy-', col.id)) AS payment_ref,
         MAX(col.id) AS latest_id,
+        MIN(col.id) AS first_id,
         MAX(col.collected_on) AS collected_on,
         MAX(col.created_at) AS collected_at,
         MAX(col.method) AS method,
@@ -93,11 +95,12 @@ $collectionHistoryStmt = $pdo->prepare(
      LEFT JOIN users u ON u.id = col.collected_by_user_id
      WHERE col.loan_id = :loan_id
      GROUP BY COALESCE(col.payment_ref, CONCAT('legacy-', col.id))
-     ORDER BY latest_id DESC
+     ORDER BY collected_on DESC, latest_id DESC
      LIMIT 50"
 );
 $collectionHistoryStmt->execute(['loan_id' => $loanId]);
 $loanCollectionHistory = $collectionHistoryStmt->fetchAll();
+$loanCollectionHistoryCount = count($loanCollectionHistory);
 $collectionReportHistoryStmt = $pdo->prepare(
     "SELECT
         COALESCE(col.payment_ref, CONCAT('legacy-', col.id)) AS payment_ref,
@@ -108,7 +111,7 @@ $collectionReportHistoryStmt = $pdo->prepare(
      FROM collections col
      WHERE col.loan_id = :loan_id
      GROUP BY COALESCE(col.payment_ref, CONCAT('legacy-', col.id))
-     ORDER BY first_id ASC"
+     ORDER BY collected_on ASC, first_id ASC"
 );
 $collectionReportHistoryStmt->execute(['loan_id' => $loanId]);
 $loanCollectionReportHistory = $collectionReportHistoryStmt->fetchAll();
@@ -151,6 +154,15 @@ $currentCollectible = $nextInstallment;
 $collectibleBalance = $currentCollectible
     ? max(0.0, (float) $currentCollectible['due_amount'] - (float) $currentCollectible['paid_amount'])
     : 0.0;
+$canCollectCurrent = $canRecordCollection && (string) $loan['status'] !== 'closed' && $currentCollectible !== null;
+$collectUnavailableMessage = '';
+if (!$canRecordCollection) {
+    $collectUnavailableMessage = 'You do not have permission to record collections.';
+} elseif ((string) $loan['status'] === 'closed') {
+    $collectUnavailableMessage = 'This loan is closed.';
+} elseif (!$currentCollectible) {
+    $collectUnavailableMessage = 'No pending installments available for this loan.';
+}
 $autoFillAmountReceived = system_setting($pdo, 'auto_fill_amount_received', '1') !== '0';
 $businessSettings = system_settings_all($pdo);
 $businessName = trim((string) ($businessSettings['business_name'] ?? 'Loan Manager'));
@@ -434,21 +446,31 @@ require __DIR__ . '/../includes/layout_start.php';
                             <td colspan="<?= $paymentMethodSelectionEnabled ? '6' : '5' ?>">No collections recorded for this loan.</td>
                         </tr>
                     <?php else: ?>
-                        <?php foreach ($loanCollectionHistory as $history): ?>
+                        <?php foreach ($loanCollectionHistory as $historyIndex => $history): ?>
                             <?php
                             $noteParts = collection_note_split((string) ($history['note'] ?? ''));
                             $noteText = trim((string) ($noteParts['public'] ?? ''));
-                            $installments = trim((string) ($history['installments'] ?? ''));
-                            if ($installments === '') {
-                                $installments = (int) ($history['has_advance'] ?? 0) === 1 ? 'Advance' : '-';
-                            }
-                            $collectedAt = (string) ($history['collected_at'] ?? '');
-                            $collectedDisplay = $collectedAt !== '' ? display_datetime($collectedAt) : '-';
+                            $installments = '#' . max(1, $loanCollectionHistoryCount - (int) $historyIndex);
+                            $collectedOn = (string) ($history['collected_on'] ?? '');
+                            $collectedDisplay = $collectedOn !== '' ? display_date($collectedOn) : '-';
                             $collectorName = trim((string) ($history['collected_by_name'] ?? 'Unknown'));
                             $collectorNameParts = preg_split('/\s+/', $collectorName);
                             $collectorFirstName = (string) ($collectorNameParts[0] ?? $collectorName);
                             ?>
-                            <tr>
+                            <tr
+                                class="<?= $canEditCollection ? 'table-row-clickable collection-edit-row' : '' ?>"
+                                <?php if ($canEditCollection): ?>
+                                    tabindex="0"
+                                    data-collection-edit-row
+                                    data-collection-id="<?= e((string) $history['latest_id']) ?>"
+                                    data-collection-date="<?= e($collectedOn) ?>"
+                                    data-collection-installments="<?= e($installments) ?>"
+                                    data-collection-amount="<?= e(number_format((float) $history['amount'], 2, '.', '')) ?>"
+                                    data-collection-amount-label="<?= e(money_label($pdo, (float) $history['amount'])) ?>"
+                                    data-collection-method="<?= e((string) ($history['method'] ?? 'cash')) ?>"
+                                    data-collection-note="<?= e($noteText) ?>"
+                                <?php endif; ?>
+                            >
                                 <td data-label="Date"><?= e($collectedDisplay) ?></td>
                                 <td data-label="Inst."><?= e($installments) ?></td>
                                 <td data-label="By"><?= e($collectorFirstName !== '' ? $collectorFirstName : 'Unknown') ?></td>
@@ -472,7 +494,10 @@ require __DIR__ . '/../includes/layout_start.php';
     <aside class="panel loan-collect-panel" id="loan-collect-panel" data-loan-collect-panel aria-labelledby="loan-collect-title">
         <div class="loan-collect-dialog">
             <div class="panel-head">
-                <h2 class="panel-title" id="loan-collect-title">Collect Payment</h2>
+                <div>
+                    <h2 class="panel-title" id="loan-collect-title" data-loan-collect-title>Collect Payment</h2>
+                    <p class="loan-collect-mode-summary" data-loan-collect-mode-summary hidden></p>
+                </div>
                 <button type="button" class="btn btn-icon-only loan-mobile-collect-close" data-loan-collect-close aria-label="Close collect payment">
                     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
                 </button>
@@ -480,45 +505,59 @@ require __DIR__ . '/../includes/layout_start.php';
 
             <?php if (!$canRecordCollection): ?>
                 <p class="loan-collect-empty">You do not have permission to record collections.</p>
-            <?php elseif ((string) $loan['status'] === 'closed'): ?>
-                <p class="loan-collect-empty">This loan is closed.</p>
-            <?php elseif (!$currentCollectible): ?>
-                <p class="loan-collect-empty">No pending installments available for this loan.</p>
             <?php else: ?>
+                <p class="loan-collect-empty" data-loan-collect-empty <?= $canCollectCurrent ? 'hidden' : '' ?>><?= e($collectUnavailableMessage) ?></p>
                 <div class="loan-collect-summary">
-                    <div class="loan-collect-item">
+                    <div class="loan-collect-item loan-collect-item-plain">
                         <span>Loan</span>
                         <strong><?= e($loanDisplayNumber) ?></strong>
                     </div>
-                    <div class="loan-collect-item">
+                    <div class="loan-collect-item loan-collect-item-plain">
                         <span>Customer</span>
                         <strong><?= e((string) $loan['full_name']) ?></strong>
                     </div>
                     <div class="loan-collect-item">
-                        <span>Installment</span>
-                        <strong>#<?= e((string) $currentCollectible['installment_no']) ?> | <?= e(display_date((string) $currentCollectible['due_date'])) ?></strong>
+                        <span data-loan-collect-installment-label>Installment</span>
+                        <strong data-loan-collect-installment-value><?= e($currentCollectible ? ('#' . (string) $currentCollectible['installment_no'] . ' | ' . display_date((string) $currentCollectible['due_date'])) : '-') ?></strong>
                     </div>
                     <div class="loan-collect-item">
-                        <span>Due Amount</span>
-                        <strong><?= e(money_label($pdo, $collectibleBalance)) ?></strong>
+                        <span data-loan-collect-amount-box-label>Due Amount</span>
+                        <strong data-loan-collect-amount-box-value><?= e($currentCollectible ? money_label($pdo, $collectibleBalance) : '-') ?></strong>
                     </div>
                 </div>
 
-                <form class="loan-collect-form" method="post" action="<?= e(url('actions/collection_save.php')) ?>" data-confirm="Confirm this collection payment?" data-inline-confirm="1">
+                <form
+                    class="loan-collect-form"
+                    method="post"
+                    action="<?= e(url('actions/collection_save.php')) ?>"
+                    data-loan-collection-form
+                    data-can-collect-current="<?= $canCollectCurrent ? '1' : '0' ?>"
+                    data-collect-action="<?= e(url('actions/collection_save.php')) ?>"
+                    data-edit-action="<?= e(url('actions/collection_update.php')) ?>"
+                    data-collect-confirm="Confirm this collection payment?"
+                    data-edit-confirm="Update this collection? Later collections may be recalculated to keep the loan schedule consistent."
+                    data-confirm="Confirm this collection payment?"
+                    data-inline-confirm="1"
+                    <?= $canCollectCurrent ? '' : 'hidden' ?>
+                >
                     <?= csrf_input() ?>
                     <input type="hidden" name="loan_id" value="<?= e((string) $loanId) ?>">
-                    <input type="hidden" name="installment_id" value="<?= e((string) $currentCollectible['id']) ?>">
-                    <input type="hidden" name="collected_on" value="<?= e(today()) ?>">
+                    <input type="hidden" name="installment_id" value="<?= e($currentCollectible ? (string) $currentCollectible['id'] : '') ?>" data-loan-collect-installment-id <?= $canCollectCurrent ? '' : 'disabled' ?>>
+                    <input type="hidden" name="collection_id" value="" data-loan-edit-collection-id disabled>
                     <input type="hidden" name="return_to" value="<?= e('pages/loan_edit.php?loan_id=' . $loanId . '#collections') ?>">
 
                     <div class="field">
-                        <label>Amount Received</label>
-                        <input type="number" step="0.01" min="0.01" name="amount" value="<?= e($autoFillAmountReceived ? number_format($collectibleBalance, 2, '.', '') : '') ?>" required>
+                        <label>Collection Date</label>
+                        <input type="date" name="collected_on" value="<?= e(today()) ?>" max="<?= e(today()) ?>" data-loan-collect-date required>
+                    </div>
+                    <div class="field">
+                        <label data-loan-collect-amount-label>Amount Received</label>
+                        <input type="number" step="0.01" min="0.01" name="amount" value="<?= e(($currentCollectible && $autoFillAmountReceived) ? number_format($collectibleBalance, 2, '.', '') : '') ?>" data-loan-collect-amount required>
                     </div>
                     <?php if ($paymentMethodSelectionEnabled): ?>
                         <div class="field">
                             <label>Method</label>
-                            <select name="method">
+                            <select name="method" data-loan-collect-method>
                                 <option value="cash">Cash</option>
                                 <option value="bank">Bank</option>
                                 <option value="online">Online</option>
@@ -527,9 +566,9 @@ require __DIR__ . '/../includes/layout_start.php';
                     <?php endif; ?>
                     <div class="field">
                         <label>Note</label>
-                        <textarea name="note" placeholder="Optional"></textarea>
+                        <textarea name="note" placeholder="Optional" data-loan-collect-note></textarea>
                     </div>
-                    <button class="btn btn-primary loan-collect-save-button" type="submit">Save Collection</button>
+                    <button class="btn btn-primary loan-collect-save-button" type="submit" data-loan-collect-submit><?= $canCollectCurrent ? 'Save Collection' : 'Save Collection' ?></button>
                 </form>
             <?php endif; ?>
         </div>
@@ -628,25 +667,27 @@ require __DIR__ . '/../includes/layout_start.php';
     <table class="print-collection-table">
         <thead>
             <tr>
-                <th>Loan Number</th>
-                <th>Date</th>
-                <th>Payment</th>
+                <th class="print-loan-col">Loan Number</th>
+                <th class="print-inst-col">Inst.</th>
+                <th class="print-date-col">Date</th>
+                <th class="print-payment-col">Payment</th>
             </tr>
         </thead>
         <tbody>
             <?php if (!$loanCollectionReportHistory): ?>
                 <tr>
-                    <td><?= e($reportLoanNumber) ?></td>
-                    <td colspan="2">No collection payments recorded.</td>
+                    <td class="print-loan-col"><?= e($reportLoanNumber) ?></td>
+                    <td colspan="3">No collection payments recorded.</td>
                 </tr>
             <?php else: ?>
                 <?php foreach ($loanCollectionReportHistory as $index => $history): ?>
                     <tr>
                         <?php if ($index === 0): ?>
-                            <td rowspan="<?= e((string) count($loanCollectionReportHistory)) ?>"><?= e($reportLoanNumber) ?></td>
+                            <td class="print-loan-col" rowspan="<?= e((string) count($loanCollectionReportHistory)) ?>"><?= e($reportLoanNumber) ?></td>
                         <?php endif; ?>
-                        <td><?= e(display_date((string) $history['collected_on'])) ?></td>
-                        <td><?= e(money_label($pdo, (float) $history['amount'])) ?></td>
+                        <td class="print-inst-col">#<?= e((string) ($index + 1)) ?></td>
+                        <td class="print-date-col"><?= e(display_date((string) $history['collected_on'])) ?></td>
+                        <td class="print-payment-col"><?= e(money_label($pdo, (float) $history['amount'])) ?></td>
                     </tr>
                 <?php endforeach; ?>
             <?php endif; ?>
@@ -717,6 +758,214 @@ require __DIR__ . '/../includes/layout_start.php';
 
     scheduleToggle.addEventListener('change', syncSchedule);
     syncSchedule();
+})();
+
+(() => {
+    const panel = document.querySelector('[data-loan-collect-panel]');
+    const form = document.querySelector('[data-loan-collection-form]');
+    const rows = Array.from(document.querySelectorAll('[data-collection-edit-row]'));
+    if (!(panel instanceof HTMLElement) || !(form instanceof HTMLFormElement) || rows.length === 0) {
+        return;
+    }
+
+    const title = panel.querySelector('[data-loan-collect-title]');
+    const modeSummary = panel.querySelector('[data-loan-collect-mode-summary]');
+    const emptyMessage = panel.querySelector('[data-loan-collect-empty]');
+    const closeButton = panel.querySelector('[data-loan-collect-close]');
+    const installmentIdInput = form.querySelector('[data-loan-collect-installment-id]');
+    const collectionIdInput = form.querySelector('[data-loan-edit-collection-id]');
+    const dateInput = form.querySelector('[data-loan-collect-date]');
+    const amountInput = form.querySelector('[data-loan-collect-amount]');
+    const methodInput = form.querySelector('[data-loan-collect-method]');
+    const noteInput = form.querySelector('[data-loan-collect-note]');
+    const submitButton = form.querySelector('[data-loan-collect-submit]');
+    const installmentLabel = panel.querySelector('[data-loan-collect-installment-label]');
+    const installmentValue = panel.querySelector('[data-loan-collect-installment-value]');
+    const amountBoxLabel = panel.querySelector('[data-loan-collect-amount-box-label]');
+    const amountBoxValue = panel.querySelector('[data-loan-collect-amount-box-value]');
+    const amountLabel = panel.querySelector('[data-loan-collect-amount-label]');
+
+    const canCollectCurrent = form.getAttribute('data-can-collect-current') === '1';
+    const collectAction = form.getAttribute('data-collect-action') || form.action;
+    const editAction = form.getAttribute('data-edit-action') || form.action;
+    const collectConfirm = form.getAttribute('data-collect-confirm') || 'Confirm this collection payment?';
+    const editConfirm = form.getAttribute('data-edit-confirm') || 'Update this collection?';
+    const defaults = {
+        date: dateInput instanceof HTMLInputElement ? dateInput.value : '',
+        amount: amountInput instanceof HTMLInputElement ? amountInput.value : '',
+        method: methodInput instanceof HTMLSelectElement ? methodInput.value : 'cash',
+        note: '',
+        installmentLabel: installmentLabel instanceof HTMLElement ? installmentLabel.textContent || 'Installment' : 'Installment',
+        installmentValue: installmentValue instanceof HTMLElement ? installmentValue.textContent || '-' : '-',
+        amountBoxLabel: amountBoxLabel instanceof HTMLElement ? amountBoxLabel.textContent || 'Due Amount' : 'Due Amount',
+        amountBoxValue: amountBoxValue instanceof HTMLElement ? amountBoxValue.textContent || '-' : '-',
+    };
+
+    const openMobilePanelIfNeeded = () => {
+        if (!window.matchMedia('(max-width: 1024px)').matches) {
+            return;
+        }
+        panel.classList.add('is-mobile-open');
+        document.body.classList.add('loan-collect-modal-open');
+        panel.setAttribute('role', 'dialog');
+        panel.setAttribute('aria-modal', 'true');
+    };
+
+    const clearInlineConfirm = () => {
+        form.removeAttribute('data-confirmed');
+        const actions = form.querySelector('[data-inline-confirm-actions]');
+        if (actions) {
+            actions.remove();
+        }
+    };
+
+    const setCollectMode = () => {
+        panel.classList.remove('is-editing');
+        rows.forEach((row) => row.classList.remove('row-selected'));
+        clearInlineConfirm();
+
+        form.action = collectAction;
+        form.setAttribute('data-confirm', collectConfirm);
+        form.hidden = !canCollectCurrent;
+
+        if (title instanceof HTMLElement) {
+            title.textContent = 'Collect Payment';
+        }
+        if (modeSummary instanceof HTMLElement) {
+            modeSummary.hidden = true;
+            modeSummary.textContent = '';
+        }
+        if (emptyMessage instanceof HTMLElement) {
+            emptyMessage.hidden = canCollectCurrent;
+        }
+        if (collectionIdInput instanceof HTMLInputElement) {
+            collectionIdInput.value = '';
+            collectionIdInput.disabled = true;
+        }
+        if (installmentIdInput instanceof HTMLInputElement) {
+            installmentIdInput.disabled = !canCollectCurrent;
+        }
+        if (dateInput instanceof HTMLInputElement) {
+            dateInput.value = defaults.date;
+        }
+        if (amountInput instanceof HTMLInputElement) {
+            amountInput.value = defaults.amount;
+        }
+        if (methodInput instanceof HTMLSelectElement) {
+            methodInput.value = defaults.method;
+        }
+        if (noteInput instanceof HTMLTextAreaElement) {
+            noteInput.value = defaults.note;
+        }
+        if (installmentLabel instanceof HTMLElement) {
+            installmentLabel.textContent = defaults.installmentLabel;
+        }
+        if (installmentValue instanceof HTMLElement) {
+            installmentValue.textContent = defaults.installmentValue;
+        }
+        if (amountBoxLabel instanceof HTMLElement) {
+            amountBoxLabel.textContent = defaults.amountBoxLabel;
+        }
+        if (amountBoxValue instanceof HTMLElement) {
+            amountBoxValue.textContent = defaults.amountBoxValue;
+        }
+        if (amountLabel instanceof HTMLElement) {
+            amountLabel.textContent = 'Amount Received';
+        }
+        if (submitButton instanceof HTMLButtonElement) {
+            submitButton.textContent = 'Save Collection';
+            submitButton.disabled = !canCollectCurrent;
+        }
+    };
+
+    const selectRow = (row) => {
+        if (!(row instanceof HTMLElement)) {
+            return;
+        }
+
+        rows.forEach((candidate) => candidate.classList.toggle('row-selected', candidate === row));
+        panel.classList.add('is-editing');
+        clearInlineConfirm();
+        form.hidden = false;
+        form.action = editAction;
+        form.setAttribute('data-confirm', editConfirm);
+
+        if (title instanceof HTMLElement) {
+            title.textContent = 'Edit Collection';
+        }
+        if (modeSummary instanceof HTMLElement) {
+            const installments = row.getAttribute('data-collection-installments') || '-';
+            const amountLabelText = row.getAttribute('data-collection-amount-label') || '';
+            modeSummary.textContent = `${installments} | ${amountLabelText}`;
+            modeSummary.hidden = false;
+        }
+        if (emptyMessage instanceof HTMLElement) {
+            emptyMessage.hidden = true;
+        }
+        if (collectionIdInput instanceof HTMLInputElement) {
+            collectionIdInput.disabled = false;
+            collectionIdInput.value = row.getAttribute('data-collection-id') || '';
+        }
+        if (installmentIdInput instanceof HTMLInputElement) {
+            installmentIdInput.disabled = true;
+        }
+        if (dateInput instanceof HTMLInputElement) {
+            dateInput.value = row.getAttribute('data-collection-date') || '';
+        }
+        if (amountInput instanceof HTMLInputElement) {
+            amountInput.value = row.getAttribute('data-collection-amount') || '';
+        }
+        if (methodInput instanceof HTMLSelectElement) {
+            methodInput.value = row.getAttribute('data-collection-method') || 'cash';
+        }
+        if (noteInput instanceof HTMLTextAreaElement) {
+            noteInput.value = row.getAttribute('data-collection-note') || '';
+        }
+        if (installmentLabel instanceof HTMLElement) {
+            installmentLabel.textContent = 'Installment';
+        }
+        if (installmentValue instanceof HTMLElement) {
+            installmentValue.textContent = row.getAttribute('data-collection-installments') || '-';
+        }
+        if (amountBoxLabel instanceof HTMLElement) {
+            amountBoxLabel.textContent = 'Amount';
+        }
+        if (amountBoxValue instanceof HTMLElement) {
+            amountBoxValue.textContent = row.getAttribute('data-collection-amount-label') || '-';
+        }
+        if (amountLabel instanceof HTMLElement) {
+            amountLabel.textContent = 'Amount';
+        }
+        if (submitButton instanceof HTMLButtonElement) {
+            submitButton.textContent = 'Update Collection';
+            submitButton.disabled = false;
+        }
+
+        openMobilePanelIfNeeded();
+        panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    };
+
+    rows.forEach((row) => {
+        row.addEventListener('click', () => selectRow(row));
+        row.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                selectRow(row);
+            }
+        });
+    });
+
+    if (closeButton instanceof HTMLButtonElement) {
+        closeButton.addEventListener('click', (event) => {
+            if (!panel.classList.contains('is-editing')) {
+                return;
+            }
+
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            setCollectMode();
+        });
+    }
 })();
 
 (() => {

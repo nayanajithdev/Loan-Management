@@ -201,8 +201,4 @@ $brandHref = can('business_settings.manage') ? 'pages/settings.php' : 'pages/abo
             <?php endforeach; ?>
         </nav>
     </div>
-
-    <div class="sidebar-footer">
-        <p class="sidebar-version">LoanDesk v<?= e(app_version()) ?></p>
-    </div>
 </aside>
