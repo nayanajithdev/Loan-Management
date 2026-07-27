@@ -412,13 +412,17 @@ require __DIR__ . '/../includes/layout_start.php';
                         <div class="readonly-value"><?= e($hasSelectedCollection ? ucfirst((string) $selectedCollection['method']) : '-') ?></div>
                     </div>
                 <?php endif; ?>
-                <div class="field">
-                    <label>Collected On</label>
-                    <div class="readonly-value"><?= e($hasSelectedCollection ? display_datetime((string) ($selectedCollection['collected_at'] ?? ''), display_date((string) $selectedCollection['collected_on'])) : '-') ?></div>
-                </div>
-                <div class="field">
-                    <label>Collected By</label>
-                    <div class="readonly-value"><?= e($hasSelectedCollection ? (string) $selectedCollection['collected_by_name'] : '-') ?></div>
+                <div class="field full">
+                    <div class="collection-detail-two-col">
+                        <div class="field">
+                            <label>Collected On</label>
+                            <div class="readonly-value"><?= e($hasSelectedCollection ? display_datetime((string) ($selectedCollection['collected_at'] ?? ''), display_date((string) $selectedCollection['collected_on'])) : '-') ?></div>
+                        </div>
+                        <div class="field">
+                            <label>Collected By</label>
+                            <div class="readonly-value"><?= e($hasSelectedCollection ? (string) $selectedCollection['collected_by_name'] : '-') ?></div>
+                        </div>
+                    </div>
                 </div>
                 <div class="field full">
                     <label>Note</label>

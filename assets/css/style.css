@@ -3305,6 +3305,16 @@ textarea {
     width: 100%;
 }
 
+.collection-detail-two-col {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.collection-detail-two-col .field {
+    min-width: 0;
+}
+
 .due-installment-cards {
     display: none;
 }
@@ -4381,6 +4391,10 @@ textarea {
 @media (max-width: 700px) {
     .main-content {
         padding: 12px;
+    }
+
+    .collection-detail-two-col {
+        grid-template-columns: 1fr;
     }
 
     .topbar {
