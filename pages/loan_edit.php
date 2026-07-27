@@ -44,6 +44,7 @@ $canDeleteLoan = can('loans.delete');
 $canViewCustomer = can('customers.view');
 $canRecordCollection = can('collections.record');
 $canEditCollection = $isSystemOwner;
+$canEditCollectionDate = can('collections.backdate');
 $paymentMethodSelectionEnabled = payment_method_selection_enabled($pdo);
 
 $collectionCountStmt = $pdo->prepare('SELECT COUNT(*) FROM collections WHERE loan_id = :loan_id');
@@ -539,6 +540,7 @@ require __DIR__ . '/../includes/layout_start.php';
                     action="<?= e(url('actions/collection_save.php')) ?>"
                     data-loan-collection-form
                     data-can-collect-current="<?= $canCollectCurrent ? '1' : '0' ?>"
+                    data-can-edit-collection-date="<?= $canEditCollectionDate ? '1' : '0' ?>"
                     data-collect-action="<?= e(url('actions/collection_save.php')) ?>"
                     data-edit-action="<?= e(url('actions/collection_update.php')) ?>"
                     data-collect-confirm="Confirm this collection payment?"
@@ -555,7 +557,7 @@ require __DIR__ . '/../includes/layout_start.php';
 
                     <div class="field">
                         <label>Collection Date</label>
-                        <input type="date" name="collected_on" value="<?= e(today()) ?>" max="<?= e(today()) ?>" data-loan-collect-date required>
+                        <input type="date" name="collected_on" value="<?= e(today()) ?>" max="<?= e(today()) ?>" data-loan-collect-date required <?= $canEditCollectionDate ? '' : 'readonly' ?>>
                     </div>
                     <div class="field">
                         <label data-loan-collect-amount-label>Amount Received</label>
@@ -793,6 +795,7 @@ require __DIR__ . '/../includes/layout_start.php';
     const amountLabel = panel.querySelector('[data-loan-collect-amount-label]');
 
     const canCollectCurrent = form.getAttribute('data-can-collect-current') === '1';
+    const canEditCollectionDate = form.getAttribute('data-can-edit-collection-date') === '1';
     const collectAction = form.getAttribute('data-collect-action') || form.action;
     const editAction = form.getAttribute('data-edit-action') || form.action;
     const collectConfirm = form.getAttribute('data-collect-confirm') || 'Confirm this collection payment?';
@@ -852,6 +855,7 @@ require __DIR__ . '/../includes/layout_start.php';
         }
         if (dateInput instanceof HTMLInputElement) {
             dateInput.value = defaults.date;
+            dateInput.readOnly = !canEditCollectionDate;
         }
         if (amountInput instanceof HTMLInputElement) {
             amountInput.value = defaults.amount;
@@ -929,6 +933,7 @@ require __DIR__ . '/../includes/layout_start.php';
         }
         if (dateInput instanceof HTMLInputElement) {
             dateInput.value = row.getAttribute('data-collection-date') || '';
+            dateInput.readOnly = !canEditCollectionDate;
         }
         if (amountInput instanceof HTMLInputElement) {
             amountInput.value = row.getAttribute('data-collection-amount') || '';

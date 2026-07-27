@@ -2577,6 +2577,27 @@ function holiday_marking_validation(PDO $pdo, string $date): array
         return ['allowed' => true, 'message' => ''];
     }
 
+    if ($date === $todayDate) {
+        $tomorrowDate = (new DateTimeImmutable($todayDate))->add(new DateInterval('P1D'))->format('Y-m-d');
+        $stmt = $pdo->prepare(
+            'SELECT COUNT(*)
+             FROM collections
+             WHERE collected_on = :today_date
+                OR (created_at >= :today_start AND created_at < :tomorrow_start)'
+        );
+        $stmt->execute([
+            'today_date' => $todayDate,
+            'today_start' => $todayDate . ' 00:00:00',
+            'tomorrow_start' => $tomorrowDate . ' 00:00:00',
+        ]);
+
+        if ((int) $stmt->fetchColumn() > 0) {
+            return ['allowed' => false, 'message' => 'Cannot mark today as a holiday because collections were already entered today.'];
+        }
+
+        return ['allowed' => true, 'message' => ''];
+    }
+
     $endDate = $date;
     if ($date < $todayDate) {
         $endDate = (new DateTimeImmutable($todayDate))->sub(new DateInterval('P1D'))->format('Y-m-d');

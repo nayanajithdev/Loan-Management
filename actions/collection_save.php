@@ -86,6 +86,12 @@ $current = current_user();
 $currentRole = (string) ($current['role'] ?? '');
 $canBackdatePaid = can('collections.backdate');
 $canScheduleNextPayment = can('collections.schedule');
+
+if (!$canBackdatePaid && $collectedOn !== today()) {
+    set_flash('error', 'You do not have permission to change collection date.');
+    redirect($returnTo);
+}
+
 $paidOnDate = $collectedOn;
 if ($backdatedEntry) {
     if (!$canBackdatePaid) {
