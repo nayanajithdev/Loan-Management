@@ -48,9 +48,6 @@ if (can('calculator.view')) {
 if (can('users.manage')) {
     $menuItems[] = ['key' => 'users', 'label' => 'Users', 'path' => 'pages/users.php'];
 }
-if (can('reports.view')) {
-    $menuItems[] = ['key' => 'reports', 'label' => 'Reports', 'path' => 'pages/reports.php'];
-}
 
 /** @var array<int, array{key:string,label:string,path:string}> $settingsChildren */
 $settingsChildren = [];
@@ -70,8 +67,13 @@ if (can('system_settings.view')) {
     $settingsChildren[] = ['key' => 'system_settings', 'label' => 'System Settings', 'path' => 'pages/system_settings.php'];
 }
 
-if ($settingsChildren !== []) {
+if (can('reports.view') || $settingsChildren !== []) {
     $menuItems[] = ['key' => 'menu_divider'];
+}
+if (can('reports.view')) {
+    $menuItems[] = ['key' => 'reports', 'label' => 'Reports', 'path' => 'pages/reports.php'];
+}
+if ($settingsChildren !== []) {
     $menuItems[] = ['key' => 'settings_group', 'label' => 'Settings', 'children' => $settingsChildren];
 }
 

@@ -19,6 +19,18 @@ $search = mb_substr($search, 0, 120);
 $assignedUserId = max(0, (int) ($_GET['assigned_user_id'] ?? 0));
 $assignedUsers = assignable_collector_rows($pdo, $assignedUserId > 0 ? $assignedUserId : null);
 
+$loanStatusCounts = array_fill_keys($allowedStatuses, 0);
+$statusCountStmt = $pdo->query("SELECT status, COUNT(*) AS loan_count FROM loans WHERE status IN ('active', 'closed') GROUP BY status");
+foreach ($statusCountStmt->fetchAll() as $statusRow) {
+    $statusKey = (string) ($statusRow['status'] ?? '');
+    if (array_key_exists($statusKey, $loanStatusCounts)) {
+        $loanStatusCounts[$statusKey] = (int) ($statusRow['loan_count'] ?? 0);
+    }
+}
+$formatLoanStatusOption = static function (string $label, int $count): string {
+    return $label . ' - ' . str_pad((string) $count, 2, '0', STR_PAD_LEFT);
+};
+
 $sql = "SELECT l.*, c.full_name, l.assigned_user_id, u.full_name AS assigned_user_name, u.username AS assigned_username, u.role AS assigned_role,
             COALESCE((SELECT SUM(li.due_amount - li.paid_amount) FROM loan_installments li WHERE li.loan_id = l.id AND li.status IN ('pending', 'partial', 'overdue')), 0) AS outstanding_amount,
             COALESCE((SELECT COUNT(*) FROM loan_installments li WHERE li.loan_id = l.id AND li.status IN ('pending', 'partial', 'overdue')), 0) AS remaining_installment_count,
@@ -85,14 +97,14 @@ $renderLoansHead = static function (string $status, array $assignedUsers, int $a
         <?php else: ?>
             <th>Balance</th>
             <th>Inst. Left</th>
+            <th><?= $renderAssignedHeader($assignedUsers, $assignedUserId) ?></th>
         <?php endif; ?>
-        <th><?= $renderAssignedHeader($assignedUsers, $assignedUserId) ?></th>
     </tr>
     <?php return (string) ob_get_clean();
 };
 
 $renderLoansBody = static function (array $loans, PDO $pdo, string $status): string {
-    $columnCount = $status === 'closed' ? 7 : 8;
+    $columnCount = $status === 'closed' ? 6 : 8;
     ob_start();
     if (!$loans): ?>
         <tr><td colspan="<?= e((string) $columnCount) ?>">No loans yet.</td></tr>
@@ -121,13 +133,15 @@ $renderLoansBody = static function (array $loans, PDO $pdo, string $status): str
                         <?php endif; ?>
                     </td>
                 <?php endif; ?>
-                <td>
-                    <?php if (!empty($loan['assigned_user_name'])): ?>
-                        <?= e($loan['assigned_user_name']) ?>
-                    <?php else: ?>
-                        <span class="badge badge-info">All users</span>
-                    <?php endif; ?>
-                </td>
+                <?php if ($status !== 'closed'): ?>
+                    <td>
+                        <?php if (!empty($loan['assigned_user_name'])): ?>
+                            <?= e($loan['assigned_user_name']) ?>
+                        <?php else: ?>
+                            <span class="badge badge-info">All users</span>
+                        <?php endif; ?>
+                    </td>
+                <?php endif; ?>
             </tr>
         <?php endforeach; ?>
     <?php endif;
@@ -160,8 +174,8 @@ require __DIR__ . '/../includes/layout_start.php';
                 <div class="field loan-status-field">
                     <label>Status</label>
                     <select name="status" id="loan-status-filter" class="loan-status-select is-<?= e($status) ?>">
-                        <option value="active" <?= $status === 'active' ? 'selected' : '' ?>>Active</option>
-                        <option value="closed" <?= $status === 'closed' ? 'selected' : '' ?>>Closed</option>
+                        <option value="active" <?= $status === 'active' ? 'selected' : '' ?>><?= e($formatLoanStatusOption('Active', $loanStatusCounts['active'])) ?></option>
+                        <option value="closed" <?= $status === 'closed' ? 'selected' : '' ?>><?= e($formatLoanStatusOption('Closed', $loanStatusCounts['closed'])) ?></option>
                     </select>
                 </div>
                 <input type="hidden" name="assigned_user_id" id="loan-assigned-filter" value="<?= e((string) $assignedUserId) ?>">
