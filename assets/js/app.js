@@ -521,6 +521,158 @@
                     return;
                 }
 
+                if (form.getAttribute('data-inline-confirm-password') === '1' && form.getAttribute('data-password-confirmed') !== '1') {
+                    const passwordModal = document.createElement('div');
+                    passwordModal.className = 'inline-confirm-modal-backdrop';
+                    passwordModal.setAttribute('data-inline-confirm-modal', '1');
+                    passwordModal.innerHTML = `
+                        <div class="inline-confirm-modal" role="dialog" aria-modal="true" aria-labelledby="inline-confirm-password-title">
+                            <div class="inline-confirm-modal-title" id="inline-confirm-password-title">Confirm Password</div>
+                            <p class="inline-confirm-modal-message"></p>
+                            <div class="field inline-confirm-password-field">
+                                <label for="inline-confirm-password-input">Password</label>
+                                <input type="password" id="inline-confirm-password-input" autocomplete="current-password" required>
+                                <small class="inline-confirm-password-error" hidden>Password is required.</small>
+                            </div>
+                            <div class="inline-confirm-modal-actions" data-inline-confirm-actions="1"></div>
+                        </div>
+                    `;
+
+                    const passwordMessage = passwordModal.querySelector('.inline-confirm-modal-message');
+                    const passwordInput = passwordModal.querySelector('#inline-confirm-password-input');
+                    const passwordError = passwordModal.querySelector('.inline-confirm-password-error');
+                    const passwordActions = passwordModal.querySelector('[data-inline-confirm-actions]');
+                    const continueButton = document.createElement('button');
+                    continueButton.type = 'button';
+                    continueButton.className = 'btn btn-danger';
+                    continueButton.textContent = 'Continue';
+                    const passwordCancelButton = document.createElement('button');
+                    passwordCancelButton.type = 'button';
+                    passwordCancelButton.className = 'btn';
+                    passwordCancelButton.textContent = 'Cancel';
+
+                    if (passwordMessage) {
+                        passwordMessage.textContent = form.getAttribute('data-inline-confirm-password-message') || 'Enter your password to continue.';
+                    }
+                    if (passwordActions) {
+                        passwordActions.append(continueButton, passwordCancelButton);
+                    }
+
+                    const closePasswordModal = () => {
+                        passwordModal.remove();
+                        form.removeAttribute('data-password-confirmed');
+                        const passwordFieldName = form.getAttribute('data-inline-confirm-password-name') || 'confirm_password';
+                        const existingPassword = Array.from(form.querySelectorAll('input[type="hidden"]'))
+                            .find((input) => input.getAttribute('name') === passwordFieldName);
+                        if (existingPassword) {
+                            existingPassword.remove();
+                        }
+                        submitter.hidden = false;
+                        submitter.focus();
+                    };
+
+                    continueButton.addEventListener('click', async () => {
+                        if (!(passwordInput instanceof HTMLInputElement) || passwordInput.value.trim() === '') {
+                            if (passwordError instanceof HTMLElement) {
+                                passwordError.hidden = false;
+                                passwordError.textContent = 'Password is required.';
+                            }
+                            if (passwordInput instanceof HTMLInputElement) {
+                                passwordInput.focus();
+                            }
+                            return;
+                        }
+
+                        const verifyUrl = form.getAttribute('data-inline-confirm-password-verify-url') || '';
+                        const csrfInput = form.querySelector('input[name="_csrf"]');
+                        if (!verifyUrl || !(csrfInput instanceof HTMLInputElement)) {
+                            if (passwordError instanceof HTMLElement) {
+                                passwordError.hidden = false;
+                                passwordError.textContent = 'Password check is not available.';
+                            }
+                            return;
+                        }
+
+                        continueButton.disabled = true;
+                        continueButton.textContent = 'Checking...';
+
+                        let verified = false;
+                        let verifyMessage = 'Incorrect password.';
+                        try {
+                            const verifyData = new FormData();
+                            verifyData.set('_csrf', csrfInput.value);
+                            verifyData.set('password', passwordInput.value);
+                            const response = await fetch(verifyUrl, {
+                                method: 'POST',
+                                body: verifyData,
+                                headers: {
+                                    'X-Requested-With': 'XMLHttpRequest',
+                                },
+                            });
+                            const payload = await response.json().catch(() => ({}));
+                            if (payload && payload.logged_out === true) {
+                                window.location.href = typeof payload.redirect === 'string' && payload.redirect !== ''
+                                    ? payload.redirect
+                                    : 'login.php';
+                                return;
+                            }
+                            verified = response.ok && payload && payload.ok === true;
+                            if (payload && typeof payload.message === 'string' && payload.message.trim() !== '') {
+                                verifyMessage = payload.message;
+                            }
+                        } catch (_error) {
+                            verifyMessage = 'Could not check password. Please try again.';
+                        }
+
+                        if (!verified) {
+                            continueButton.disabled = false;
+                            continueButton.textContent = 'Continue';
+                            if (passwordError instanceof HTMLElement) {
+                                passwordError.hidden = false;
+                                passwordError.textContent = verifyMessage;
+                            }
+                            passwordInput.value = '';
+                            passwordInput.focus();
+                            return;
+                        }
+
+                        const passwordFieldName = form.getAttribute('data-inline-confirm-password-name') || 'confirm_password';
+                        let passwordHiddenInput = Array.from(form.querySelectorAll('input[type="hidden"]'))
+                            .find((input) => input.getAttribute('name') === passwordFieldName);
+                        if (!(passwordHiddenInput instanceof HTMLInputElement)) {
+                            passwordHiddenInput = document.createElement('input');
+                            passwordHiddenInput.type = 'hidden';
+                            passwordHiddenInput.name = passwordFieldName;
+                            form.appendChild(passwordHiddenInput);
+                        }
+                        passwordHiddenInput.value = passwordInput.value;
+                        form.setAttribute('data-password-confirmed', '1');
+                        passwordModal.remove();
+
+                        if (typeof form.requestSubmit === 'function') {
+                            form.requestSubmit(submitter instanceof HTMLElement ? submitter : undefined);
+                        } else {
+                            form.submit();
+                        }
+                    });
+
+                    if (passwordInput instanceof HTMLInputElement) {
+                        passwordInput.addEventListener('keydown', (passwordEvent) => {
+                            if (passwordEvent.key === 'Enter') {
+                                passwordEvent.preventDefault();
+                                continueButton.click();
+                            }
+                        });
+                    }
+                    passwordCancelButton.addEventListener('click', closePasswordModal, { once: true });
+
+                    document.body.append(passwordModal);
+                    if (passwordInput instanceof HTMLInputElement) {
+                        passwordInput.focus();
+                    }
+                    return;
+                }
+
                 const confirmMode = form.getAttribute('data-inline-confirm-mode') === 'modal' ? 'modal' : 'inline';
                 const confirmDelay = Math.max(0, Number.parseInt(form.getAttribute('data-inline-confirm-delay') || '1000', 10) || 0);
                 const confirmLabel = (form.getAttribute('data-inline-confirm-label') || 'Confirm').trim() || 'Confirm';
@@ -601,6 +753,15 @@
                         actions.remove();
                     }
                     form.removeAttribute('data-confirmed');
+                    if (form.getAttribute('data-inline-confirm-password') === '1') {
+                        form.removeAttribute('data-password-confirmed');
+                        const passwordFieldName = form.getAttribute('data-inline-confirm-password-name') || 'confirm_password';
+                        const passwordHiddenInput = Array.from(form.querySelectorAll('input[type="hidden"]'))
+                            .find((input) => input.getAttribute('name') === passwordFieldName);
+                        if (passwordHiddenInput) {
+                            passwordHiddenInput.remove();
+                        }
+                    }
                     submitter.hidden = false;
                     submitter.focus();
                 }, { once: true });

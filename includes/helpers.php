@@ -2185,6 +2185,14 @@ function ensure_user_status_schema(PDO $pdo): void
     }
 }
 
+function ensure_user_force_logout_schema(PDO $pdo): void
+{
+    $forceLogoutColStmt = $pdo->query("SHOW COLUMNS FROM users LIKE 'force_logout_at'");
+    if (!$forceLogoutColStmt->fetch()) {
+        $pdo->exec('ALTER TABLE users ADD COLUMN force_logout_at DATETIME NULL AFTER status');
+    }
+}
+
 function ensure_password_reset_tokens_schema(PDO $pdo): void
 {
     $pdo->exec(
@@ -3058,6 +3066,7 @@ function authenticated_landing_path(?array $viewer = null): string
 function login_user(array $user): void
 {
     session_regenerate_id(true);
+    $_SESSION['auth_login_at'] = time();
     $_SESSION['auth_user'] = [
         'id' => (int) $user['id'],
         'full_name' => (string) $user['full_name'],
@@ -3156,6 +3165,16 @@ function remember_forget_user(PDO $pdo, int $userId): void
     if ((int) ($current['id'] ?? 0) === $userId) {
         remember_clear_cookie();
     }
+}
+
+function force_logout_user_everywhere(PDO $pdo, int $userId): void
+{
+    if ($userId <= 0) {
+        return;
+    }
+
+    $pdo->prepare('UPDATE users SET force_logout_at = NOW() WHERE id = :id')->execute(['id' => $userId]);
+    remember_forget_user($pdo, $userId);
 }
 
 function remember_login_from_cookie(PDO $pdo): bool

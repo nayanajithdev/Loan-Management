@@ -2530,6 +2530,18 @@ textarea {
     line-height: 1.45;
 }
 
+.inline-confirm-password-field {
+    margin-top: 16px;
+}
+
+.inline-confirm-password-field input {
+    width: 100%;
+}
+
+.inline-confirm-password-error {
+    color: #ff8a8a;
+}
+
 .inline-confirm-modal-actions {
     display: flex;
     align-items: center;

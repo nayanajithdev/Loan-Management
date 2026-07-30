@@ -24,6 +24,7 @@ try {
     ensure_user_email_schema($pdo);
     ensure_user_profile_schema($pdo);
     ensure_user_status_schema($pdo);
+    ensure_user_force_logout_schema($pdo);
     ensure_password_reset_tokens_schema($pdo);
     ensure_remember_tokens_schema($pdo);
     ensure_collection_user_schema($pdo);
@@ -74,7 +75,7 @@ if (!in_array($scriptBaseName, $publicScripts, true)) {
     }
 
     $current = current_user();
-    $refreshStmt = $pdo->prepare('SELECT id, full_name, username, email, role, status, avatar_path FROM users WHERE id = :id LIMIT 1');
+    $refreshStmt = $pdo->prepare('SELECT id, full_name, username, email, role, status, avatar_path, force_logout_at FROM users WHERE id = :id LIMIT 1');
     $refreshStmt->execute(['id' => (int) $current['id']]);
     $latestUser = $refreshStmt->fetch();
 
@@ -89,6 +90,15 @@ if (!in_array($scriptBaseName, $publicScripts, true)) {
         remember_forget_user($pdo, (int) $latestUser['id']);
         logout_user();
         set_flash('error', 'Your account is inactive. Please contact owner.');
+        redirect('login.php');
+    }
+
+    $forceLogoutAt = strtotime((string) ($latestUser['force_logout_at'] ?? ''));
+    $sessionLoginAt = (int) ($_SESSION['auth_login_at'] ?? 0);
+    if ($forceLogoutAt !== false && $forceLogoutAt > 0 && $sessionLoginAt < $forceLogoutAt) {
+        remember_forget_user($pdo, (int) $latestUser['id']);
+        logout_user();
+        set_flash('error', 'Please login again.');
         redirect('login.php');
     }
 

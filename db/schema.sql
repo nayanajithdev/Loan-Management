@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS users (
     password_hash VARCHAR(255) NOT NULL,
     role ENUM('superadmin', 'admin', 'collector') NOT NULL DEFAULT 'admin',
     status ENUM('active', 'inactive') NOT NULL DEFAULT 'active',
+    force_logout_at DATETIME NULL,
     avatar_path VARCHAR(255) DEFAULT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE KEY uq_users_email (email)
