@@ -43,7 +43,8 @@ $sql = "SELECT l.*, c.full_name, l.assigned_user_id, u.full_name AS assigned_use
 $params = ['status' => $status];
 if ($search !== '') {
     $searchLike = '%' . str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $search) . '%';
-    $sql .= " AND (c.full_name LIKE :search_name ESCAPE '\\\\' OR c.nic LIKE :search_nic ESCAPE '\\\\')";
+    $sql .= " AND (l.loan_number LIKE :search_loan ESCAPE '\\\\' OR c.full_name LIKE :search_name ESCAPE '\\\\' OR c.nic LIKE :search_nic ESCAPE '\\\\')";
+    $params['search_loan'] = $searchLike;
     $params['search_name'] = $searchLike;
     $params['search_nic'] = $searchLike;
 }
@@ -57,6 +58,7 @@ $stmt = $pdo->prepare($sql);
 $stmt->execute($params);
 $loans = $stmt->fetchAll();
 $canCreateLoan = can('loans.create');
+$canExtendLoan = can('loans.edit');
 
 $renderAssignedHeader = static function (array $assignedUsers, int $assignedUserId): string {
     ob_start(); ?>
@@ -182,7 +184,7 @@ require __DIR__ . '/../includes/layout_start.php';
                 <div class="field loan-search-field">
                     <label class="sr-only">Search loans</label>
                     <div class="search-control">
-                        <input type="text" name="q" value="<?= e($search) ?>" placeholder="Search..." aria-label="Search by customer name or ID number">
+                        <input type="text" name="q" value="<?= e($search) ?>" placeholder="Search..." aria-label="Search by loan number, customer name or ID number">
                         <button type="submit" class="btn search-submit" aria-label="Search loans">
                             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg>
                         </button>
@@ -191,9 +193,14 @@ require __DIR__ . '/../includes/layout_start.php';
                 <a class="btn loan-filter-reset" href="<?= e(url('pages/loans.php')) ?>">Reset</a>
             </form>
         </div>
-        <?php if ($canCreateLoan): ?>
+        <?php if ($canCreateLoan || $canExtendLoan): ?>
             <div style="display:flex; gap:8px; align-items:flex-end; flex-wrap:wrap;">
-                <a class="btn btn-primary" href="<?= e(url('pages/loan_create.php')) ?>">New Loan</a>
+                <?php if ($canExtendLoan): ?>
+                    <a class="btn" href="<?= e(url('pages/loan_extend.php')) ?>">Extend Loan</a>
+                <?php endif; ?>
+                <?php if ($canCreateLoan): ?>
+                    <a class="btn btn-primary" href="<?= e(url('pages/loan_create.php')) ?>">New Loan</a>
+                <?php endif; ?>
             </div>
         <?php endif; ?>
     </div>

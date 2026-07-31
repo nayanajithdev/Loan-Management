@@ -19,12 +19,13 @@ $canViewUserCollections = can_any(['reports.view', 'users.manage'], $viewer);
 $paymentMethodSelectionEnabled = payment_method_selection_enabled($pdo);
 $chartMode = (string) ($_GET['chart'] ?? 'weekly');
 $chartMode = $chartMode === 'weekly' ? 'weekly' : 'monthly';
+$selectedWeekStart = dashboard_week_start_from_input((string) ($_GET['week'] ?? ''));
 $stats = dashboard_stats($pdo);
 $todayGoal = $canViewTodayCollections
     ? today_collection_goal($pdo)
     : ['target' => 0.0, 'collected' => 0.0, 'remaining' => 0.0, 'percentage' => 0.0];
 $todayCollectedTotal = $canViewTodayCollections ? today_collected_total($pdo) : 0.0;
-$collectionsTrend = $canViewReports ? collections_total_chart($pdo, null, $chartMode) : [];
+$collectionsTrend = $canViewReports ? collections_total_chart($pdo, null, $chartMode, $selectedWeekStart) : [];
 $userGoals = $canViewUserCollections ? dashboard_user_goals($pdo) : ['users' => []];
 $dailyProfitValue = (float) $stats['daily_profit'];
 $dailyCollectedValue = (float) $stats['daily_collected_amount'];

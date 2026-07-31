@@ -4015,7 +4015,33 @@ function today_collected_total(PDO $pdo, ?array $viewer = null): float
     return (float) $stmt->fetchColumn();
 }
 
-function collections_total_chart(PDO $pdo, ?array $viewer = null, string $mode = 'monthly'): array
+function dashboard_week_start_from_input(string $weekInput): DateTimeImmutable
+{
+    $weekInput = trim($weekInput);
+    if (preg_match('/^(\d{4})-W(\d{2})$/', $weekInput, $matches) === 1) {
+        $year = (int) $matches[1];
+        $week = (int) $matches[2];
+        if ($year >= 1970 && $week >= 1 && $week <= 53) {
+            return (new DateTimeImmutable())->setISODate($year, $week, 1);
+        }
+    }
+
+    if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $weekInput) === 1) {
+        $date = DateTimeImmutable::createFromFormat('!Y-m-d', $weekInput);
+        if ($date instanceof DateTimeImmutable && $date->format('Y-m-d') === $weekInput) {
+            return $date->modify('monday this week');
+        }
+    }
+
+    return (new DateTimeImmutable(today()))->modify('monday this week');
+}
+
+function dashboard_week_input_value(DateTimeImmutable $weekStart): string
+{
+    return $weekStart->format('o-\WW');
+}
+
+function collections_total_chart(PDO $pdo, ?array $viewer = null, string $mode = 'monthly', ?DateTimeImmutable $selectedWeekStart = null): array
 {
     $mode = $mode === 'weekly' ? 'weekly' : 'monthly';
     $today = new DateTimeImmutable(today());
@@ -4024,7 +4050,9 @@ function collections_total_chart(PDO $pdo, ?array $viewer = null, string $mode =
     $isCollectorScope = is_collector_role($viewerRole) && $viewerId > 0;
 
     if ($mode === 'weekly') {
-        $startDate = $today->modify('monday this week');
+        $startDate = $selectedWeekStart instanceof DateTimeImmutable
+            ? $selectedWeekStart->modify('monday this week')
+            : $today->modify('monday this week');
         $endDate = $startDate->modify('+6 days');
         $labels = [];
         $keys = [];
@@ -4099,6 +4127,8 @@ function collections_total_chart(PDO $pdo, ?array $viewer = null, string $mode =
         'title' => $title,
         'subtitle' => $subtitle,
         'pill_suffix' => $pillSuffix,
+        'week_value' => dashboard_week_input_value($startDate),
+        'week_start' => $startDate->format('Y-m-d'),
         'bars' => $bars,
         'total' => array_sum($values),
         'max_value' => $maxValue,
@@ -4110,6 +4140,7 @@ function dashboard_collection_chart_html(PDO $pdo, array $chart, string $mode): 
     $mode = $mode === 'weekly' ? 'weekly' : 'monthly';
     $monthlyClass = $mode === 'monthly' ? 'active' : '';
     $weeklyClass = $mode === 'weekly' ? 'active' : '';
+    $weekValue = (string) ($chart['week_value'] ?? dashboard_week_input_value((new DateTimeImmutable(today()))->modify('monday this week')));
 
     ob_start();
     ?>
@@ -4119,9 +4150,16 @@ function dashboard_collection_chart_html(PDO $pdo, array $chart, string $mode): 
         </div>
         <div class="collections-chart-actions">
             <span class="chart-total-pill"><?= e(money_label($pdo, (float) $chart['total'])) ?> <?= e((string) $chart['pill_suffix']) ?></span>
+            <?php if ($mode === 'weekly'): ?>
+                <form class="chart-week-form" method="get" action="<?= e(url('index.php')) ?>">
+                    <input type="hidden" name="chart" value="weekly">
+                    <label class="sr-only" for="dashboard-week-picker">Select week</label>
+                    <input type="week" id="dashboard-week-picker" name="week" value="<?= e($weekValue) ?>" aria-label="Select week" onchange="this.form.submit()">
+                </form>
+            <?php endif; ?>
             <div class="chart-toggle" aria-label="Collection chart range">
                 <a class="<?= e($monthlyClass) ?>" href="<?= e(url('index.php?chart=monthly')) ?>">Monthly</a>
-                <a class="<?= e($weeklyClass) ?>" href="<?= e(url('index.php?chart=weekly')) ?>">Weekly</a>
+                <a class="<?= e($weeklyClass) ?>" href="<?= e(url('index.php?chart=weekly&week=' . rawurlencode($weekValue))) ?>">Weekly</a>
             </div>
         </div>
     </div>

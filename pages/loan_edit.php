@@ -199,6 +199,9 @@ require __DIR__ . '/../includes/layout_start.php';
             <?php if (can('today_collections.view')): ?>
                 <a class="btn" href="<?= e(url('pages/today_collections.php')) ?>">Today Collection</a>
             <?php endif; ?>
+            <?php if ($canEditLoan): ?>
+                <a class="btn" href="<?= e(url('pages/loan_extend.php?loan_id=' . $loanId)) ?>">Extend Loan</a>
+            <?php endif; ?>
         </div>
         <div class="panel-head-actions">
             <?php if ($canViewCustomer): ?>
