@@ -3553,6 +3553,12 @@ textarea {
     min-width: 0;
 }
 
+.today-collections-list-column {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+}
+
 .today-collections-record-panel .panel-head-compact {
     margin-bottom: 0;
 }
@@ -3944,52 +3950,67 @@ textarea {
     width: 100%;
 }
 
-.collection-summary-divider {
-    height: 1px;
-    margin: 0 -16px 18px;
-    background: var(--edge);
-}
-
-.collection-summary-metrics {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 0;
+.daily-progress-card {
     margin: 0 0 14px;
-    overflow: visible;
-    border: 0;
-    border-radius: 0;
-    background: transparent;
+    padding: 16px 18px;
+    border-radius: 8px;
+    background:
+        radial-gradient(circle at 0 0, rgba(56, 189, 248, 0.1), transparent 34%),
+        linear-gradient(135deg, rgba(255, 122, 26, 0.05), rgba(12, 28, 39, 0.35)),
+        var(--surface-2);
+    box-shadow: inset 0 0 0 1px var(--edge);
 }
 
-.collection-summary-metrics .metric-box {
+.daily-progress-track {
+    height: 10px;
+    overflow: hidden;
+    border-radius: 999px;
+    background: rgba(148, 184, 213, 0.12);
+}
+
+.daily-progress-track span {
+    display: block;
+    width: var(--daily-progress, 0%);
+    height: 100%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, var(--accent), #ff9f43);
+}
+
+.daily-progress-stats {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    margin-top: 18px;
+}
+
+.daily-progress-stat {
     min-width: 0;
-    padding: 14px 16px;
-    border-radius: 0;
-    background: transparent;
 }
 
-.collection-summary-metrics .metric-box.is-collected {
-    padding-left: 10px;
-}
-
-.collection-summary-metrics .metric-box + .metric-box {
+.daily-progress-stat + .daily-progress-stat {
+    padding-left: 22px;
     border-left: 1px solid var(--edge);
+    text-align: right;
 }
 
-.collection-summary-metrics .metric-box p {
-    font-size: 11px;
-    text-transform: none;
+.daily-progress-stat span {
+    display: block;
+    margin-bottom: 6px;
+    color: var(--muted);
+    font-size: 12px;
 }
 
-.collection-summary-metrics .metric-box h3 {
-    margin-top: 3px;
-    font-size: 20px;
+.daily-progress-stat strong {
+    display: block;
+    font-size: 16px;
+    font-weight: 800;
+    overflow-wrap: anywhere;
 }
 
-.collection-summary-metrics .metric-box.is-collected h3 {
+.daily-progress-stat.is-collected strong {
     color: var(--success);
 }
 
-.collection-summary-metrics .metric-box.is-pending-amount h3 {
+.daily-progress-stat.is-pending strong {
     color: var(--accent);
 }
 
@@ -4538,7 +4559,7 @@ textarea {
         display: none;
     }
 
-    .today-collections-layout.mobile-record-mode .today-collections-list-panel {
+    .today-collections-layout.mobile-record-mode .today-collections-list-column {
         display: none;
     }
 
@@ -4593,12 +4614,8 @@ textarea {
             var(--surface-2);
     }
 
-    .today-collections-list-panel .collection-summary-metrics .metric-box {
-        background: transparent;
-    }
-
-    .today-collections-list-panel .table-wrap {
-        display: none;
+    section.panel.today-collections-list-panel {
+        display: none !important;
     }
 
     .due-installment-cards {

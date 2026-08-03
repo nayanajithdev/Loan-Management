@@ -50,9 +50,7 @@ $currentUserId = (int) ($current['id'] ?? 0);
 $selectedInstallmentId = (int) ($_GET['selected_installment'] ?? 0);
 $selectedCollectionId = (int) ($_GET['selected_collection'] ?? 0);
 $pendingInstallments = collection_due_installments_for_date($pdo, $selectedDate, $todayDate, $search, $currentRole, $currentUserId);
-$collectedInstallments = $selectedCollectionStatus === 'collected'
-    ? collection_collected_installments_for_date($pdo, $selectedDate, $search, $currentRole, $currentUserId)
-    : [];
+$collectedInstallments = collection_collected_installments_for_date($pdo, $selectedDate, $search, $currentRole, $currentUserId);
 $displayInstallments = $selectedCollectionStatus === 'collected' ? $collectedInstallments : $pendingInstallments;
 $pendingAmountTotal = 0.0;
 $pendingLoanIds = [];
@@ -63,6 +61,16 @@ foreach ($pendingInstallments as $item) {
     }
 }
 $pendingLoanCount = $pendingLoanIds ? count($pendingLoanIds) : count($pendingInstallments);
+$collectedLoanIds = [];
+foreach ($collectedInstallments as $item) {
+    if (isset($item['loan_id'])) {
+        $collectedLoanIds[(int) $item['loan_id']] = true;
+    }
+}
+$collectedLoanCount = $collectedLoanIds ? count($collectedLoanIds) : count($collectedInstallments);
+$dailyLoanIds = $pendingLoanIds + $collectedLoanIds;
+$dailyLoanTotal = $dailyLoanIds ? count($dailyLoanIds) : ($pendingLoanCount + $collectedLoanCount);
+$dailyProgressPercent = $dailyLoanTotal > 0 ? min(100.0, round(($collectedLoanCount / $dailyLoanTotal) * 100, 2)) : 0.0;
 
 if (is_collector_role($currentRole)) {
     $selectedCollectionTotalStmt = $pdo->prepare(
@@ -84,17 +92,18 @@ $selectedCollectionTotal = (float) $selectedCollectionTotalStmt->fetchColumn();
 
 ob_start();
 ?>
-<div class="metric-box is-collected">
-    <p>Collected total</p>
-    <h3><?= e(money_label($pdo, $selectedCollectionTotal)) ?></h3>
+<div class="daily-progress-track" aria-hidden="true">
+    <span style="--daily-progress: <?= e((string) $dailyProgressPercent) ?>%;"></span>
 </div>
-<div class="metric-box is-pending-amount">
-    <p>Pending amount</p>
-    <h3><?= e(money_label($pdo, $pendingAmountTotal)) ?></h3>
-</div>
-<div class="metric-box is-pending-count">
-    <p>Pending count</p>
-    <h3><?= e((string) $pendingLoanCount) ?> <?= $pendingLoanCount === 1 ? 'loan' : 'loans' ?></h3>
+<div class="daily-progress-stats">
+    <div class="daily-progress-stat is-collected">
+        <span>Collected total</span>
+        <strong><?= e(money_label($pdo, $selectedCollectionTotal)) ?></strong>
+    </div>
+    <div class="daily-progress-stat is-pending">
+        <span>Pending amount</span>
+        <strong><?= e(money_label($pdo, $pendingAmountTotal)) ?></strong>
+    </div>
 </div>
 <?php
 $summaryHtml = ob_get_clean();

@@ -46,9 +46,7 @@ $canUndoCollection = can('collections.undo');
 $canBackdatePaid = can('collections.backdate');
 $canScheduleNextPayment = can('collections.schedule');
 $pendingInstallments = collection_due_installments_for_date($pdo, $selectedDate, $todayDate, $search, $currentRole, $currentUserId);
-$collectedInstallments = $selectedCollectionStatus === 'collected'
-    ? collection_collected_installments_for_date($pdo, $selectedDate, $search, $currentRole, $currentUserId)
-    : [];
+$collectedInstallments = collection_collected_installments_for_date($pdo, $selectedDate, $search, $currentRole, $currentUserId);
 $displayInstallments = $selectedCollectionStatus === 'collected' ? $collectedInstallments : $pendingInstallments;
 $autoFillAmountReceived = system_setting($pdo, 'auto_fill_amount_received', '1') !== '0';
 $paymentMethodSelectionEnabled = payment_method_selection_enabled($pdo);
@@ -61,6 +59,16 @@ foreach ($pendingInstallments as $item) {
     }
 }
 $pendingLoanCount = $pendingLoanIds ? count($pendingLoanIds) : count($pendingInstallments);
+$collectedLoanIds = [];
+foreach ($collectedInstallments as $item) {
+    if (isset($item['loan_id'])) {
+        $collectedLoanIds[(int) $item['loan_id']] = true;
+    }
+}
+$collectedLoanCount = $collectedLoanIds ? count($collectedLoanIds) : count($collectedInstallments);
+$dailyLoanIds = $pendingLoanIds + $collectedLoanIds;
+$dailyLoanTotal = $dailyLoanIds ? count($dailyLoanIds) : ($pendingLoanCount + $collectedLoanCount);
+$dailyProgressPercent = $dailyLoanTotal > 0 ? min(100.0, round(($collectedLoanCount / $dailyLoanTotal) * 100, 2)) : 0.0;
 
 $selectedInstallment = null;
 foreach ($pendingInstallments as $item) {
@@ -175,8 +183,8 @@ require __DIR__ . '/../includes/layout_start.php';
                 <div class="field collection-status-field" <?= $selectedDateMode === 'today' ? '' : 'hidden' ?>>
                     <label class="sr-only">Collection Status</label>
                     <select name="collection_status" id="collection-status-select" <?= $selectedDateMode === 'today' ? '' : 'disabled' ?>>
-                        <option value="pending" <?= $selectedCollectionStatus === 'pending' ? 'selected' : '' ?>>Pending</option>
-                        <option value="collected" <?= $selectedCollectionStatus === 'collected' ? 'selected' : '' ?>>Collected</option>
+                        <option value="pending" <?= $selectedCollectionStatus === 'pending' ? 'selected' : '' ?>>Pending - <?= e(str_pad((string) $pendingLoanCount, 2, '0', STR_PAD_LEFT)) ?></option>
+                        <option value="collected" <?= $selectedCollectionStatus === 'collected' ? 'selected' : '' ?>>Collected - <?= e(str_pad((string) $collectedLoanCount, 2, '0', STR_PAD_LEFT)) ?></option>
                     </select>
                 </div>
                 <?php if ($selectedDateMode !== 'today'): ?>
@@ -196,23 +204,25 @@ require __DIR__ . '/../includes/layout_start.php';
 <?php endif; ?>
 
 <div class="split-layout today-collections-layout <?= $mobileRecordMode ? 'mobile-record-mode' : '' ?>">
+    <div class="today-collections-list-column">
+        <?php if (!$mobileRecordMode): ?>
+            <div class="daily-progress-card" id="collection-summary-metrics">
+                <div class="daily-progress-track" aria-hidden="true">
+                    <span style="--daily-progress: <?= e((string) $dailyProgressPercent) ?>%;"></span>
+                </div>
+                <div class="daily-progress-stats">
+                    <div class="daily-progress-stat is-collected">
+                        <span>Collected total</span>
+                        <strong><?= e(money_label($pdo, $selectedCollectionTotal)) ?></strong>
+                    </div>
+                    <div class="daily-progress-stat is-pending">
+                        <span>Pending amount</span>
+                        <strong><?= e(money_label($pdo, $pendingAmountTotal)) ?></strong>
+                    </div>
+                </div>
+            </div>
+        <?php endif; ?>
     <section class="panel today-collections-list-panel">
-        <div class="metric-row collection-summary-metrics" id="collection-summary-metrics">
-            <div class="metric-box is-collected">
-                <p>Collected total</p>
-                <h3><?= e(money_label($pdo, $selectedCollectionTotal)) ?></h3>
-            </div>
-            <div class="metric-box is-pending-amount">
-                <p>Pending amount</p>
-                <h3><?= e(money_label($pdo, $pendingAmountTotal)) ?></h3>
-            </div>
-            <div class="metric-box is-pending-count">
-                <p>Pending count</p>
-                <h3><?= e((string) $pendingLoanCount) ?> <?= $pendingLoanCount === 1 ? 'loan' : 'loans' ?></h3>
-            </div>
-        </div>
-        <div class="collection-summary-divider" aria-hidden="true"></div>
-
         <div class="table-wrap">
             <table class="due-installments-table">
                 <thead>
@@ -293,6 +303,7 @@ require __DIR__ . '/../includes/layout_start.php';
         <?php endif; ?>
 
     </section>
+    </div>
 
     <div class="due-installment-cards">
         <?php if (!$pagedDisplayInstallments): ?>
