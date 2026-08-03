@@ -274,6 +274,7 @@ require __DIR__ . '/../includes/layout_start.php';
             data-first-due-date="<?= e((string) ($loan['first_due_date'] ?? '')) ?>"
             data-repayment-locked="<?= $repaymentLocked ? '1' : '0' ?>"
             data-holiday-dates="<?= e((string) json_encode($holidayDates, JSON_UNESCAPED_SLASHES)) ?>"
+            data-money-decimals="<?= e((string) money_display_decimals($pdo)) ?>"
         >
         <?= csrf_input() ?>
         <input type="hidden" name="loan_id" value="<?= e((string) $loan['id']) ?>">
@@ -401,11 +402,11 @@ require __DIR__ . '/../includes/layout_start.php';
             <div class="calc-preview-grid calc-preview-grid-four create-loan-preview-grid">
                 <div class="calc-preview-item">
                     <p>Total Repayable</p>
-                    <h3><?= e(currency_label($pdo)) ?> <span id="preview-total"><?= e(money((float) $loan['total_amount'])) ?></span></h3>
+                    <h3><?= e(currency_label($pdo)) ?> <span id="preview-total"><?= e(money((float) $loan['total_amount'], money_display_decimals($pdo))) ?></span></h3>
                 </div>
                 <div class="calc-preview-item">
                     <p>Per Installment</p>
-                    <h3><?= e(currency_label($pdo)) ?> <span id="preview-installment"><?= e(money((float) $loan['installment_amount'])) ?></span></h3>
+                    <h3><?= e(currency_label($pdo)) ?> <span id="preview-installment"><?= e(money((float) $loan['installment_amount'], money_display_decimals($pdo))) ?></span></h3>
                 </div>
                 <div class="calc-preview-item">
                     <p>No. of Installments</p>
@@ -435,7 +436,7 @@ require __DIR__ . '/../includes/layout_start.php';
                     <label class="edit-mode-switch" for="loan-collection-edit-switch" title="Enable or disable collection edit mode">
                         <input type="checkbox" id="loan-collection-edit-switch" data-collection-edit-toggle>
                         <span class="edit-mode-slider"></span>
-                        <span class="edit-mode-label" data-collection-edit-toggle-label>Edit Off</span>
+                        <span class="edit-mode-label" data-collection-edit-toggle-label><span class="edit-mode-prefix">Edit:</span> <span class="edit-mode-state">Off</span></span>
                     </label>
                 <?php endif; ?>
                 <button type="button" class="btn btn-primary loan-mobile-collect-open" data-loan-collect-open aria-controls="loan-collect-panel" aria-expanded="false">Collect Payment</button>
@@ -778,6 +779,7 @@ require __DIR__ . '/../includes/layout_start.php';
     const rows = Array.from(document.querySelectorAll('[data-collection-edit-row]'));
     const editToggle = document.querySelector('[data-collection-edit-toggle]');
     const editToggleLabel = document.querySelector('[data-collection-edit-toggle-label]');
+    const editToggleState = editToggleLabel instanceof HTMLElement ? editToggleLabel.querySelector('.edit-mode-state') : null;
     if (!(panel instanceof HTMLElement) || !(form instanceof HTMLFormElement) || rows.length === 0) {
         return;
     }
@@ -900,8 +902,10 @@ require __DIR__ . '/../includes/layout_start.php';
                 row.blur();
             }
         });
-        if (editToggleLabel instanceof HTMLElement) {
-            editToggleLabel.textContent = collectionEditModeEnabled ? 'Edit On' : 'Edit Off';
+        if (editToggleState instanceof HTMLElement) {
+            editToggleState.textContent = collectionEditModeEnabled ? 'On' : 'Off';
+        } else if (editToggleLabel instanceof HTMLElement) {
+            editToggleLabel.textContent = collectionEditModeEnabled ? 'Edit: On' : 'Edit: Off';
         }
         if (!collectionEditModeEnabled) {
             setCollectMode();

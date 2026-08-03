@@ -52,6 +52,15 @@ $collectedInstallments = $selectedCollectionStatus === 'collected'
 $displayInstallments = $selectedCollectionStatus === 'collected' ? $collectedInstallments : $pendingInstallments;
 $autoFillAmountReceived = system_setting($pdo, 'auto_fill_amount_received', '1') !== '0';
 $paymentMethodSelectionEnabled = payment_method_selection_enabled($pdo);
+$pendingAmountTotal = 0.0;
+$pendingLoanIds = [];
+foreach ($pendingInstallments as $item) {
+    $pendingAmountTotal += max(0.0, round((float) $item['due_amount'] - (float) $item['paid_amount'], 2));
+    if (isset($item['loan_id'])) {
+        $pendingLoanIds[(int) $item['loan_id']] = true;
+    }
+}
+$pendingLoanCount = $pendingLoanIds ? count($pendingLoanIds) : count($pendingInstallments);
 
 $selectedInstallment = null;
 foreach ($pendingInstallments as $item) {
@@ -152,48 +161,54 @@ $returnTo = 'pages/today_collections.php?' . http_build_query($pageQueryParams);
 require __DIR__ . '/../includes/layout_start.php';
 ?>
 
-<p class="live-indicator" id="js-last-updated">Last update: waiting...</p>
+<?php if (!$mobileRecordMode): ?>
+    <div class="today-collections-filter-toolbar">
+        <form method="get" action="<?= e(url('pages/today_collections.php')) ?>" class="form-grid collection-filter-grid">
+                <div class="field collection-date-field">
+                    <label class="sr-only">Select Date</label>
+                    <select name="date_mode" id="date-mode-select">
+                        <option value="today" <?= $selectedDateMode === 'today' ? 'selected' : '' ?>>Today</option>
+                        <option value="tomorrow" <?= $selectedDateMode === 'tomorrow' ? 'selected' : '' ?>>Tomorrow</option>
+                        <option value="day_after_tomorrow" <?= $selectedDateMode === 'day_after_tomorrow' ? 'selected' : '' ?>>Day After Tomorrow</option>
+                    </select>
+                </div>
+                <div class="field collection-status-field" <?= $selectedDateMode === 'today' ? '' : 'hidden' ?>>
+                    <label class="sr-only">Collection Status</label>
+                    <select name="collection_status" id="collection-status-select" <?= $selectedDateMode === 'today' ? '' : 'disabled' ?>>
+                        <option value="pending" <?= $selectedCollectionStatus === 'pending' ? 'selected' : '' ?>>Pending</option>
+                        <option value="collected" <?= $selectedCollectionStatus === 'collected' ? 'selected' : '' ?>>Collected</option>
+                    </select>
+                </div>
+                <?php if ($selectedDateMode !== 'today'): ?>
+                    <input type="hidden" name="collection_status" value="pending">
+                <?php endif; ?>
+                <div class="field collection-search-field">
+                    <label class="sr-only">Search installments</label>
+                    <div class="search-control">
+                        <input type="text" name="q" value="<?= e($search) ?>" placeholder="Search..." aria-label="Search by loan number, customer name, or phone">
+                        <button type="submit" class="btn search-submit" aria-label="Search installments">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg>
+                        </button>
+                    </div>
+                </div>
+            </form>
+    </div>
+<?php endif; ?>
 
 <div class="split-layout today-collections-layout <?= $mobileRecordMode ? 'mobile-record-mode' : '' ?>">
     <section class="panel today-collections-list-panel">
-        <form method="get" action="<?= e(url('pages/today_collections.php')) ?>" class="form-grid collection-filter-grid">
-            <div class="field collection-date-field">
-                <label class="sr-only">Select Date</label>
-                <select name="date_mode" id="date-mode-select">
-                    <option value="today" <?= $selectedDateMode === 'today' ? 'selected' : '' ?>>Today</option>
-                    <option value="tomorrow" <?= $selectedDateMode === 'tomorrow' ? 'selected' : '' ?>>Tomorrow</option>
-                    <option value="day_after_tomorrow" <?= $selectedDateMode === 'day_after_tomorrow' ? 'selected' : '' ?>>Day After Tomorrow</option>
-                </select>
-            </div>
-            <div class="field collection-status-field" <?= $selectedDateMode === 'today' ? '' : 'hidden' ?>>
-                <label class="sr-only">Collection Status</label>
-                <select name="collection_status" id="collection-status-select" <?= $selectedDateMode === 'today' ? '' : 'disabled' ?>>
-                    <option value="pending" <?= $selectedCollectionStatus === 'pending' ? 'selected' : '' ?>>Pending</option>
-                    <option value="collected" <?= $selectedCollectionStatus === 'collected' ? 'selected' : '' ?>>Collected</option>
-                </select>
-            </div>
-            <?php if ($selectedDateMode !== 'today'): ?>
-                <input type="hidden" name="collection_status" value="pending">
-            <?php endif; ?>
-            <div class="field collection-search-field">
-                <label class="sr-only">Search installments</label>
-                <div class="search-control">
-                    <input type="text" name="q" value="<?= e($search) ?>" placeholder="Search..." aria-label="Search by loan number, customer name, or phone">
-                    <button type="submit" class="btn search-submit" aria-label="Search installments">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg>
-                    </button>
-                </div>
-            </div>
-        </form>
-
-        <div class="metric-row" style="margin: 10px 0 14px;" id="collection-summary-metrics">
-            <div class="metric-box">
-                <p>Collected Total (Selected Date)</p>
+        <div class="metric-row collection-summary-metrics" id="collection-summary-metrics">
+            <div class="metric-box is-collected">
+                <p>Collected total</p>
                 <h3><?= e(money_label($pdo, $selectedCollectionTotal)) ?></h3>
             </div>
-            <div class="metric-box">
-                <p><?= $selectedCollectionStatus === 'collected' ? 'Collected Count (Selected Date)' : 'Pending Count (Selected Date)' ?></p>
-                <h3><?= e((string) $collectionTotalCount) ?></h3>
+            <div class="metric-box is-pending-amount">
+                <p>Pending amount</p>
+                <h3><?= e(money_label($pdo, $pendingAmountTotal)) ?></h3>
+            </div>
+            <div class="metric-box is-pending-count">
+                <p>Pending count</p>
+                <h3><?= e((string) $pendingLoanCount) ?> <?= $pendingLoanCount === 1 ? 'loan' : 'loans' ?></h3>
             </div>
         </div>
         <div class="collection-summary-divider" aria-hidden="true"></div>

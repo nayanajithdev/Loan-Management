@@ -44,41 +44,38 @@ if ($canManageCustomerDocuments) {
 require __DIR__ . '/../includes/layout_start.php';
 ?>
 
-<section class="panel">
-    <div class="panel-head">
-        <h2 class="panel-title">View Customer</h2>
-        <div class="panel-head-actions">
-            <?php if ($canEditCustomer): ?>
-                <label class="edit-mode-switch" for="customer-edit-switch" title="Enable or disable edit mode">
-                    <input type="checkbox" id="customer-edit-switch">
-                    <span class="edit-mode-slider"></span>
-                    <span class="edit-mode-label" id="customer-edit-label">Edit Off</span>
-                </label>
-            <?php endif; ?>
-            <?php if ($canViewLoans): ?>
-                <a class="btn" href="<?= e($viewLoanUrl) ?>">View Loan</a>
-            <?php endif; ?>
-            <a class="btn" href="<?= e(url('pages/customers.php')) ?>">
+<div class="customer-edit-actionbar">
+    <?php if ($canEditCustomer): ?>
+        <label class="edit-mode-switch" for="customer-edit-switch" title="Enable or disable edit mode">
+            <input type="checkbox" id="customer-edit-switch">
+            <span class="edit-mode-slider"></span>
+            <span class="edit-mode-label" id="customer-edit-label"><span class="edit-mode-prefix">Edit:</span> <span class="edit-mode-state">Off</span></span>
+        </label>
+    <?php endif; ?>
+    <?php if ($canViewLoans): ?>
+        <a class="btn" href="<?= e($viewLoanUrl) ?>">View Loan</a>
+    <?php endif; ?>
+    <a class="btn" href="<?= e(url('pages/customers.php')) ?>">
+        <span class="btn-icon-inline" aria-hidden="true">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-arrow-left-icon lucide-arrow-left"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>
+        </span>
+        Back to Customers
+    </a>
+    <?php if (can('customers.delete')): ?>
+        <form method="post" action="<?= e(url('actions/customer_delete.php')) ?>" class="inline-form" onsubmit="return confirm('Delete this customer permanently? This action cannot be undone.');">
+            <?= csrf_input() ?>
+            <input type="hidden" name="customer_id" value="<?= e((string) $customerId) ?>">
+            <button type="submit" class="btn btn-danger">
                 <span class="btn-icon-inline" aria-hidden="true">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-arrow-left-icon lucide-arrow-left"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-trash-icon lucide-trash"><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
                 </span>
-                Back to Customers
-            </a>
-            <?php if (can('customers.delete')): ?>
-                <form method="post" action="<?= e(url('actions/customer_delete.php')) ?>" class="inline-form" onsubmit="return confirm('Delete this customer permanently? This action cannot be undone.');">
-                    <?= csrf_input() ?>
-                    <input type="hidden" name="customer_id" value="<?= e((string) $customerId) ?>">
-                    <button type="submit" class="btn btn-danger">
-                        <span class="btn-icon-inline" aria-hidden="true">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-trash-icon lucide-trash"><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-                        </span>
-                        Delete Customer
-                    </button>
-                </form>
-            <?php endif; ?>
-        </div>
-    </div>
+                Delete Customer
+            </button>
+        </form>
+    <?php endif; ?>
+</div>
 
+<section class="panel">
     <form class="form-grid" id="customer-edit-form" method="post" action="<?= e(url('actions/customer_update.php')) ?>" enctype="multipart/form-data">
         <?= csrf_input() ?>
         <input type="hidden" name="customer_id" value="<?= e((string) $customer['id']) ?>">
@@ -173,6 +170,7 @@ require __DIR__ . '/../includes/layout_start.php';
 (() => {
     const toggle = document.getElementById('customer-edit-switch');
     const toggleLabel = document.getElementById('customer-edit-label');
+    const toggleState = toggleLabel ? toggleLabel.querySelector('.edit-mode-state') : null;
     const form = document.getElementById('customer-edit-form');
     const submitBtn = document.getElementById('customer-update-submit');
     if (!toggle || !toggleLabel || !form || !submitBtn) {
@@ -194,7 +192,11 @@ require __DIR__ . '/../includes/layout_start.php';
 
         submitBtn.disabled = !enabled;
         toggle.checked = enabled;
-        toggleLabel.textContent = enabled ? 'Edit On' : 'Edit Off';
+        if (toggleState) {
+            toggleState.textContent = enabled ? 'On' : 'Off';
+        } else {
+            toggleLabel.textContent = enabled ? 'Edit: On' : 'Edit: Off';
+        }
     };
 
     toggle.addEventListener('change', () => {

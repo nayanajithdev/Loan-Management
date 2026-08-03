@@ -8,54 +8,13 @@ require_permission('loans.edit', 'pages/loans.php');
 $pageTitle = 'Extend Loan';
 $activePage = 'loans';
 
-$search = trim((string) ($_GET['q'] ?? ''));
-$search = mb_substr($search, 0, 120);
 $selectedLoanId = (int) ($_GET['loan_id'] ?? 0);
 $currencyLabel = currency_label($pdo);
 
-$loanSearchSql = "SELECT
-        l.id,
-        l.loan_number,
-        l.principal_amount,
-        l.total_amount,
-        l.installment_amount,
-        l.installment_frequency,
-        l.installment_count,
-        l.end_date,
-        l.status,
-        c.full_name,
-        c.nic,
-        COALESCE((SELECT SUM(li.due_amount - li.paid_amount)
-                  FROM loan_installments li
-                  WHERE li.loan_id = l.id
-                    AND li.status IN ('pending', 'partial', 'overdue')
-                    AND li.due_amount > li.paid_amount), 0) AS outstanding_amount,
-        COALESCE((SELECT COUNT(*)
-                  FROM loan_installments li
-                  WHERE li.loan_id = l.id
-                    AND li.status IN ('pending', 'partial', 'overdue')
-                    AND li.due_amount > li.paid_amount), 0) AS remaining_installment_count
-    FROM loans l
-    JOIN customers c ON c.id = l.customer_id
-    WHERE l.status <> 'closed'";
-$loanSearchParams = [];
-if ($search !== '') {
-    $searchLike = '%' . str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $search) . '%';
-    $loanSearchSql .= " AND (
-        l.loan_number LIKE :search_loan ESCAPE '\\\\'
-        OR c.full_name LIKE :search_name ESCAPE '\\\\'
-        OR c.nic LIKE :search_nic ESCAPE '\\\\'
-    )";
-    $loanSearchParams = [
-        'search_loan' => $searchLike,
-        'search_name' => $searchLike,
-        'search_nic' => $searchLike,
-    ];
+if ($selectedLoanId <= 0) {
+    set_flash('error', 'Open a loan first, then use Extend Loan.');
+    redirect('pages/loans.php');
 }
-$loanSearchSql .= ' ORDER BY l.id DESC LIMIT 40';
-$loanSearchStmt = $pdo->prepare($loanSearchSql);
-$loanSearchStmt->execute($loanSearchParams);
-$loanSearchRows = $loanSearchStmt->fetchAll();
 
 $selectedLoan = null;
 $selectedPendingRows = [];
@@ -70,165 +29,104 @@ $selectedLoanJson = '{}';
 $selectedIssuedDate = '';
 $selectedDisplayEndDate = '';
 
-if ($selectedLoanId > 0) {
-    $selectedLoanStmt = $pdo->prepare(
-        "SELECT
-            l.*,
-            c.full_name,
-            c.nic AS customer_nic,
-            c.phone AS customer_phone,
-            u.full_name AS assigned_user_name
-         FROM loans l
-         JOIN customers c ON c.id = l.customer_id
-         LEFT JOIN users u ON u.id = l.assigned_user_id
-         WHERE l.id = :loan_id
-         LIMIT 1"
-    );
-    $selectedLoanStmt->execute(['loan_id' => $selectedLoanId]);
-    $selectedLoan = $selectedLoanStmt->fetch() ?: null;
+$selectedLoanStmt = $pdo->prepare(
+    "SELECT
+        l.*,
+        c.full_name,
+        c.nic AS customer_nic,
+        c.phone AS customer_phone,
+        u.full_name AS assigned_user_name
+     FROM loans l
+     JOIN customers c ON c.id = l.customer_id
+     LEFT JOIN users u ON u.id = l.assigned_user_id
+     WHERE l.id = :loan_id
+     LIMIT 1"
+);
+$selectedLoanStmt->execute(['loan_id' => $selectedLoanId]);
+$selectedLoan = $selectedLoanStmt->fetch() ?: null;
 
-    if ($selectedLoan && (string) ($selectedLoan['status'] ?? '') === 'closed') {
-        set_flash('error', 'Closed loans cannot be extended.');
-        redirect('pages/loan_extend.php');
-    }
-
-    if ($selectedLoan) {
-        $pendingStmt = $pdo->prepare(
-            "SELECT id, installment_no, due_date, due_amount, paid_amount, status
-             FROM loan_installments
-             WHERE loan_id = :loan_id
-               AND status IN ('pending', 'partial', 'overdue')
-               AND due_amount > paid_amount
-             ORDER BY due_date ASC, installment_no ASC"
-        );
-        $pendingStmt->execute(['loan_id' => $selectedLoanId]);
-        $selectedPendingRows = $pendingStmt->fetchAll();
-
-        foreach ($selectedPendingRows as $row) {
-            $selectedOutstanding += max(0.0, round((float) $row['due_amount'] - (float) $row['paid_amount'], 2));
-        }
-        $selectedOutstanding = round($selectedOutstanding, 2);
-        $selectedRemainingCount = count($selectedPendingRows);
-        $selectedNextDueDate = $selectedPendingRows[0]['due_date'] ?? '';
-
-        $collectionTotalStmt = $pdo->prepare('SELECT COALESCE(SUM(amount), 0) FROM collections WHERE loan_id = :loan_id');
-        $collectionTotalStmt->execute(['loan_id' => $selectedLoanId]);
-        $selectedCollectionTotal = round((float) $collectionTotalStmt->fetchColumn(), 2);
-
-        $scheduleMetaStmt = $pdo->prepare(
-            'SELECT COALESCE(MAX(due_date), "") AS max_due_date
-             FROM loan_installments
-             WHERE loan_id = :loan_id'
-        );
-        $scheduleMetaStmt->execute(['loan_id' => $selectedLoanId]);
-        $selectedMaxDueDate = (string) ($scheduleMetaStmt->fetchColumn() ?: '');
-        if ($selectedMaxDueDate === '') {
-            $selectedMaxDueDate = (string) (($selectedLoan['end_date'] ?? '') ?: today());
-        }
-
-        $selectedIssuedDate = (string) (($selectedLoan['issued_date'] ?? '') ?: ($selectedLoan['start_date'] ?? ''));
-        $selectedEndDate = (string) (($selectedLoan['end_date'] ?? '') ?: $selectedMaxDueDate);
-        $selectedDisplayEndDate = $selectedEndDate;
-        $selectedMinExtendDate = next_collectible_date(
-            $pdo,
-            (new DateTimeImmutable($selectedEndDate))->add(new DateInterval('P1D'))->format('Y-m-d')
-        );
-
-        $selectedLoanJson = (string) json_encode([
-            'principal' => round((float) ($selectedLoan['principal_amount'] ?? 0), 2),
-            'total' => round((float) ($selectedLoan['total_amount'] ?? 0), 2),
-            'outstanding' => $selectedOutstanding,
-            'remaining_count' => $selectedRemainingCount,
-            'installment_count' => (int) ($selectedLoan['installment_count'] ?? 0),
-            'interest_rate' => round((float) ($selectedLoan['interest_rate'] ?? 0), 4),
-            'interest_rate_type' => normalize_interest_rate_type((string) ($selectedLoan['interest_rate_type'] ?? 'amount_based')),
-            'interest_rate_months' => normalize_interest_rate_months((int) ($selectedLoan['interest_rate_months'] ?? 1)),
-            'frequency' => (string) ($selectedLoan['installment_frequency'] ?? 'daily'),
-            'current_end_date' => $selectedEndDate,
-            'min_extend_date' => $selectedMinExtendDate,
-            'pending_dates' => array_values(array_map(static fn (array $row): string => (string) $row['due_date'], $selectedPendingRows)),
-            'holiday_dates' => $selectedHolidayDates,
-            'currency' => $currencyLabel,
-        ], JSON_UNESCAPED_SLASHES);
-    }
+if (!$selectedLoan) {
+    set_flash('error', 'Loan not found.');
+    redirect('pages/loans.php');
 }
+
+if ((string) ($selectedLoan['status'] ?? '') === 'closed') {
+    set_flash('error', 'Closed loans cannot be extended.');
+    redirect('pages/loan_edit.php?loan_id=' . $selectedLoanId);
+}
+
+$pendingStmt = $pdo->prepare(
+    "SELECT id, installment_no, due_date, due_amount, paid_amount, status
+     FROM loan_installments
+     WHERE loan_id = :loan_id
+       AND status IN ('pending', 'partial', 'overdue')
+       AND due_amount > paid_amount
+     ORDER BY due_date ASC, installment_no ASC"
+);
+$pendingStmt->execute(['loan_id' => $selectedLoanId]);
+$selectedPendingRows = $pendingStmt->fetchAll();
+
+foreach ($selectedPendingRows as $row) {
+    $selectedOutstanding += max(0.0, round((float) $row['due_amount'] - (float) $row['paid_amount'], 2));
+}
+$selectedOutstanding = round($selectedOutstanding, 2);
+$selectedRemainingCount = count($selectedPendingRows);
+$selectedNextDueDate = $selectedPendingRows[0]['due_date'] ?? '';
+
+$collectionTotalStmt = $pdo->prepare('SELECT COALESCE(SUM(amount), 0) FROM collections WHERE loan_id = :loan_id');
+$collectionTotalStmt->execute(['loan_id' => $selectedLoanId]);
+$selectedCollectionTotal = round((float) $collectionTotalStmt->fetchColumn(), 2);
+
+$scheduleMetaStmt = $pdo->prepare(
+    'SELECT COALESCE(MAX(due_date), "") AS max_due_date
+     FROM loan_installments
+     WHERE loan_id = :loan_id'
+);
+$scheduleMetaStmt->execute(['loan_id' => $selectedLoanId]);
+$selectedMaxDueDate = (string) ($scheduleMetaStmt->fetchColumn() ?: '');
+if ($selectedMaxDueDate === '') {
+    $selectedMaxDueDate = (string) (($selectedLoan['end_date'] ?? '') ?: today());
+}
+
+$selectedIssuedDate = (string) (($selectedLoan['issued_date'] ?? '') ?: ($selectedLoan['start_date'] ?? ''));
+$selectedEndDate = (string) (($selectedLoan['end_date'] ?? '') ?: $selectedMaxDueDate);
+$selectedDisplayEndDate = $selectedEndDate;
+$selectedMinExtendDate = next_collectible_date(
+    $pdo,
+    (new DateTimeImmutable($selectedEndDate))->add(new DateInterval('P1D'))->format('Y-m-d')
+);
+
+$selectedLoanJson = (string) json_encode([
+    'principal' => round((float) ($selectedLoan['principal_amount'] ?? 0), 2),
+    'total' => round((float) ($selectedLoan['total_amount'] ?? 0), 2),
+    'outstanding' => $selectedOutstanding,
+    'remaining_count' => $selectedRemainingCount,
+    'installment_count' => (int) ($selectedLoan['installment_count'] ?? 0),
+    'interest_rate' => round((float) ($selectedLoan['interest_rate'] ?? 0), 4),
+    'interest_rate_type' => normalize_interest_rate_type((string) ($selectedLoan['interest_rate_type'] ?? 'amount_based')),
+    'interest_rate_months' => normalize_interest_rate_months((int) ($selectedLoan['interest_rate_months'] ?? 1)),
+    'frequency' => (string) ($selectedLoan['installment_frequency'] ?? 'daily'),
+    'current_end_date' => $selectedEndDate,
+    'min_extend_date' => $selectedMinExtendDate,
+    'pending_dates' => array_values(array_map(static fn (array $row): string => (string) $row['due_date'], $selectedPendingRows)),
+    'holiday_dates' => $selectedHolidayDates,
+    'currency' => $currencyLabel,
+    'money_decimals' => money_display_decimals($pdo),
+], JSON_UNESCAPED_SLASHES);
 
 require __DIR__ . '/../includes/layout_start.php';
 ?>
 
 <div class="create-loan-actionbar">
-    <a class="btn" href="<?= e(url('pages/loans.php')) ?>">
+    <a class="btn" href="<?= e(url('pages/loan_edit.php?loan_id=' . $selectedLoanId)) ?>">
         <span class="btn-icon-inline" aria-hidden="true">
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>
         </span>
-        Back to Loans
+        Back to Loan
     </a>
-    <?php if ($selectedLoan): ?>
-        <a class="btn" href="<?= e(url('pages/loan_edit.php?loan_id=' . $selectedLoanId)) ?>">View Loan</a>
-    <?php endif; ?>
 </div>
 
-<?php if (!$selectedLoan): ?>
-    <section class="panel loan-extend-search-panel">
-        <div class="panel-head">
-            <div>
-                <h2 class="panel-title">Step 1 - Select Loan</h2>
-            </div>
-            <form class="loan-filter-form loan-extend-search-form" method="get">
-                <div class="field loan-search-field">
-                    <label class="sr-only">Search loan</label>
-                    <div class="search-control">
-                        <input type="text" name="q" value="<?= e($search) ?>" placeholder="Search loan or customer..." aria-label="Search loan or customer">
-                        <button type="submit" class="btn search-submit" aria-label="Search">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg>
-                        </button>
-                    </div>
-                </div>
-                <?php if ($search !== ''): ?>
-                    <a class="btn loan-filter-reset" href="<?= e(url('pages/loan_extend.php')) ?>">Reset</a>
-                <?php endif; ?>
-            </form>
-        </div>
-
-        <div class="table-wrap loan-extend-results-wrap">
-            <table class="zebra-table">
-                <thead>
-                <tr>
-                    <th>Loan No</th>
-                    <th>Customer</th>
-                    <th>Total</th>
-                    <th>Balance</th>
-                    <th>Inst. Left</th>
-                    <th>End Date</th>
-                </tr>
-                </thead>
-                <tbody>
-                <?php if (!$loanSearchRows): ?>
-                    <tr><td colspan="6">No active loans found.</td></tr>
-                <?php else: ?>
-                    <?php foreach ($loanSearchRows as $row): ?>
-                        <?php
-                        $rowLoanId = (int) $row['id'];
-                        $selectUrl = url('pages/loan_extend.php?loan_id=' . $rowLoanId . ($search !== '' ? '&q=' . rawurlencode($search) : ''));
-                        ?>
-                        <tr class="table-row-clickable" data-select-url="<?= e($selectUrl) ?>">
-                            <td><?= e((string) $row['loan_number']) ?></td>
-                            <td><?= e((string) $row['full_name']) ?></td>
-                            <td><?= e(money_label($pdo, (float) $row['total_amount'])) ?></td>
-                            <td><?= e(money_label($pdo, max(0.0, (float) $row['outstanding_amount']))) ?></td>
-                            <td><?= e((string) (int) $row['remaining_installment_count']) ?></td>
-                            <td><?= e((string) ($row['end_date'] ?? '') !== '' ? display_date((string) $row['end_date']) : '-') ?></td>
-                        </tr>
-                    <?php endforeach; ?>
-                <?php endif; ?>
-                </tbody>
-            </table>
-        </div>
-    </section>
-<?php endif; ?>
-
-<?php if ($selectedLoan): ?>
-    <section class="loan-extend-layout" data-loan-extend data-loan-extend-state="<?= e($selectedLoanJson) ?>">
+<section class="loan-extend-layout" data-loan-extend data-loan-extend-state="<?= e($selectedLoanJson) ?>">
         <div class="panel loan-extend-details-panel">
             <div class="panel-head">
                 <h2 class="panel-title">Original Details</h2>
@@ -291,7 +189,7 @@ require __DIR__ . '/../includes/layout_start.php';
 
         <div class="panel loan-extend-options-panel">
             <div class="panel-head">
-                <h2 class="panel-title">Step 2 - Extend Options</h2>
+                <h2 class="panel-title">Extend Options</h2>
             </div>
             <?php if ($selectedRemainingCount <= 0): ?>
                 <p class="loan-extend-empty">No unpaid installments available.</p>
@@ -338,7 +236,7 @@ require __DIR__ . '/../includes/layout_start.php';
                     <div class="calc-preview-grid calc-preview-grid-three loan-extend-preview-grid">
                         <div class="calc-preview-item">
                             <p>Additional Repayable</p>
-                            <h3><span data-loan-extend-preview-additional><?= e($currencyLabel) ?> 0.00</span></h3>
+                            <h3><span data-loan-extend-preview-additional><?= e($currencyLabel . ' ' . money(0, money_display_decimals($pdo))) ?></span></h3>
                         </div>
                         <div class="calc-preview-item">
                             <p>New Balance</p>
@@ -367,11 +265,6 @@ require __DIR__ . '/../includes/layout_start.php';
             <?php endif; ?>
         </div>
     </section>
-<?php elseif ($selectedLoanId > 0): ?>
-    <section class="panel">
-        <p class="loan-extend-empty">Loan not found.</p>
-    </section>
-<?php endif; ?>
 
 <script>
 (() => {
@@ -405,9 +298,10 @@ require __DIR__ . '/../includes/layout_start.php';
 
     const money = (value) => {
         const numberValue = Number.isFinite(value) ? value : 0;
+        const decimals = Number(state.money_decimals) === 0 ? 0 : 2;
         return `${state.currency || 'LKR'} ${numberValue.toLocaleString('en-US', {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2
+            minimumFractionDigits: decimals,
+            maximumFractionDigits: decimals
         })}`;
     };
     const parseAmount = (input) => input instanceof HTMLInputElement ? Math.max(0, Number.parseFloat(input.value || '0') || 0) : 0;

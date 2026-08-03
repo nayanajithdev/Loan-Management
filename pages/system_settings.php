@@ -40,6 +40,14 @@ require __DIR__ . '/../includes/layout_start.php';
                 <input type="text" name="date_format" maxlength="20" value="<?= e($get('date_format', 'd/m/Y')) ?>" required<?= $disabledAttr ?>>
             </div>
             <div class="field">
+                <label>Display Cents</label>
+                <?php $displayCents = $get('display_cents_enabled', '1'); ?>
+                <select name="display_cents_enabled" required<?= $disabledAttr ?>>
+                    <option value="1" <?= $displayCents !== '0' ? 'selected' : '' ?>>Enabled</option>
+                    <option value="0" <?= $displayCents === '0' ? 'selected' : '' ?>>Disabled</option>
+                </select>
+            </div>
+            <div class="field">
                 <label>Allow Overpayment</label>
                 <?php $allowOverpay = $get('allow_overpayment', '1'); ?>
                 <select name="allow_overpayment" required<?= $disabledAttr ?>>

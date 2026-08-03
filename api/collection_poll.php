@@ -54,6 +54,15 @@ $collectedInstallments = $selectedCollectionStatus === 'collected'
     ? collection_collected_installments_for_date($pdo, $selectedDate, $search, $currentRole, $currentUserId)
     : [];
 $displayInstallments = $selectedCollectionStatus === 'collected' ? $collectedInstallments : $pendingInstallments;
+$pendingAmountTotal = 0.0;
+$pendingLoanIds = [];
+foreach ($pendingInstallments as $item) {
+    $pendingAmountTotal += max(0.0, round((float) $item['due_amount'] - (float) $item['paid_amount'], 2));
+    if (isset($item['loan_id'])) {
+        $pendingLoanIds[(int) $item['loan_id']] = true;
+    }
+}
+$pendingLoanCount = $pendingLoanIds ? count($pendingLoanIds) : count($pendingInstallments);
 
 if (is_collector_role($currentRole)) {
     $selectedCollectionTotalStmt = $pdo->prepare(
@@ -75,13 +84,17 @@ $selectedCollectionTotal = (float) $selectedCollectionTotalStmt->fetchColumn();
 
 ob_start();
 ?>
-<div class="metric-box">
-    <p>Collected Total (Selected Date)</p>
+<div class="metric-box is-collected">
+    <p>Collected total</p>
     <h3><?= e(money_label($pdo, $selectedCollectionTotal)) ?></h3>
 </div>
-<div class="metric-box">
-    <p><?= $selectedCollectionStatus === 'collected' ? 'Collected Count (Selected Date)' : 'Pending Count (Selected Date)' ?></p>
-    <h3><?= e((string) count($displayInstallments)) ?></h3>
+<div class="metric-box is-pending-amount">
+    <p>Pending amount</p>
+    <h3><?= e(money_label($pdo, $pendingAmountTotal)) ?></h3>
+</div>
+<div class="metric-box is-pending-count">
+    <p>Pending count</p>
+    <h3><?= e((string) $pendingLoanCount) ?> <?= $pendingLoanCount === 1 ? 'loan' : 'loans' ?></h3>
 </div>
 <?php
 $summaryHtml = ob_get_clean();

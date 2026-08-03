@@ -47,10 +47,6 @@ if ($canViewCollectionHistory) {
 require __DIR__ . '/includes/layout_start.php';
 ?>
 
-<div class="dashboard-headline">
-    <p class="live-indicator" id="js-last-updated">Last update: waiting...</p>
-</div>
-
 <section class="card-grid dashboard-stat-grid" id="dashboard-stat-cards">
     <?php if ($canViewTodayCollections): ?>
         <article class="stat-card goal-mini-card card-clickable" id="dashboard-goal-card" data-select-url="<?= e(url('pages/today_collections.php')) ?>">

@@ -78,29 +78,25 @@ $loadMoreUrl = url('pages/collections.php') . '?' . http_build_query($queryForMo
 require __DIR__ . '/../includes/layout_start.php';
 ?>
 
-<p class="live-indicator" id="js-last-updated">Last update: waiting...</p>
+<form method="get" class="collection-history-filter">
+    <div class="collection-history-search">
+        <label class="sr-only">Search collection history</label>
+        <div class="search-control">
+            <input type="text" name="q" value="<?= e($search) ?>" placeholder="Search..." aria-label="Search by loan number, customer name, or phone">
+            <button type="submit" class="btn search-submit" aria-label="Search collection history">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg>
+            </button>
+        </div>
+        <?php if ($selectedCustomerId > 0): ?>
+            <input type="hidden" name="customer_id" value="<?= e((string) $selectedCustomerId) ?>">
+        <?php endif; ?>
+    </div>
+    <div class="collection-history-filter-actions">
+        <a class="btn" href="<?= e(url('pages/collections.php')) ?>">Reset</a>
+    </div>
+</form>
 
 <section class="panel">
-    <div class="panel-head">
-        <h2 class="panel-title">Collection History</h2>
-    </div>
-    <form method="get" class="collection-history-filter">
-        <div class="collection-history-search">
-            <label class="sr-only">Search collection history</label>
-            <div class="search-control">
-                <input type="text" name="q" value="<?= e($search) ?>" placeholder="Search..." aria-label="Search by loan number, customer name, or phone">
-                <button type="submit" class="btn search-submit" aria-label="Search collection history">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg>
-                </button>
-            </div>
-            <?php if ($selectedCustomerId > 0): ?>
-                <input type="hidden" name="customer_id" value="<?= e((string) $selectedCustomerId) ?>">
-            <?php endif; ?>
-        </div>
-        <div class="collection-history-filter-actions">
-            <a class="btn" href="<?= e(url('pages/collections.php')) ?>">Reset</a>
-        </div>
-    </form>
     <div class="table-wrap">
         <table class="collection-history-table collections-history-table <?= $paymentMethodSelectionEnabled ? '' : 'is-method-hidden' ?>">
             <thead>

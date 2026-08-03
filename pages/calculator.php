@@ -31,7 +31,7 @@ require __DIR__ . '/../includes/layout_start.php';
         <h2 class="panel-title">Loan Calculator</h2>
     </div>
 
-    <form id="loan-form" class="form-grid" onsubmit="return false;">
+    <form id="loan-form" class="form-grid" data-money-decimals="<?= e((string) money_display_decimals($pdo)) ?>" onsubmit="return false;">
         <div class="field">
             <label>Principal Amount</label>
             <input type="number" step="0.01" name="principal_amount" required>
@@ -73,15 +73,15 @@ require __DIR__ . '/../includes/layout_start.php';
             <div class="calc-preview-grid calc-preview-grid-three">
                 <div class="calc-preview-item">
                     <p>Total Repayable</p>
-                    <h3><?= e(currency_label($pdo)) ?> <span id="preview-total">0.00</span></h3>
+                    <h3><?= e(currency_label($pdo)) ?> <span id="preview-total"><?= e(money(0, money_display_decimals($pdo))) ?></span></h3>
                 </div>
                 <div class="calc-preview-item">
                     <p>Per Installment</p>
-                    <h3><?= e(currency_label($pdo)) ?> <span id="preview-installment">0.00</span></h3>
+                    <h3><?= e(currency_label($pdo)) ?> <span id="preview-installment"><?= e(money(0, money_display_decimals($pdo))) ?></span></h3>
                 </div>
                 <div class="calc-preview-item">
                     <p>Profit</p>
-                    <h3><?= e(currency_label($pdo)) ?> <span id="preview-profit">0.00</span></h3>
+                    <h3><?= e(currency_label($pdo)) ?> <span id="preview-profit"><?= e(money(0, money_display_decimals($pdo))) ?></span></h3>
                 </div>
                 <div class="calc-preview-item">
                     <p>No. of Installments</p>

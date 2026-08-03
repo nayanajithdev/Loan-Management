@@ -58,7 +58,6 @@ $stmt = $pdo->prepare($sql);
 $stmt->execute($params);
 $loans = $stmt->fetchAll();
 $canCreateLoan = can('loans.create');
-$canExtendLoan = can('loans.edit');
 
 $renderAssignedHeader = static function (array $assignedUsers, int $assignedUserId): string {
     ob_start(); ?>
@@ -150,6 +149,54 @@ $renderLoansBody = static function (array $loans, PDO $pdo, string $status): str
     return (string) ob_get_clean();
 };
 
+$renderLoansCards = static function (array $loans, PDO $pdo, string $status): string {
+    ob_start();
+    if (!$loans): ?>
+        <div class="loan-mobile-empty">No loans yet.</div>
+    <?php else: ?>
+        <?php foreach ($loans as $loan): ?>
+            <?php
+            $balance = max(0, (float) $loan['outstanding_amount']);
+            $collectedAmount = max(0, round((float) $loan['total_amount'] - $balance, 2));
+            $closedOn = trim((string) ($loan['closed_on'] ?? ''));
+            $selectUrl = url('pages/loan_edit.php?loan_id=' . (int) $loan['id']);
+            ?>
+            <article class="loan-mobile-card table-row-clickable" data-select-url="<?= e($selectUrl) ?>">
+                <div class="loan-mobile-card-head">
+                    <strong class="loan-mobile-number"><?= e((string) $loan['loan_number']) ?></strong>
+                    <strong class="loan-mobile-customer"><?= e((string) $loan['full_name']) ?></strong>
+                </div>
+                <div class="loan-mobile-card-body">
+                    <div class="loan-mobile-metric">
+                        <span>Principal</span>
+                        <strong><?= e(money_label($pdo, (float) $loan['principal_amount'])) ?></strong>
+                    </div>
+                    <div class="loan-mobile-metric">
+                        <span>Total</span>
+                        <strong><?= e(money_label($pdo, (float) $loan['total_amount'])) ?></strong>
+                    </div>
+                    <div class="loan-mobile-metric is-collected">
+                        <span>Collected</span>
+                        <strong><?= e(money_label($pdo, $collectedAmount)) ?></strong>
+                    </div>
+                    <?php if ($status === 'closed'): ?>
+                        <div class="loan-mobile-metric">
+                            <span>Closed</span>
+                            <strong><?= e($closedOn !== '' ? display_date($closedOn) : '-') ?></strong>
+                        </div>
+                    <?php else: ?>
+                        <div class="loan-mobile-metric is-balance">
+                            <span>Balance</span>
+                            <strong><?= $balance <= 0 ? '---' : e(money_label($pdo, $balance)) ?></strong>
+                        </div>
+                    <?php endif; ?>
+                </div>
+            </article>
+        <?php endforeach; ?>
+    <?php endif;
+    return (string) ob_get_clean();
+};
+
 $isAjax = (
     isset($_GET['loans_ajax']) &&
     $_GET['loans_ajax'] === '1' &&
@@ -161,6 +208,7 @@ if ($isAjax) {
         'targets' => [
             '#loans-table-head' => $renderLoansHead($status, $assignedUsers, $assignedUserId),
             '#loans-table-body' => $renderLoansBody($loans, $pdo, $status),
+            '#loans-mobile-cards' => $renderLoansCards($loans, $pdo, $status),
         ],
     ], JSON_UNESCAPED_UNICODE);
     exit;
@@ -169,43 +217,87 @@ if ($isAjax) {
 require __DIR__ . '/../includes/layout_start.php';
 ?>
 
-<section class="panel">
-    <div class="panel-head">
-        <div>
-            <form id="loan-filter-form" class="loan-filter-form" method="get">
-                <div class="field loan-status-field">
-                    <label>Status</label>
-                    <select name="status" id="loan-status-filter" class="loan-status-select is-<?= e($status) ?>">
-                        <option value="active" <?= $status === 'active' ? 'selected' : '' ?>><?= e($formatLoanStatusOption('Active', $loanStatusCounts['active'])) ?></option>
-                        <option value="closed" <?= $status === 'closed' ? 'selected' : '' ?>><?= e($formatLoanStatusOption('Closed', $loanStatusCounts['closed'])) ?></option>
-                    </select>
-                </div>
-                <input type="hidden" name="assigned_user_id" id="loan-assigned-filter" value="<?= e((string) $assignedUserId) ?>">
-                <div class="field loan-search-field">
-                    <label class="sr-only">Search loans</label>
-                    <div class="search-control">
-                        <input type="text" name="q" value="<?= e($search) ?>" placeholder="Search..." aria-label="Search by loan number, customer name or ID number">
-                        <button type="submit" class="btn search-submit" aria-label="Search loans">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg>
-                        </button>
-                    </div>
-                </div>
-                <a class="btn loan-filter-reset" href="<?= e(url('pages/loans.php')) ?>">Reset</a>
-            </form>
+<div class="loans-page-toolbar">
+    <form id="loan-filter-form" class="loan-filter-form" method="get">
+        <div class="field loan-status-field">
+            <label class="sr-only">Status</label>
+            <select name="status" id="loan-status-filter" class="loan-status-select is-<?= e($status) ?>">
+                <option value="active" <?= $status === 'active' ? 'selected' : '' ?>><?= e($formatLoanStatusOption('Active Loans', $loanStatusCounts['active'])) ?></option>
+                <option value="closed" <?= $status === 'closed' ? 'selected' : '' ?>><?= e($formatLoanStatusOption('Closed Loans', $loanStatusCounts['closed'])) ?></option>
+            </select>
         </div>
-        <?php if ($canCreateLoan || $canExtendLoan): ?>
-            <div style="display:flex; gap:8px; align-items:flex-end; flex-wrap:wrap;">
-                <?php if ($canExtendLoan): ?>
-                    <a class="btn" href="<?= e(url('pages/loan_extend.php')) ?>">Extend Loan</a>
-                <?php endif; ?>
-                <?php if ($canCreateLoan): ?>
-                    <a class="btn btn-primary" href="<?= e(url('pages/loan_create.php')) ?>">New Loan</a>
-                <?php endif; ?>
+        <input type="hidden" name="assigned_user_id" id="loan-assigned-filter" value="<?= e((string) $assignedUserId) ?>">
+        <div class="field loan-search-field">
+            <label class="sr-only">Search loans</label>
+            <div class="search-control">
+                <input type="text" name="q" value="<?= e($search) ?>" placeholder="Search..." aria-label="Search by loan number, customer name or ID number">
+                <button type="submit" class="btn search-submit" aria-label="Search loans">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg>
+                </button>
             </div>
-        <?php endif; ?>
-    </div>
+        </div>
+        <a class="btn loan-filter-reset" href="<?= e(url('pages/loans.php')) ?>">
+            <span class="btn-icon-inline" aria-hidden="true">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-x-icon lucide-x"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+            </span>
+            Reset
+        </a>
+    </form>
+    <?php if ($canCreateLoan): ?>
+        <div class="loans-page-actions">
+            <a class="btn btn-primary loan-create-action" href="<?= e(url('pages/loan_create.php')) ?>">
+                <span class="btn-icon-inline" aria-hidden="true">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-plus-icon lucide-circle-plus"><circle cx="12" cy="12" r="10"/><path d="M8 12h8"/><path d="M12 8v8"/></svg>
+                </span>
+                New Loan
+            </a>
+        </div>
+    <?php endif; ?>
+</div>
+
+<div class="loans-mobile-toolbar">
+    <form class="loan-mobile-filter-form" method="get" action="<?= e(url('pages/loans.php')) ?>">
+        <input type="hidden" name="assigned_user_id" value="<?= e((string) $assignedUserId) ?>">
+        <div class="loan-mobile-toolbar-row loan-mobile-toolbar-primary">
+            <?php if ($canCreateLoan): ?>
+                <a class="btn btn-primary loan-create-action" href="<?= e(url('pages/loan_create.php')) ?>">
+                    <span class="btn-icon-inline" aria-hidden="true">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-plus-icon lucide-circle-plus"><circle cx="12" cy="12" r="10"/><path d="M8 12h8"/><path d="M12 8v8"/></svg>
+                    </span>
+                    New Loan
+                </a>
+            <?php endif; ?>
+            <div class="field loan-mobile-status-field">
+                <label class="sr-only">Status</label>
+                <select name="status" class="loan-status-select is-<?= e($status) ?>" data-loan-mobile-status>
+                    <option value="active" <?= $status === 'active' ? 'selected' : '' ?>><?= e($formatLoanStatusOption('Active Loans', $loanStatusCounts['active'])) ?></option>
+                    <option value="closed" <?= $status === 'closed' ? 'selected' : '' ?>><?= e($formatLoanStatusOption('Closed Loans', $loanStatusCounts['closed'])) ?></option>
+                </select>
+            </div>
+        </div>
+        <div class="loan-mobile-toolbar-row loan-mobile-toolbar-secondary">
+            <div class="field loan-mobile-search-field">
+                <label class="sr-only">Search loans</label>
+                <div class="search-control">
+                    <input type="text" name="q" value="<?= e($search) ?>" placeholder="Search..." aria-label="Search by loan number, customer name or ID number">
+                    <button type="submit" class="btn search-submit" aria-label="Search loans">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg>
+                    </button>
+                </div>
+            </div>
+            <a class="btn loan-mobile-filter-reset" href="<?= e(url('pages/loans.php')) ?>">
+                <span class="btn-icon-inline" aria-hidden="true">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-x-icon lucide-x"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                </span>
+                Reset
+            </a>
+        </div>
+    </form>
+</div>
+
+<section class="panel loans-list-panel">
     <div class="table-wrap">
-        <table class="zebra-table loans-table">
+        <table class="zebra-table loans-table loans-table-<?= e($status) ?>">
             <thead id="loans-table-head">
             <?= $renderLoansHead($status, $assignedUsers, $assignedUserId) ?>
             </thead>
@@ -214,15 +306,33 @@ require __DIR__ . '/../includes/layout_start.php';
             </tbody>
         </table>
     </div>
+    <div class="loan-mobile-card-list" id="loans-mobile-cards">
+        <?= $renderLoansCards($loans, $pdo, $status) ?>
+    </div>
 </section>
 
 <script>
 (() => {
+  document.querySelectorAll('[data-loan-mobile-status]').forEach((mobileStatus) => {
+    mobileStatus.addEventListener('change', () => {
+      if (mobileStatus.form instanceof HTMLFormElement) {
+        mobileStatus.form.submit();
+      }
+    });
+  });
+
   const form = document.getElementById('loan-filter-form');
   const status = document.getElementById('loan-status-filter');
   const assigned = document.getElementById('loan-assigned-filter');
   const tbody = document.getElementById('loans-table-body');
   if (!form || !status || !assigned || !tbody) return;
+
+  const syncLoanTableStatusClass = () => {
+    const loansTable = tbody.closest('table');
+    if (!loansTable) return;
+    loansTable.classList.toggle('loans-table-active', status.value === 'active');
+    loansTable.classList.toggle('loans-table-closed', status.value === 'closed');
+  };
 
   const loadRows = async () => {
     const params = new URLSearchParams(new FormData(form));
@@ -244,6 +354,11 @@ require __DIR__ . '/../includes/layout_start.php';
           bindFilterMenus();
         }
         tbody.innerHTML = String(data.targets['#loans-table-body']);
+        const mobileCards = document.getElementById('loans-mobile-cards');
+        if (mobileCards && data.targets['#loans-mobile-cards'] !== undefined) {
+          mobileCards.innerHTML = String(data.targets['#loans-mobile-cards']);
+        }
+        syncLoanTableStatusClass();
         if (typeof window.applyMobileTableStack === 'function') window.applyMobileTableStack();
       }
     } catch (_error) {
@@ -254,6 +369,7 @@ require __DIR__ . '/../includes/layout_start.php';
   status.addEventListener('change', () => {
     status.classList.toggle('is-active', status.value === 'active');
     status.classList.toggle('is-closed', status.value === 'closed');
+    syncLoanTableStatusClass();
     loadRows();
   });
   const bindFilterMenus = () => {

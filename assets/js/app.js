@@ -955,9 +955,10 @@
     };
 
     const formatMoney = (value) => {
+        const decimals = form.dataset.moneyDecimals === '0' ? 0 : 2;
         return new Intl.NumberFormat('en-US', {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2,
+            minimumFractionDigits: decimals,
+            maximumFractionDigits: decimals,
         }).format(value);
     };
 

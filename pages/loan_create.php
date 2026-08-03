@@ -51,6 +51,9 @@ require __DIR__ . '/../includes/layout_start.php';
                 <span class="inline-customer-checkbox" aria-hidden="true">
                     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
                 </span>
+                <span class="btn-icon-inline" aria-hidden="true">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-user-plus-icon lucide-user-plus"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" x2="19" y1="8" y2="14"/><line x1="22" x2="16" y1="11" y2="11"/></svg>
+                </span>
                 New Customer
             </button>
         <?php endif; ?>
@@ -75,6 +78,7 @@ require __DIR__ . '/../includes/layout_start.php';
         action="<?= e(url('actions/loan_save.php')) ?>"
         data-start-date="<?= e($scheduleStartDate) ?>"
         data-holiday-dates="<?= e((string) json_encode($holidayDates, JSON_UNESCAPED_SLASHES)) ?>"
+        data-money-decimals="<?= e((string) money_display_decimals($pdo)) ?>"
     >
             <?= csrf_input() ?>
             <?php if ($canCreateCustomer): ?>
@@ -214,11 +218,11 @@ require __DIR__ . '/../includes/layout_start.php';
                     <div class="calc-preview-grid calc-preview-grid-four create-loan-preview-grid">
                         <div class="calc-preview-item">
                             <p>Total Repayable</p>
-                            <h3><?= e(currency_label($pdo)) ?> <span id="preview-total">0.00</span></h3>
+                            <h3><?= e(currency_label($pdo)) ?> <span id="preview-total"><?= e(money(0, money_display_decimals($pdo))) ?></span></h3>
                         </div>
                         <div class="calc-preview-item">
                             <p>Per Installment</p>
-                            <h3><?= e(currency_label($pdo)) ?> <span id="preview-installment">0.00</span></h3>
+                            <h3><?= e(currency_label($pdo)) ?> <span id="preview-installment"><?= e(money(0, money_display_decimals($pdo))) ?></span></h3>
                         </div>
                         <div class="calc-preview-item">
                             <p>No. of Installments</p>

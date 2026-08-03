@@ -161,9 +161,15 @@ function collection_note_split(?string $rawNote): array
     return ['public' => $note, 'meta' => $meta];
 }
 
-function money(float $amount): string
+function money(float $amount, int $decimals = 2): string
 {
-    return number_format($amount, 2);
+    $decimals = $decimals > 0 ? 2 : 0;
+    return number_format($amount, $decimals);
+}
+
+function money_display_decimals(PDO $pdo): int
+{
+    return system_setting($pdo, 'display_cents_enabled', '1') === '0' ? 0 : 2;
 }
 
 function currency_label(PDO $pdo): string
@@ -182,7 +188,7 @@ function currency_label(PDO $pdo): string
 
 function money_label(PDO $pdo, float $amount): string
 {
-    return currency_label($pdo) . ' ' . money($amount);
+    return currency_label($pdo) . ' ' . money($amount, money_display_decimals($pdo));
 }
 
 function timezone_offset_for_mysql(string $timezoneIdentifier): string

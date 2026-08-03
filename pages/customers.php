@@ -96,39 +96,38 @@ $customers = $customerStmt->fetchAll();
 require __DIR__ . '/../includes/layout_start.php';
 ?>
 
-<section class="panel">
-    <div class="panel-head">
-        <h2 class="panel-title">Customer List</h2>
-        <div class="panel-head-actions">
-            <form
-                method="get"
-                class="panel-head-actions"
+<div class="customers-page-toolbar">
+    <form method="get" class="customers-search-form">
+        <div class="search-control">
+            <input
+                type="text"
+                name="q"
+                placeholder="Search..."
+                value="<?= e($searchTerm) ?>"
+                aria-label="Search customer"
             >
-                <div class="search-control">
-                    <input
-                        type="text"
-                        name="q"
-                        placeholder="Search..."
-                        value="<?= e($searchTerm) ?>"
-                        aria-label="Search customer"
-                    >
-                    <button type="submit" class="btn search-submit" aria-label="Search customer">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg>
-                    </button>
-                </div>
-                <?php if ($searchTerm !== ''): ?>
-                    <a
-                        class="btn"
-                        href="<?= e(url('pages/customers.php')) ?>"
-                    >Reset</a>
-                <?php endif; ?>
-            </form>
-            <?php if ($canCreateCustomer): ?>
-                <a class="btn btn-primary" href="<?= e(url('pages/customer_create.php')) ?>">New Customer</a>
-            <?php endif; ?>
+            <button type="submit" class="btn search-submit" aria-label="Search customer">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg>
+            </button>
         </div>
-    </div>
+        <?php if ($searchTerm !== ''): ?>
+            <a
+                class="btn"
+                href="<?= e(url('pages/customers.php')) ?>"
+            >Reset</a>
+        <?php endif; ?>
+    </form>
+    <?php if ($canCreateCustomer): ?>
+        <a class="btn btn-primary" href="<?= e(url('pages/customer_create.php')) ?>">
+            <span class="btn-icon-inline" aria-hidden="true">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-user-plus-icon lucide-user-plus"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" x2="19" y1="8" y2="14"/><line x1="22" x2="16" y1="11" y2="11"/></svg>
+            </span>
+            New Customer
+        </a>
+    <?php endif; ?>
+</div>
 
+<section class="panel customers-list-panel">
     <div class="table-wrap">
         <table class="zebra-table customers-table">
             <thead>
@@ -172,6 +171,52 @@ require __DIR__ . '/../includes/layout_start.php';
             <?php endif; ?>
             </tbody>
         </table>
+    </div>
+    <div class="customer-mobile-card-list">
+        <?php if (!$customers): ?>
+            <div class="customer-mobile-empty">
+                <?= $searchTerm !== '' ? 'No customers match your search.' : 'No customers yet.' ?>
+            </div>
+        <?php else: ?>
+            <?php foreach ($customers as $customer): ?>
+                <?php
+                $selectUrl = url('pages/customer_edit.php?customer_id=' . (int) $customer['id']);
+                $overdueCount = (int) ($customer['overdue_installment_count'] ?? 0);
+                $qualityLabel = $overdueCount <= 0 ? 'Good' : ((string) $overdueCount . ' overdue installments');
+                $qualityClass = $overdueCount <= 0 ? 'is-good' : ($overdueCount <= 3 ? 'is-warning' : 'is-danger');
+                $address = trim((string) ($customer['address'] ?? ''));
+                ?>
+                <article class="customer-mobile-card" data-select-url="<?= e($selectUrl) ?>">
+                    <div class="customer-mobile-card-head">
+                        <strong><?= e((string) $customer['full_name']) ?></strong>
+                        <?php $phoneDigits = preg_replace('/\D+/', '', (string) $customer['phone']); ?>
+                        <?php if ($phoneDigits !== ''): ?>
+                            <a class="customer-mobile-phone" href="tel:<?= e($phoneDigits) ?>"><?= e((string) $customer['phone']) ?></a>
+                        <?php else: ?>
+                            <span><?= e((string) $customer['phone']) ?></span>
+                        <?php endif; ?>
+                    </div>
+                    <div class="customer-mobile-card-body">
+                        <div class="customer-mobile-metric">
+                            <span>ID No</span>
+                            <strong><?= e(customer_id_no_label((string) ($customer['nic'] ?? ''))) ?></strong>
+                        </div>
+                        <div class="customer-mobile-metric is-running-loan">
+                            <span>Running Loan (Principal)</span>
+                            <strong><?= e(money_label($pdo, (float) ($customer['running_principal'] ?? 0))) ?></strong>
+                        </div>
+                        <div class="customer-mobile-metric">
+                            <span>Address</span>
+                            <strong><?= e($address !== '' ? $address : '-') ?></strong>
+                        </div>
+                        <div class="customer-mobile-metric customer-mobile-quality <?= e($qualityClass) ?>">
+                            <span>Customer Quality</span>
+                            <strong><?= e($qualityLabel) ?></strong>
+                        </div>
+                    </div>
+                </article>
+            <?php endforeach; ?>
+        <?php endif; ?>
     </div>
 </section>
 

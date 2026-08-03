@@ -5,7 +5,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/../includes/bootstrap.php';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    redirect('pages/loan_extend.php');
+    redirect('pages/loans.php');
 }
 require_csrf('pages/loan_extend.php');
 
@@ -23,8 +23,8 @@ $note = trim((string) ($_POST['note'] ?? ''));
 $returnPath = 'pages/loan_extend.php' . ($loanId > 0 ? '?loan_id=' . $loanId : '');
 
 if ($loanId <= 0) {
-    set_flash('error', 'Please select a loan to extend.');
-    redirect('pages/loan_extend.php');
+    set_flash('error', 'Open a loan first, then use Extend Loan.');
+    redirect('pages/loans.php');
 }
 
 if (!in_array($extendType, ['amount', 'amount_date'], true)) {
