@@ -61,7 +61,7 @@ if (can('activity_logs.view')) {
     $settingsChildren[] = ['key' => 'activity_logs', 'label' => 'Activity Logs', 'path' => 'pages/activity_logs.php'];
 }
 if (can('business_settings.manage')) {
-    $settingsChildren[] = ['key' => 'settings', 'icon_key' => 'business_settings', 'label' => 'Business Settings', 'path' => 'pages/settings.php'];
+    $settingsChildren[] = ['key' => 'settings', 'icon_key' => 'business_settings', 'label' => 'Business Profile', 'path' => 'pages/settings.php'];
 }
 if (can('system_settings.view')) {
     $settingsChildren[] = ['key' => 'system_settings', 'label' => 'System Settings', 'path' => 'pages/system_settings.php'];

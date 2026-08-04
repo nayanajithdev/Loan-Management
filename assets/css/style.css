@@ -635,8 +635,8 @@ body.sidebar-open {
 .menu-item-row:hover .menu-item-add,
 .menu-item-add.active,
 .menu-item-add:hover {
-    background: var(--surface-2);
-    color: var(--accent);
+    background: linear-gradient(135deg, #31506a 0%, #294866 52%, #213a55 100%);
+    color: #ffffff;
 }
 
 .menu-item-add svg {
@@ -646,8 +646,8 @@ body.sidebar-open {
 
 .menu-item:hover,
 .menu-item.active {
-    background: var(--surface-2);
-    color: var(--accent);
+    background: linear-gradient(135deg, #31506a 0%, #294866 52%, #213a55 100%);
+    color: #ffffff;
 }
 
 .menu-dropdown {
@@ -680,7 +680,7 @@ body.sidebar-open {
 
 .menu-dropdown[open] .menu-dropdown-chevron {
     transform: rotate(180deg);
-    color: var(--accent);
+    color: #ffffff;
 }
 
 .menu-sublist {
@@ -1462,9 +1462,9 @@ button {
 }
 
 .loan-edit-tabs {
-    border-radius: 0 10px 10px 10px;
+    border-radius: 10px;
     margin-bottom: 0;
-    margin-top: -1px;
+    margin-top: 16px;
 }
 
 .loan-tab-frame {
@@ -1473,21 +1473,25 @@ button {
 
 .loan-tab-nav {
     display: flex;
-    align-items: flex-end;
+    align-items: center;
     margin: 0;
-    gap: 8px;
-    border-bottom: 0;
+    gap: 6px;
+    width: 100%;
+    padding: 7px;
+    border: 1px solid var(--edge);
+    border-radius: 8px;
+    background: rgba(11, 18, 24, 0.96);
 }
 
 .loan-tab-button {
     position: relative;
     z-index: 1;
-    flex: 0 1 280px;
-    min-height: 48px;
-    border: 1px solid var(--edge);
-    border-bottom-color: var(--edge);
-    border-radius: 10px 10px 0 0;
-    background: rgba(10, 19, 27, 0.7);
+    flex: 0 0 auto;
+    min-height: 40px;
+    padding: 0 22px;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    background: transparent;
     color: var(--muted);
     font: inherit;
     font-size: 15px;
@@ -1497,15 +1501,14 @@ button {
 }
 
 .loan-tab-button + .loan-tab-button {
-    margin-left: -1px;
+    margin-left: 0;
 }
 
 .loan-tab-button.is-active {
-    background: rgba(20, 32, 42, 0.96);
+    background: linear-gradient(135deg, #31506a 0%, #294866 52%, #213a55 100%);
     color: var(--text);
-    border-color: var(--edge);
-    border-bottom-color: var(--edge);
-    box-shadow: inset 0 2px 0 var(--accent);
+    border-color: rgba(148, 184, 213, 0.18);
+    box-shadow: none;
 }
 
 .loan-tab-panel[hidden] {
@@ -2455,7 +2458,7 @@ textarea {
     padding: 10px 14px;
     cursor: pointer;
     transition: 0.2s ease;
-    background: var(--surface-2);
+    background: linear-gradient(135deg, #30475a 0%, #273d4f 52%, #203343 100%);
     color: #f1f1f1;
     font-size: 15px;
     font-weight: 500;
@@ -2604,6 +2607,7 @@ textarea {
     flex: 0 0 auto;
     min-width: 120px;
     width: auto;
+    margin-left: 0;
 }
 
 .bulk-loan-assignment-form .inline-confirm-actions {
@@ -2746,8 +2750,8 @@ textarea {
     margin-top: 0;
 }
 
-.reports-tabs-panel {
-    border-top-left-radius: 0;
+.reports-tabs-content {
+    margin-top: 16px;
 }
 
 .reports-collections-filter {
@@ -2771,34 +2775,16 @@ textarea {
 }
 
 .reports-filter-button-field {
-    grid-column: span 2;
+    grid-column: span 1;
 }
 
 .reports-filter-button-field .btn {
     width: auto;
-    min-width: 120px;
-}
-
-.reports-summary-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    margin-bottom: 16px;
-}
-
-.reports-summary-grid .stat-card {
-    min-height: 104px;
-}
-
-.reports-summary-grid .stat-value-small {
-    font-size: 24px;
-}
-
-.reports-profit-summary {
-    margin-top: 0;
+    min-width: 108px;
 }
 
 .reports-table-section {
-    border-top: 1px solid var(--border);
-    margin: 12px -16px 0;
+    margin: 0 -16px;
     padding: 14px 16px 0;
 }
 
@@ -2806,15 +2792,41 @@ textarea {
     margin-bottom: 12px;
 }
 
+.reports-panel-footer,
 .reports-print-actions {
     display: flex;
-    justify-content: flex-end;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
     margin-top: 14px;
+    flex-wrap: wrap;
 }
 
+.reports-panel-footer .btn,
 .reports-print-actions .btn {
     width: auto;
     min-width: 150px;
+}
+
+.reports-footer-total {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 800;
+    text-align: right;
+}
+
+.reports-footer-total span {
+    margin-left: 18px;
+}
+
+.reports-footer-total-collected {
+    color: var(--accent);
+}
+
+.reports-footer-total-profit {
+    color: var(--success);
+    border-left: 1px solid var(--edge);
+    padding-left: 18px;
 }
 
 .reports-profit-total-row td {
@@ -2830,12 +2842,25 @@ textarea {
     justify-content: center;
 }
 
+.activity-log-filter-form {
+    align-items: end;
+    margin-bottom: 16px;
+}
+
+.activity-log-filter-form > .field {
+    grid-column: span 3;
+}
+
+.activity-log-filter-form > .reports-filter-actions {
+    grid-column: 1 / -1;
+}
+
 .activity-log-search-field {
     justify-content: flex-end;
 }
 
 .activity-log-search-field .search-control {
-    width: min(390px, 100%);
+    width: 100%;
 }
 
 .pagination-bar {
@@ -2892,6 +2917,29 @@ textarea {
 
 .settings-col + .settings-col {
     margin-top: 16px;
+}
+
+.system-settings-tabs-panel {
+    padding: 16px;
+}
+
+.system-settings-tab-panel .settings-col {
+    padding: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+}
+
+.system-settings-tab-panel .muted-block {
+    margin-bottom: 12px;
+}
+
+.system-settings-tab-panel .form-actions {
+    margin-top: 16px;
+}
+
+.system-settings-page-actions {
+    margin-top: 12px;
 }
 
 .settings-subtitle {
@@ -3471,42 +3519,60 @@ textarea {
     margin-bottom: 0;
 }
 
+.loan-extend-left-column {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    min-width: 0;
+}
+
 .loan-extend-details-panel,
 .loan-extend-options-panel {
     min-width: 0;
 }
 
-.loan-extend-detail-grid {
+.loan-extend-detail-groups {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 10px;
+    gap: 18px;
 }
 
-.loan-extend-detail-grid div {
-    min-width: 0;
-    padding: 12px;
-    border-radius: 6px;
-    background: rgba(27, 42, 54, 0.72);
-    box-shadow: inset 0 0 0 1px var(--edge);
+.loan-extend-detail-group {
+    padding-top: 16px;
+    border-top: 1px solid var(--edge);
 }
 
-.loan-extend-detail-grid div.full {
-    grid-column: span 2;
+.loan-extend-detail-group:first-child {
+    padding-top: 0;
+    border-top: 0;
 }
 
-.loan-extend-detail-grid span {
-    display: block;
-    margin-bottom: 6px;
-    color: var(--muted);
-    font-size: 12px;
+.loan-extend-detail-grid {
+    gap: 12px;
 }
 
-.loan-extend-detail-grid strong {
-    display: block;
-    min-width: 0;
-    color: var(--text);
-    font-size: 16px;
-    overflow-wrap: anywhere;
+.loan-extend-detail-grid .field {
+    grid-column: span 4;
+    margin: 0;
+}
+
+.loan-extend-detail-grid .readonly-value {
+    font-weight: 700;
+}
+
+.loan-extend-detail-grid.is-four .field {
+    grid-column: span 3;
+}
+
+.loan-extend-detail-grid .readonly-value-success {
+    color: var(--success);
+}
+
+.loan-extend-detail-grid .readonly-value-accent {
+    color: var(--accent);
+}
+
+.loan-extend-details-panel .panel-head {
+    margin-bottom: 18px;
 }
 
 .loan-extend-options-grid .field {
@@ -3534,6 +3600,20 @@ textarea {
     width: 100%;
     min-height: 46px;
     margin-top: 14px;
+}
+
+.loan-extend-form .inline-confirm-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    width: 100%;
+    margin-top: 14px;
+}
+
+.loan-extend-form .inline-confirm-actions .btn {
+    width: 100%;
+    min-width: 0;
+    min-height: 46px;
 }
 
 .loan-extend-empty {
@@ -5387,18 +5467,20 @@ textarea {
     }
 
     .loan-tab-nav {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
+        display: flex;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
     }
 
     .loan-tab-button {
         flex: none;
         min-height: 42px;
+        padding: 0 18px;
         font-size: 15px;
     }
 
     .loan-collections-tab-panel {
-        margin: -16px;
+        margin: 0;
     }
 
     .loan-collections-tab-panel .loan-payment-layout {
@@ -5717,12 +5799,13 @@ textarea {
         grid-column: span 12;
     }
 
-    .reports-filter-button-field .btn {
-        width: 100%;
+    .activity-log-filter-form > .field,
+    .activity-log-filter-form > .reports-filter-actions {
+        grid-column: span 12;
     }
 
-    .reports-summary-grid {
-        grid-template-columns: 1fr;
+    .reports-filter-button-field .btn {
+        width: 100%;
     }
 
     .combo-field,
@@ -5804,12 +5887,22 @@ textarea {
         grid-template-columns: 40px minmax(0, 1fr);
     }
 
-    .loan-extend-detail-grid,
     .loan-extend-preview-grid {
         grid-template-columns: 1fr;
     }
 
-    .loan-extend-detail-grid div.full,
+    .loan-extend-detail-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .loan-extend-detail-grid .field {
+        grid-column: span 1;
+    }
+
+    .loan-extend-detail-grid div.full {
+        grid-column: 1 / -1;
+    }
+
     .loan-extend-options-grid .field,
     .loan-extend-options-grid .field.full {
         grid-column: span 12;

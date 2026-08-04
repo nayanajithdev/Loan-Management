@@ -181,7 +181,7 @@ require __DIR__ . '/../includes/layout_start.php';
             <button type="button" class="loan-tab-button <?= $activeReportTab === 'profit' ? 'is-active' : '' ?>" data-report-tab-open="profit" role="tab" aria-selected="<?= $activeReportTab === 'profit' ? 'true' : 'false' ?>">Profit</button>
         </div>
 
-        <section class="panel loan-edit-tabs reports-tabs-panel">
+        <div class="loan-edit-tabs reports-tabs-content">
             <div class="loan-tab-panel <?= $activeReportTab === 'collections' ? 'is-active' : '' ?>" data-report-tab-panel="collections" role="tabpanel" <?= $activeReportTab === 'collections' ? '' : 'hidden' ?>>
                 <form method="get" class="form-grid reports-collections-filter">
                     <input type="hidden" name="report_tab" value="collections">
@@ -208,21 +208,7 @@ require __DIR__ . '/../includes/layout_start.php';
                     </div>
                 </form>
 
-                <section class="card-grid reports-summary-grid">
-                    <article class="stat-card">
-                        <p class="stat-label">Selected Date</p>
-                        <p class="stat-value stat-value-small"><?= e(display_date($selectedDate)) ?></p>
-                    </article>
-                    <article class="stat-card">
-                        <p class="stat-label">Collected Total</p>
-                        <p class="stat-value"><?= e(money_label($pdo, $collectedTotal)) ?></p>
-                    </article>
-                    <article class="stat-card">
-                        <p class="stat-label">Collection Entries</p>
-                        <p class="stat-value"><?= e((string) $paymentCount) ?></p>
-                    </article>
-                </section>
-
+                <section class="panel reports-tabs-panel">
                 <section class="reports-table-section">
                     <div class="panel-head reports-table-head">
                         <h2 class="panel-title">Collections</h2>
@@ -273,9 +259,11 @@ require __DIR__ . '/../includes/layout_start.php';
                             </tbody>
                         </table>
                     </div>
-                    <div class="reports-print-actions">
+                    <div class="reports-panel-footer">
                         <button type="button" class="btn btn-primary" data-print-daily-collections-report data-print-filename="<?= e($dailyCollectionFileName) ?>">Print</button>
+                        <p class="reports-footer-total reports-footer-total-collected">Collected Total: <?= e(money_label($pdo, $collectedTotal)) ?></p>
                     </div>
+                </section>
                 </section>
             </div>
 
@@ -311,23 +299,7 @@ require __DIR__ . '/../includes/layout_start.php';
                     </div>
                 </form>
 
-                <section class="card-grid reports-summary-grid reports-profit-summary">
-                    <article class="stat-card">
-                        <p class="stat-label"><?= $profitMode === 'monthly' ? 'Selected Range' : 'Selected Date' ?></p>
-                        <p class="stat-value stat-value-small">
-                            <?= $profitMode === 'monthly' ? e(display_date($profitFrom) . ' - ' . display_date($profitTo)) : e(display_date($profitDate)) ?>
-                        </p>
-                    </article>
-                    <article class="stat-card">
-                        <p class="stat-label">Collected Amount</p>
-                        <p class="stat-value"><?= e(money_label($pdo, $profitCollectedTotal)) ?></p>
-                    </article>
-                    <article class="stat-card">
-                        <p class="stat-label">Profit</p>
-                        <p class="stat-value"><?= e(money_label($pdo, $profitTotal)) ?></p>
-                    </article>
-                </section>
-
+                <section class="panel reports-tabs-panel">
                 <section class="reports-table-section">
                     <div class="panel-head reports-table-head">
                         <h2 class="panel-title"><?= $profitMode === 'monthly' ? 'Monthly Profit' : 'Daily Profit' ?></h2>
@@ -353,11 +325,6 @@ require __DIR__ . '/../includes/layout_start.php';
                                             <td class="text-right"><?= e(money_label($pdo, (float) $row['profit_amount'])) ?></td>
                                         </tr>
                                     <?php endforeach; ?>
-                                    <tr class="reports-profit-total-row">
-                                        <td>Total</td>
-                                        <td class="text-right"><?= e(money_label($pdo, $profitCollectedTotal)) ?></td>
-                                        <td class="text-right"><?= e(money_label($pdo, $profitTotal)) ?></td>
-                                    </tr>
                                 <?php endif; ?>
                                 </tbody>
                             </table>
@@ -379,27 +346,22 @@ require __DIR__ . '/../includes/layout_start.php';
                                             <td class="text-right"><?= e(money_label($pdo, (float) $row['profit_amount'])) ?></td>
                                         </tr>
                                     <?php endforeach; ?>
-                                    <tr class="reports-profit-total-row">
-                                        <td>
-                                            <span class="muted-text">Collected:</span>
-                                            <?= e(money_label($pdo, $profitCollectedTotal)) ?>
-                                        </td>
-                                        <td class="text-right">
-                                            <span class="muted-text">Profit:</span>
-                                            <?= e(money_label($pdo, $profitTotal)) ?>
-                                        </td>
-                                    </tr>
                                 <?php endif; ?>
                                 </tbody>
                             </table>
                         <?php endif; ?>
                     </div>
-                    <div class="reports-print-actions">
+                    <div class="reports-panel-footer">
                         <button type="button" class="btn btn-primary" data-print-profit-report data-print-filename="<?= e($profitPrintFileName) ?>">Print</button>
+                        <p class="reports-footer-total">
+                            <span class="reports-footer-total-collected">Collected: <?= e(money_label($pdo, $profitCollectedTotal)) ?></span>
+                            <span class="reports-footer-total-profit">Profit: <?= e(money_label($pdo, $profitTotal)) ?></span>
+                        </p>
                     </div>
                 </section>
+                </section>
             </div>
-        </section>
+        </div>
     </div>
 </div>
 
@@ -455,7 +417,7 @@ require __DIR__ . '/../includes/layout_start.php';
                     ?>
                     <tr>
                         <td><?= e((string) $row['collected_by']) ?></td>
-                        <td><?= e(date('H:i:s', strtotime((string) $row['collected_at']))) ?></td>
+                        <td><?= e(display_time((string) $row['collected_at'])) ?></td>
                         <td><?= e((string) $row['loan_number']) ?></td>
                         <td><?= e($amountLabel) ?></td>
                     </tr>

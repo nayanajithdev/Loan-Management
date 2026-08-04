@@ -5,7 +5,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/../includes/bootstrap.php';
 require_permission('business_settings.manage');
 
-$pageTitle = 'Business Settings';
+$pageTitle = 'Business Profile';
 $activePage = 'settings';
 
 $settings = system_settings_all($pdo);
@@ -23,7 +23,6 @@ require __DIR__ . '/../includes/layout_start.php';
 <form method="post" action="<?= e(url('actions/settings_save.php')) ?>" enctype="multipart/form-data">
     <?= csrf_input() ?>
     <div class="settings-col">
-        <h3 class="settings-subtitle">Business Settings</h3>
         <div class="form-grid settings-business-grid">
             <div class="field">
                 <label>Business Name</label>

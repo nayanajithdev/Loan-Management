@@ -263,7 +263,7 @@ require __DIR__ . '/../includes/layout_start.php';
         <button type="button" class="loan-tab-button" data-loan-tab-open="collections" role="tab" aria-selected="false">Collection History</button>
     </div>
 
-    <section class="panel loan-edit-tabs">
+    <div class="loan-edit-tabs">
     <div class="loan-tab-panel is-active" data-loan-tab-panel="details" role="tabpanel">
         <form
             id="loan-form"
@@ -588,7 +588,7 @@ require __DIR__ . '/../includes/layout_start.php';
     </aside>
 </section>
     </div>
-    </section>
+    </div>
     </div>
 </div>
 

@@ -176,48 +176,42 @@ $logs = $stmt->fetchAll();
 require __DIR__ . '/../includes/layout_start.php';
 ?>
 
-<section class="panel">
-    <div class="panel-head">
-        <h2 class="panel-title">Activity Logs</h2>
+<form method="get" class="form-grid activity-log-filter-form">
+    <div class="field">
+        <label>From Date</label>
+        <input type="date" name="from" value="<?= e($fromDate) ?>" required>
     </div>
-
-    <form method="get" class="form-grid activity-log-filter-form">
-        <div class="field">
-            <label>From Date</label>
-            <input type="date" name="from" value="<?= e($fromDate) ?>" required>
+    <div class="field">
+        <label>To Date</label>
+        <input type="date" name="to" value="<?= e($toDate) ?>" required>
+    </div>
+    <div class="field">
+        <label>User</label>
+        <select name="user_id">
+            <option value="all" <?= $selectedUser === 'all' ? 'selected' : '' ?>>All Users</option>
+            <option value="system" <?= $selectedUser === 'system' ? 'selected' : '' ?>>System</option>
+            <?php foreach ($logUsers as $user): ?>
+                <?php $userId = (string) $user['id']; ?>
+                <option value="<?= e($userId) ?>" <?= $selectedUser === $userId ? 'selected' : '' ?>>
+                    <?= e((string) $user['full_name']) ?> (<?= e((string) $user['username']) ?> - <?= e(role_display_name((string) $user['role'])) ?>)
+                </option>
+            <?php endforeach; ?>
+        </select>
+    </div>
+    <div class="field activity-log-search-field">
+        <label class="sr-only">Search activity logs</label>
+        <div class="search-control">
+            <input type="text" name="q" value="<?= e($search) ?>" placeholder="Search..." aria-label="Search by action, user, or description">
+            <button type="submit" class="btn search-submit" aria-label="Search activity logs">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg>
+            </button>
         </div>
-        <div class="field">
-            <label>To Date</label>
-            <input type="date" name="to" value="<?= e($toDate) ?>" required>
-        </div>
-        <div class="field">
-            <label>User</label>
-            <select name="user_id">
-                <option value="all" <?= $selectedUser === 'all' ? 'selected' : '' ?>>All Users</option>
-                <option value="system" <?= $selectedUser === 'system' ? 'selected' : '' ?>>System</option>
-                <?php foreach ($logUsers as $user): ?>
-                    <?php $userId = (string) $user['id']; ?>
-                    <option value="<?= e($userId) ?>" <?= $selectedUser === $userId ? 'selected' : '' ?>>
-                        <?= e((string) $user['full_name']) ?> (<?= e((string) $user['username']) ?> - <?= e(role_display_name((string) $user['role'])) ?>)
-                    </option>
-                <?php endforeach; ?>
-            </select>
-        </div>
-        <div class="field activity-log-search-field">
-            <label class="sr-only">Search activity logs</label>
-            <div class="search-control">
-                <input type="text" name="q" value="<?= e($search) ?>" placeholder="Search..." aria-label="Search by action, user, or description">
-                <button type="submit" class="btn search-submit" aria-label="Search activity logs">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg>
-                </button>
-            </div>
-        </div>
-        <div class="field full reports-filter-actions">
-            <a class="btn" href="<?= e(url('pages/activity_logs.php')) ?>">Reset</a>
-            <button type="submit" class="btn btn-primary">Apply Filter</button>
-        </div>
-    </form>
-</section>
+    </div>
+    <div class="field full reports-filter-actions">
+        <a class="btn" href="<?= e(url('pages/activity_logs.php')) ?>">Reset</a>
+        <button type="submit" class="btn btn-primary">Apply Filter</button>
+    </div>
+</form>
 
 <section class="panel">
     <div class="panel-head">

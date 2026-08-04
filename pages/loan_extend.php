@@ -127,65 +127,69 @@ require __DIR__ . '/../includes/layout_start.php';
 </div>
 
 <section class="loan-extend-layout" data-loan-extend data-loan-extend-state="<?= e($selectedLoanJson) ?>">
+    <div class="loan-extend-left-column">
         <div class="panel loan-extend-details-panel">
             <div class="panel-head">
-                <h2 class="panel-title">Original Details</h2>
+                <h2 class="panel-title">Current Loan</h2>
             </div>
-            <div class="loan-extend-detail-grid">
-                <div>
-                    <span>Loan</span>
-                    <strong><?= e((string) $selectedLoan['loan_number']) ?></strong>
+            <div class="loan-extend-detail-groups">
+                <div class="loan-extend-detail-group">
+                    <div class="loan-extend-detail-grid form-grid">
+                        <div class="field">
+                            <label>Loan</label>
+                            <div class="readonly-value"><?= e((string) $selectedLoan['loan_number']) ?></div>
+                        </div>
+                        <div class="field">
+                            <label>Customer</label>
+                            <div class="readonly-value"><?= e((string) $selectedLoan['full_name']) ?></div>
+                        </div>
+                        <div class="field">
+                            <label>Loan Issued Date</label>
+                            <div class="readonly-value"><?= e($selectedIssuedDate !== '' ? display_date($selectedIssuedDate) : '-') ?></div>
+                        </div>
+                    </div>
                 </div>
-                <div>
-                    <span>Customer</span>
-                    <strong><?= e((string) $selectedLoan['full_name']) ?></strong>
+
+                <div class="loan-extend-detail-group">
+                    <div class="loan-extend-detail-grid form-grid is-four">
+                        <div class="field">
+                            <label>Principal</label>
+                            <div class="readonly-value"><?= e(money_label($pdo, (float) $selectedLoan['principal_amount'])) ?></div>
+                        </div>
+                        <div class="field">
+                            <label>Total Repayable</label>
+                            <div class="readonly-value"><?= e(money_label($pdo, (float) $selectedLoan['total_amount'])) ?></div>
+                        </div>
+                        <div class="field">
+                            <label>Collected</label>
+                            <div class="readonly-value readonly-value-success"><?= e(money_label($pdo, $selectedCollectionTotal)) ?></div>
+                        </div>
+                        <div class="field">
+                            <label>Balance</label>
+                            <div class="readonly-value readonly-value-accent"><?= e(money_label($pdo, $selectedOutstanding)) ?></div>
+                        </div>
+                    </div>
                 </div>
-                <div>
-                    <span>Principal</span>
-                    <strong><?= e(money_label($pdo, (float) $selectedLoan['principal_amount'])) ?></strong>
-                </div>
-                <div>
-                    <span>Total Repayable</span>
-                    <strong><?= e(money_label($pdo, (float) $selectedLoan['total_amount'])) ?></strong>
-                </div>
-                <div>
-                    <span>Collected</span>
-                    <strong><?= e(money_label($pdo, $selectedCollectionTotal)) ?></strong>
-                </div>
-                <div>
-                    <span>Balance</span>
-                    <strong><?= e(money_label($pdo, $selectedOutstanding)) ?></strong>
-                </div>
-                <div>
-                    <span>Installment</span>
-                    <strong><?= e(money_label($pdo, (float) $selectedLoan['installment_amount'])) ?></strong>
-                </div>
-                <div>
-                    <span>Frequency</span>
-                    <strong><?= e(ucfirst((string) $selectedLoan['installment_frequency'])) ?></strong>
-                </div>
-                <div>
-                    <span>Issued Date</span>
-                    <strong><?= e($selectedIssuedDate !== '' ? display_date($selectedIssuedDate) : '-') ?></strong>
-                </div>
-                <div>
-                    <span>End Date</span>
-                    <strong><?= e($selectedDisplayEndDate !== '' ? display_date($selectedDisplayEndDate) : '-') ?></strong>
-                </div>
-                <div>
-                    <span>Remaining Inst.</span>
-                    <strong><?= e((string) $selectedRemainingCount) ?></strong>
-                </div>
-                <div>
-                    <span>Next Due</span>
-                    <strong><?= e($selectedNextDueDate !== '' ? display_date((string) $selectedNextDueDate) : '-') ?></strong>
-                </div>
-                <div class="full">
-                    <span>Assigned To</span>
-                    <strong><?= e(trim((string) ($selectedLoan['assigned_user_name'] ?? '')) !== '' ? (string) $selectedLoan['assigned_user_name'] : 'All users') ?></strong>
+
+                <div class="loan-extend-detail-group">
+                    <div class="loan-extend-detail-grid form-grid">
+                        <div class="field">
+                            <label>End Date</label>
+                            <div class="readonly-value"><?= e($selectedDisplayEndDate !== '' ? display_date($selectedDisplayEndDate) : '-') ?></div>
+                        </div>
+                        <div class="field">
+                            <label>Installment</label>
+                            <div class="readonly-value"><?= e(money_label($pdo, (float) $selectedLoan['installment_amount'])) ?></div>
+                        </div>
+                        <div class="field">
+                            <label>Frequency</label>
+                            <div class="readonly-value"><?= e(ucfirst((string) $selectedLoan['installment_frequency'])) ?></div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
+    </div>
 
         <div class="panel loan-extend-options-panel">
             <div class="panel-head">

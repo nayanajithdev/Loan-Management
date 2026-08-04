@@ -13,6 +13,7 @@ require_csrf('pages/system_settings.php');
 $currencyLabel = strtoupper(trim((string) ($_POST['currency_label'] ?? 'LKR')));
 $timezone = trim((string) ($_POST['timezone'] ?? date_default_timezone_get()));
 $dateFormat = trim((string) ($_POST['date_format'] ?? 'd/m/Y'));
+$displayTimeSecondsEnabled = (string) ($_POST['display_time_seconds_enabled'] ?? '1') === '0' ? '0' : '1';
 $displayCentsEnabled = (string) ($_POST['display_cents_enabled'] ?? '1') === '0' ? '0' : '1';
 $defaultInterestRate = (float) ($_POST['default_interest_rate'] ?? 0);
 $defaultInterestRateMonths = normalize_interest_rate_months((int) ($_POST['default_interest_rate_months'] ?? 1));
@@ -41,6 +42,7 @@ $settingsToSave = [
     'currency_label' => mb_substr($currencyLabel !== '' ? $currencyLabel : 'LKR', 0, 12),
     'timezone' => mb_substr($timezone, 0, 80),
     'date_format' => mb_substr($dateFormat !== '' ? $dateFormat : 'd/m/Y', 0, 20),
+    'display_time_seconds_enabled' => $displayTimeSecondsEnabled,
     'display_cents_enabled' => $displayCentsEnabled,
     'default_interest_rate' => number_format(max($defaultInterestRate, 0), 2, '.', ''),
     'default_interest_rate_months' => (string) $defaultInterestRateMonths,

@@ -259,7 +259,8 @@ function display_datetime(string $dateTimeValue, ?string $fallback = null): stri
     static $dateTimeFormat = null;
     if ($dateTimeFormat === null) {
         $saved = trim(system_setting(db(), 'date_format', 'd/m/Y'));
-        $dateTimeFormat = ($saved !== '' ? $saved : 'd/m/Y') . ' H:i:s';
+        $timeFormat = system_setting(db(), 'display_time_seconds_enabled', '1') === '0' ? 'H:i' : 'H:i:s';
+        $dateTimeFormat = ($saved !== '' ? $saved : 'd/m/Y') . ' ' . $timeFormat;
     }
 
     try {
@@ -269,6 +270,22 @@ function display_datetime(string $dateTimeValue, ?string $fallback = null): stri
     }
 
     return $date->format($dateTimeFormat);
+}
+
+function display_time(string $dateTimeValue, ?string $fallback = null): string
+{
+    static $timeFormat = null;
+    if ($timeFormat === null) {
+        $timeFormat = system_setting(db(), 'display_time_seconds_enabled', '1') === '0' ? 'H:i' : 'H:i:s';
+    }
+
+    try {
+        $date = new DateTimeImmutable($dateTimeValue);
+    } catch (Throwable) {
+        return $fallback ?? $dateTimeValue;
+    }
+
+    return $date->format($timeFormat);
 }
 
 function today(): string
