@@ -9,7 +9,8 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 }
 require_csrf('pages/loan_extend.php');
 
-require_permission('loans.edit', 'pages/loans.php');
+require_permission('loans.view', 'pages/loans.php');
+require_permission('loans.extend', 'pages/loans.php');
 
 $loanId = (int) ($_POST['loan_id'] ?? 0);
 $extendType = trim((string) ($_POST['extend_type'] ?? 'amount'));

@@ -3,8 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../includes/bootstrap.php';
-require_permission('collections.record', 'pages/today_collections.php');
-require_permission('collections.undo', 'pages/today_collections.php');
+require_permission('collections.loan_records_edit', 'pages/loans.php');
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     redirect('pages/today_collections.php');
@@ -192,12 +191,6 @@ $currentUserId = (int) ($current['id'] ?? 0);
 $currentRole = (string) ($current['role'] ?? '');
 $currentUserName = (string) ($current['full_name'] ?? 'Unknown');
 $allowOverpayment = system_setting($pdo, 'allow_overpayment', '1') !== '0';
-$canBackdateCollection = can('collections.backdate');
-
-if (!is_owner($current)) {
-    set_flash('error', 'Only owner can edit collection history.');
-    redirect($returnTo);
-}
 
 try {
     $pdo->beginTransaction();
@@ -284,10 +277,6 @@ try {
     $selectedSnapshots = is_array($selectedMeta['installment_snapshots'] ?? null) ? $selectedMeta['installment_snapshots'] : [];
     if ($selectedSnapshots === []) {
         throw new RuntimeException('This collection cannot be edited because its installment snapshots are missing.');
-    }
-
-    if (!$canBackdateCollection && $collectedOn !== (string) $selectedGroup['collected_on']) {
-        throw new RuntimeException('You do not have permission to change collection date.');
     }
 
     $groupsToReplay = array_values(array_filter(

@@ -45,6 +45,7 @@ $canRecordCollection = can('collections.record');
 $canUndoCollection = can('collections.undo');
 $canBackdatePaid = can('collections.backdate');
 $canScheduleNextPayment = can('collections.schedule');
+$canViewLoanCollectionRecords = can('collections.loan_records');
 $pendingInstallments = collection_due_installments_for_date($pdo, $selectedDate, $todayDate, $search, $currentRole, $currentUserId);
 $collectedInstallments = collection_collected_installments_for_date($pdo, $selectedDate, $search, $currentRole, $currentUserId);
 $displayInstallments = $selectedCollectionStatus === 'collected' ? $collectedInstallments : $pendingInstallments;
@@ -377,9 +378,9 @@ require __DIR__ . '/../includes/layout_start.php';
             <h2 class="panel-title sr-only"><?= $selectedCollectionStatus === 'collected' ? 'Collection Details' : 'Record Collection' ?></h2>
             <?php if ($historyLoanId > 0 || $mobileRecordMode): ?>
                 <div class="panel-head-actions">
-                    <?php if ($historyLoanId > 0): ?>
+                    <?php if ($historyLoanId > 0 && $canViewLoanCollectionRecords): ?>
                         <a class="btn record-history-link" href="<?= e(url('pages/loan_edit.php?loan_id=' . $historyLoanId . '#collections')) ?>">
-                            Collection History
+                            Collection Records
                         </a>
                     <?php endif; ?>
                     <?php if ($mobileRecordMode): ?>

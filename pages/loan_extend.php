@@ -3,7 +3,8 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../includes/bootstrap.php';
-require_permission('loans.edit', 'pages/loans.php');
+require_permission('loans.view', 'pages/loans.php');
+require_permission('loans.extend', 'pages/loans.php');
 
 $pageTitle = 'Extend Loan';
 $activePage = 'loans';

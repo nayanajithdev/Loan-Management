@@ -80,9 +80,11 @@ function permission_groups(): array
                 'loans.view' => ['label' => 'View Loans', 'description' => 'Open loan list and loan details.'],
                 'loans.create' => ['label' => 'Create Loans', 'description' => 'Create loan records and repayment schedules.'],
                 'loans.edit' => ['label' => 'Edit Loans', 'description' => 'Update loan notes, status, and allowed editable fields.'],
+                'loans.extend' => ['label' => 'Extend Loans', 'description' => 'Extend active loans with extra amount or end date changes.'],
                 'loans.delete' => ['label' => 'Delete Loans', 'description' => 'Delete loans and their schedules.'],
                 'loans.assign' => ['label' => 'Assign Loans', 'description' => 'Assign a loan to a collector.'],
-                'calculator.view' => ['label' => 'Loan Calculator', 'description' => 'Use the standalone loan calculator.'],
+                'collections.loan_records' => ['label' => 'Loan Collection Records', 'description' => 'View the Collection Records tab inside loan details.'],
+                'collections.loan_records_edit' => ['label' => 'Edit Collection Records', 'description' => 'Edit saved collection records inside loan details.'],
             ],
         ],
         'Management' => [
@@ -113,6 +115,61 @@ function permission_keys(): array
     return $keys;
 }
 
+function permission_dependencies(): array
+{
+    return [
+        'collections.record' => ['today_collections.view'],
+        'collections.undo' => ['today_collections.view', 'collections.record'],
+        'collections.backdate' => ['today_collections.view', 'collections.record'],
+        'collections.schedule' => ['today_collections.view'],
+        'collections.loan_records' => ['loans.view'],
+        'customers.view_all' => ['customers.view'],
+        'customers.create' => ['customers.view'],
+        'customers.edit' => ['customers.view'],
+        'customers.delete' => ['customers.view'],
+        'customers.documents' => ['customers.view'],
+        'loans.create' => ['loans.view'],
+        'loans.edit' => ['loans.view'],
+        'loans.extend' => ['loans.view'],
+        'loans.delete' => ['loans.view'],
+        'loans.assign' => ['loans.view'],
+        'collections.loan_records_edit' => ['collections.loan_records'],
+        'system_settings.manage' => ['system_settings.view'],
+    ];
+}
+
+function normalize_permission_keys(array $permissionKeys): array
+{
+    $validKeys = permission_keys();
+    $selected = array_flip(array_intersect(array_unique(array_map('strval', $permissionKeys)), $validKeys));
+
+    do {
+        $changed = false;
+        foreach (permission_dependencies() as $permissionKey => $requiredKeys) {
+            if (!isset($selected[$permissionKey])) {
+                continue;
+            }
+
+            foreach ((array) $requiredKeys as $requiredKey) {
+                if (!isset($selected[(string) $requiredKey])) {
+                    unset($selected[$permissionKey]);
+                    $changed = true;
+                    break;
+                }
+            }
+        }
+    } while ($changed);
+
+    $normalized = [];
+    foreach ($validKeys as $validKey) {
+        if (isset($selected[$validKey])) {
+            $normalized[] = $validKey;
+        }
+    }
+
+    return $normalized;
+}
+
 function role_default_permissions(string $role): array
 {
     $role = (string) $role;
@@ -135,6 +192,7 @@ function role_default_permissions(string $role): array
         'today_collections.view',
         'collections.record',
         'collections.history',
+        'collections.loan_records',
         'customers.view',
     ];
 }
@@ -3647,8 +3705,7 @@ function sync_user_permissions(PDO $pdo, int $userId, array $permissionKeys): vo
         return;
     }
 
-    $validKeys = permission_keys();
-    $permissionKeys = array_values(array_intersect(array_unique(array_map('strval', $permissionKeys)), $validKeys));
+    $permissionKeys = normalize_permission_keys($permissionKeys);
 
     $deleteStmt = $pdo->prepare('DELETE FROM user_permissions WHERE user_id = :user_id');
     $deleteStmt->execute(['user_id' => $userId]);
@@ -3768,10 +3825,11 @@ function fallback_loan_assignments_to_owner(PDO $pdo, int $fromUserId): int
 
 function render_permission_fields(array $selectedKeys, bool $disabled = false): void
 {
+    $selectedKeys = normalize_permission_keys($selectedKeys);
     $selected = array_flip(array_map('strval', $selectedKeys));
-    $disabledAttr = $disabled ? ' disabled' : '';
+    $dependencies = permission_dependencies();
     ?>
-    <div class="permission-panel">
+    <div class="permission-panel" data-permission-panel data-permission-locked="<?= $disabled ? '1' : '0' ?>">
         <div class="permission-panel-head">
             <div>
                 <h3>Module Permissions</h3>
@@ -3784,20 +3842,34 @@ function render_permission_fields(array $selectedKeys, bool $disabled = false): 
                 <div class="permission-section-head">
                     <div>
                         <h4><?= e((string) $groupTitle) ?></h4>
-                        <?php if (!empty($group['description'])): ?>
-                            <p><?= e((string) $group['description']) ?></p>
-                        <?php endif; ?>
                     </div>
                 </div>
                 <div class="permission-grid">
                     <?php foreach ((array) ($group['permissions'] ?? []) as $permissionKey => $meta): ?>
-                        <label class="permission-check">
+                        <?php
+                        $permissionKey = (string) $permissionKey;
+                        $requiredKeys = array_map('strval', (array) ($dependencies[$permissionKey] ?? []));
+                        $dependencyBlocked = false;
+                        foreach ($requiredKeys as $requiredKey) {
+                            if (!isset($selected[$requiredKey])) {
+                                $dependencyBlocked = true;
+                                break;
+                            }
+                        }
+                        $isChecked = isset($selected[$permissionKey]) && !$dependencyBlocked;
+                        $isDisabled = $disabled || $dependencyBlocked;
+                        ?>
+                        <label class="permission-check<?= $dependencyBlocked ? ' is-disabled' : '' ?>" data-permission-row>
                             <input
                                 type="checkbox"
                                 name="permissions[]"
-                                value="<?= e((string) $permissionKey) ?>"
-                                <?= isset($selected[(string) $permissionKey]) ? 'checked' : '' ?>
-                                <?= $disabledAttr ?>
+                                value="<?= e($permissionKey) ?>"
+                                data-permission-key="<?= e($permissionKey) ?>"
+                                <?php if ($requiredKeys !== []): ?>
+                                    data-permission-depends-on="<?= e(implode(' ', $requiredKeys)) ?>"
+                                <?php endif; ?>
+                                <?= $isChecked ? 'checked' : '' ?>
+                                <?= $isDisabled ? 'disabled' : '' ?>
                             >
                             <span>
                                 <strong><?= e((string) ($meta['label'] ?? $permissionKey)) ?></strong>
@@ -3811,6 +3883,39 @@ function render_permission_fields(array $selectedKeys, bool $disabled = false): 
             </section>
         <?php endforeach; ?>
     </div>
+    <script>
+    (() => {
+        document.querySelectorAll('[data-permission-panel]').forEach((panel) => {
+            if (panel.dataset.permissionLocked === '1') {
+                return;
+            }
+
+            const syncDependentPermissions = () => {
+                panel.querySelectorAll('input[data-permission-depends-on]').forEach((input) => {
+                    const dependencies = (input.dataset.permissionDependsOn || '').split(/\s+/).filter(Boolean);
+                    const allowed = dependencies.every((dependency) => {
+                        const dependencyInput = Array.from(panel.querySelectorAll('input[data-permission-key]'))
+                            .find((candidate) => candidate.dataset.permissionKey === dependency);
+                        return dependencyInput && dependencyInput.checked;
+                    });
+                    const row = input.closest('[data-permission-row]');
+
+                    if (!allowed) {
+                        input.checked = false;
+                    }
+
+                    input.disabled = !allowed;
+                    row?.classList.toggle('is-disabled', !allowed);
+                });
+            };
+
+            syncDependentPermissions();
+            panel.closest('form')?.addEventListener('change', () => {
+                window.setTimeout(syncDependentPermissions, 0);
+            });
+        });
+    })();
+    </script>
     <?php
 }
 
@@ -3843,7 +3948,26 @@ function can(string $permissionKey, ?array $viewer = null): bool
         }
     }
 
-    return in_array($permissionKey, $cache[$userId], true);
+    if (!in_array($permissionKey, $cache[$userId], true)) {
+        return false;
+    }
+
+    static $checking = [];
+    $checkingKey = $userId . ':' . $permissionKey;
+    if (isset($checking[$checkingKey])) {
+        return false;
+    }
+
+    $checking[$checkingKey] = true;
+    foreach ((array) (permission_dependencies()[$permissionKey] ?? []) as $requiredKey) {
+        if (!can((string) $requiredKey, $viewer)) {
+            unset($checking[$checkingKey]);
+            return false;
+        }
+    }
+    unset($checking[$checkingKey]);
+
+    return true;
 }
 
 function can_any(array $permissionKeys, ?array $viewer = null): bool

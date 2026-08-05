@@ -66,7 +66,7 @@ require __DIR__ . '/../includes/layout_start.php';
     </a>
 </div>
 
-<form class="user-edit-form" method="post" action="<?= e(url('actions/user_update.php')) ?>">
+<form id="user-edit-form" class="user-edit-form" method="post" action="<?= e(url('actions/user_update.php')) ?>">
     <?= csrf_input() ?>
     <input type="hidden" name="user_id" value="<?= e((string) $editUser['id']) ?>">
 
@@ -128,21 +128,21 @@ require __DIR__ . '/../includes/layout_start.php';
             <?php render_permission_fields($editPermissions, $isTargetSuperadmin); ?>
         </section>
     </div>
-
-    <div class="user-edit-form-actions">
-        <button type="submit" class="btn btn-primary">Update User</button>
-    </div>
 </form>
 
-<form class="user-edit-delete-form" method="post" action="<?= e(url('actions/user_delete.php')) ?>" data-confirm="Delete this user? This cannot be undone.">
-    <?= csrf_input() ?>
-    <input type="hidden" name="user_id" value="<?= e((string) $editUser['id']) ?>">
-    <button type="submit" class="btn" <?= $canDelete ? '' : 'disabled' ?>>Delete User</button>
-    <?php if ($isSelf): ?>
-        <small>You cannot delete your own logged-in account.</small>
-    <?php elseif ($isTargetSuperadmin): ?>
-        <small>Owner cannot be deleted.</small>
-    <?php endif; ?>
-</form>
+<div class="user-edit-actionbar">
+    <button type="submit" form="user-edit-form" class="btn btn-primary">Update User</button>
+
+    <form class="user-edit-delete-form" method="post" action="<?= e(url('actions/user_delete.php')) ?>" data-confirm="Delete this user? This cannot be undone.">
+        <?= csrf_input() ?>
+        <input type="hidden" name="user_id" value="<?= e((string) $editUser['id']) ?>">
+        <button type="submit" class="btn btn-danger" <?= $canDelete ? '' : 'disabled' ?>>Delete User</button>
+        <?php if ($isSelf): ?>
+            <small>You cannot delete your own logged-in account.</small>
+        <?php elseif ($isTargetSuperadmin): ?>
+            <small>Owner cannot be deleted.</small>
+        <?php endif; ?>
+    </form>
+</div>
 
 <?php require __DIR__ . '/../includes/layout_end.php';

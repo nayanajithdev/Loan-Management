@@ -1,6 +1,7 @@
 <?php
 $currentScript = basename((string) ($_SERVER['SCRIPT_NAME'] ?? ''));
 $businessName = system_setting($pdo, 'business_name', 'Loan Manager');
+$businessNote = trim(system_setting($pdo, 'business_note', ''));
 $businessIconPath = business_icon_path($pdo);
 $authUser = current_user();
 $businessInitial = strtoupper(substr(preg_replace('/\s+/', '', $businessName), 0, 1));
@@ -42,9 +43,7 @@ if (can('customers.view')) {
 if (can('loans.view')) {
     $menuItems[] = ['key' => 'loans', 'label' => 'Loans', 'path' => 'pages/loans.php', 'create_permission' => 'loans.create'];
 }
-if (can('calculator.view')) {
-    $menuItems[] = ['key' => 'calculator', 'label' => 'Calculator', 'path' => 'pages/calculator.php'];
-}
+$menuItems[] = ['key' => 'calculator', 'label' => 'Calculator', 'path' => 'pages/calculator.php'];
 if (can('users.manage')) {
     $menuItems[] = ['key' => 'users', 'label' => 'Users', 'path' => 'pages/users.php'];
 }
@@ -91,6 +90,9 @@ $brandHref = can('business_settings.manage') ? 'pages/settings.php' : 'pages/abo
         </div>
         <div>
             <div class="brand-name"><?= e($businessName) ?></div>
+            <?php if ($businessNote !== ''): ?>
+                <div class="brand-note"><?= e($businessNote) ?></div>
+            <?php endif; ?>
         </div>
     </a>
 

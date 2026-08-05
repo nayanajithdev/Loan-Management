@@ -36,14 +36,15 @@ $currentAssignedUserId = (int) ($loan['loan_assigned_user_id'] ?? 0);
 $customers = $pdo->query("SELECT id, customer_code, full_name, nic FROM customers WHERE status = 'active' ORDER BY full_name ASC")->fetchAll();
 $users = assignable_collector_rows($pdo, $currentAssignedUserId > 0 ? $currentAssignedUserId : null);
 $current = current_user();
-$isSystemOwner = is_owner($current);
 $canEditLoan = can('loans.edit');
+$canExtendLoan = can('loans.extend');
 $canEditAssignment = can('loans.assign');
 $canScheduleNextPayment = can('collections.schedule');
 $canDeleteLoan = can('loans.delete');
 $canViewCustomer = can('customers.view');
 $canRecordCollection = can('collections.record');
-$canEditCollection = $isSystemOwner;
+$canViewLoanCollectionRecords = can('collections.loan_records');
+$canEditCollection = can('collections.loan_records_edit');
 $canEditCollectionDate = can('collections.backdate');
 $paymentMethodSelectionEnabled = payment_method_selection_enabled($pdo);
 
@@ -199,7 +200,7 @@ require __DIR__ . '/../includes/layout_start.php';
             <?php if (can('today_collections.view')): ?>
                 <a class="btn" href="<?= e(url('pages/today_collections.php')) ?>">Today Collection</a>
             <?php endif; ?>
-            <?php if ($canEditLoan): ?>
+            <?php if ($canExtendLoan): ?>
                 <a class="btn" href="<?= e(url('pages/loan_extend.php?loan_id=' . $loanId)) ?>">Extend Loan</a>
             <?php endif; ?>
         </div>
@@ -260,7 +261,9 @@ require __DIR__ . '/../includes/layout_start.php';
     <div class="loan-tab-frame">
     <div class="loan-tab-nav" role="tablist" aria-label="Loan edit sections">
         <button type="button" class="loan-tab-button is-active" data-loan-tab-open="details" role="tab" aria-selected="true">Loan Details</button>
-        <button type="button" class="loan-tab-button" data-loan-tab-open="collections" role="tab" aria-selected="false">Collection History</button>
+        <?php if ($canViewLoanCollectionRecords): ?>
+            <button type="button" class="loan-tab-button" data-loan-tab-open="collections" role="tab" aria-selected="false">Collection Records</button>
+        <?php endif; ?>
     </div>
 
     <div class="loan-edit-tabs">
@@ -425,12 +428,13 @@ require __DIR__ . '/../includes/layout_start.php';
         </form>
     </div>
 
+    <?php if ($canViewLoanCollectionRecords): ?>
     <div class="loan-tab-panel loan-collections-tab-panel" data-loan-tab-panel="collections" role="tabpanel" hidden>
         <section class="loan-payment-layout">
             <div class="loan-history-column">
     <div class="panel loan-history-panel">
         <div class="panel-head">
-            <h2 class="panel-title loan-history-title">Collection History</h2>
+            <h2 class="panel-title loan-history-title">Collection Records</h2>
             <div class="panel-head-actions loan-history-panel-actions">
                 <?php if ($canEditCollection): ?>
                     <label class="edit-mode-switch" for="loan-collection-edit-switch" title="Enable or disable collection edit mode">
@@ -544,7 +548,8 @@ require __DIR__ . '/../includes/layout_start.php';
                     action="<?= e(url('actions/collection_save.php')) ?>"
                     data-loan-collection-form
                     data-can-collect-current="<?= $canCollectCurrent ? '1' : '0' ?>"
-                    data-can-edit-collection-date="<?= $canEditCollectionDate ? '1' : '0' ?>"
+                    data-can-backdate-collection="<?= $canEditCollectionDate ? '1' : '0' ?>"
+                    data-can-edit-collection="<?= $canEditCollection ? '1' : '0' ?>"
                     data-collect-action="<?= e(url('actions/collection_save.php')) ?>"
                     data-edit-action="<?= e(url('actions/collection_update.php')) ?>"
                     data-collect-confirm="Confirm this collection payment?"
@@ -588,10 +593,12 @@ require __DIR__ . '/../includes/layout_start.php';
     </aside>
 </section>
     </div>
+    <?php endif; ?>
     </div>
     </div>
 </div>
 
+<?php if ($canViewLoanCollectionRecords): ?>
 <section class="loan-collection-print-report" id="loan-collection-print-report" aria-hidden="true">
     <header class="print-report-header">
         <div class="print-report-logo-slot">
@@ -712,6 +719,7 @@ require __DIR__ . '/../includes/layout_start.php';
         <span class="print-page-number"></span>
     </footer>
 </section>
+<?php endif; ?>
 
 <script>
 (() => {
@@ -722,8 +730,13 @@ require __DIR__ . '/../includes/layout_start.php';
 
     const tabButtons = Array.from(tabRoot.querySelectorAll('[data-loan-tab-open]'));
     const panels = Array.from(tabRoot.querySelectorAll('[data-loan-tab-panel]'));
+    const validTabs = tabButtons.map((button) => button.getAttribute('data-loan-tab-open') || '');
 
     const openTab = (target) => {
+        if (!validTabs.includes(target)) {
+            target = 'details';
+        }
+
         panels.forEach((panel) => {
             const isActive = panel.getAttribute('data-loan-tab-panel') === target;
             panel.classList.toggle('is-active', isActive);
@@ -800,7 +813,8 @@ require __DIR__ . '/../includes/layout_start.php';
     const amountLabel = panel.querySelector('[data-loan-collect-amount-label]');
 
     const canCollectCurrent = form.getAttribute('data-can-collect-current') === '1';
-    const canEditCollectionDate = form.getAttribute('data-can-edit-collection-date') === '1';
+    const canBackdateCollection = form.getAttribute('data-can-backdate-collection') === '1';
+    const canEditCollection = form.getAttribute('data-can-edit-collection') === '1';
     const collectAction = form.getAttribute('data-collect-action') || form.action;
     const editAction = form.getAttribute('data-edit-action') || form.action;
     const collectConfirm = form.getAttribute('data-collect-confirm') || 'Confirm this collection payment?';
@@ -860,7 +874,7 @@ require __DIR__ . '/../includes/layout_start.php';
         }
         if (dateInput instanceof HTMLInputElement) {
             dateInput.value = defaults.date;
-            dateInput.readOnly = !canEditCollectionDate;
+            dateInput.readOnly = !canBackdateCollection;
         }
         if (amountInput instanceof HTMLInputElement) {
             amountInput.value = defaults.amount;
@@ -940,7 +954,7 @@ require __DIR__ . '/../includes/layout_start.php';
         }
         if (dateInput instanceof HTMLInputElement) {
             dateInput.value = row.getAttribute('data-collection-date') || '';
-            dateInput.readOnly = !canEditCollectionDate;
+            dateInput.readOnly = !canEditCollection;
         }
         if (amountInput instanceof HTMLInputElement) {
             amountInput.value = row.getAttribute('data-collection-amount') || '';

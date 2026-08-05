@@ -9,9 +9,7 @@ $viewer = current_user();
 $canViewTodayCollections = can('today_collections.view', $viewer);
 $canViewLoans = can('loans.view', $viewer);
 $canViewReports = can('reports.view', $viewer);
-$canViewCollectionHistory = can('collections.history', $viewer);
 $canViewUserCollections = can_any(['reports.view', 'users.manage'], $viewer);
-$paymentMethodSelectionEnabled = payment_method_selection_enabled($pdo);
 $chartMode = (string) ($_GET['chart'] ?? 'weekly');
 $chartMode = $chartMode === 'weekly' ? 'weekly' : 'monthly';
 $selectedWeekStart = dashboard_week_start_from_input((string) ($_GET['week'] ?? ''));
@@ -26,18 +24,6 @@ $dailyProfitValue = (float) $stats['daily_profit'];
 $dailyCollectedValue = (float) $stats['daily_collected_amount'];
 $isTodayTargetCompleted = (float) $todayGoal['target'] > 0 && $todayCollectedTotal >= (float) $todayGoal['target'];
 $todayGoalMetaText = 'Target: ' . money_label($pdo, (float) $todayGoal['target']);
-
-$recentCollections = [];
-if ($canViewCollectionHistory) {
-    $recentCollections = $pdo->query(
-        'SELECT c.collected_on, c.amount, c.method, l.loan_number, cu.full_name
-         FROM collections c
-         JOIN loans l ON l.id = c.loan_id
-         JOIN customers cu ON cu.id = l.customer_id
-         ORDER BY c.id DESC
-         LIMIT 8'
-    )->fetchAll();
-}
 
 ob_start();
 ?>
@@ -98,19 +84,9 @@ ob_start();
             <p class="muted-block">No collections today.</p>
         <?php else: ?>
             <?php foreach ($userGoals['users'] as $user): ?>
-                <?php
-                $roleBadgeClass = match ($user['role']) {
-                    'superadmin' => 'badge-info',
-                    'admin' => 'badge-warning',
-                    default => 'badge-neutral',
-                };
-                ?>
                 <div class="user-goal-item">
                     <div class="user-goal-top">
-                        <div>
-                            <strong><?= e($user['full_name']) ?></strong>
-                            <span class="badge <?= e($roleBadgeClass) ?>"><?= e((string) ($user['role_label'] ?? $user['role'])) ?></span>
-                        </div>
+                        <strong><?= e($user['full_name']) ?></strong>
                         <div class="user-goal-money"><?= e(money_label($pdo, (float) $user['collected'])) ?></div>
                     </div>
                 </div>
@@ -121,28 +97,6 @@ ob_start();
 <?php
 $userGoalsHtml = ob_get_clean();
 
-ob_start();
-if ($canViewCollectionHistory && !$recentCollections):
-?>
-<tr><td colspan="<?= $paymentMethodSelectionEnabled ? '5' : '4' ?>">No collections yet.</td></tr>
-<?php
-elseif ($canViewCollectionHistory):
-    foreach ($recentCollections as $item):
-?>
-<tr>
-    <td><?= e(display_date((string) $item['collected_on'])) ?></td>
-    <td><?= e($item['loan_number']) ?></td>
-    <td><?= e($item['full_name']) ?></td>
-    <?php if ($paymentMethodSelectionEnabled): ?>
-        <td><?= e($item['method']) ?></td>
-    <?php endif; ?>
-    <td class="text-right"><?= e(money_label($pdo, (float) $item['amount'])) ?></td>
-</tr>
-<?php
-    endforeach;
-endif;
-$recentHtml = ob_get_clean();
-
 $targets = [
     '#dashboard-stat-cards' => $cardsHtml,
 ];
@@ -151,9 +105,6 @@ if ($canViewReports) {
 }
 if ($canViewUserCollections) {
     $targets['#dashboard-user-goals-panel'] = $userGoalsHtml;
-}
-if ($canViewCollectionHistory) {
-    $targets['#dashboard-recent-collections-body'] = $recentHtml;
 }
 
 header('Content-Type: application/json; charset=utf-8');
