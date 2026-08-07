@@ -193,7 +193,7 @@ require __DIR__ . '/../includes/layout_start.php';
                     <?php endif; ?>
                     <div class="loan-form-divider">Installment Options</div>
                     <div class="field full">
-                        <label>Round Installment Amount</label>
+                        <label>Change Installment Amount</label>
                         <div class="loan-rounding-row">
                             <label class="checkline loan-rounding-toggle">
                                 <input type="checkbox" name="use_rounded_installment" value="1" id="use-rounded-installment">

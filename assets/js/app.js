@@ -887,8 +887,31 @@
     const profitEl = document.getElementById('preview-profit');
     const installmentCountEl = document.getElementById('preview-installment-count');
     const endDateEl = document.getElementById('preview-end-date');
+    [totalEl, installmentEl, profitEl, installmentCountEl, endDateEl].forEach((target) => {
+        if (target instanceof HTMLElement && !target.dataset.originalPreview) {
+            target.dataset.originalPreview = target.textContent || '';
+        }
+    });
     const isEditLoanForm = Boolean(form.querySelector('[name="loan_id"]'));
-    const repaymentLocked = form.getAttribute('data-repayment-locked') === '1';
+    const collectedTotalValue = Number(form.dataset.collectedTotal || 0);
+    const paidOrLinkedCountValue = Number(form.dataset.paidOrLinkedCount || 0);
+    const protectedUnpaidCountValue = Number(form.dataset.protectedUnpaidCount || 0);
+    const collectedTotal = isEditLoanForm && Number.isFinite(collectedTotalValue) ? collectedTotalValue : 0;
+    const paidOrLinkedCount = isEditLoanForm && Number.isFinite(paidOrLinkedCountValue) ? Math.max(Math.floor(paidOrLinkedCountValue), 0) : 0;
+    const protectedUnpaidCount = isEditLoanForm && Number.isFinite(protectedUnpaidCountValue) ? Math.max(Math.floor(protectedUnpaidCountValue), 0) : 0;
+    const isIsoDateValue = (value) => /^\d{4}-\d{2}-\d{2}$/.test(String(value || ''));
+    let unpaidDueDates = [];
+    try {
+        const parsedUnpaidDueDates = JSON.parse(form.getAttribute('data-unpaid-due-dates') || '[]');
+        unpaidDueDates = Array.isArray(parsedUnpaidDueDates)
+            ? parsedUnpaidDueDates.filter((value) => isIsoDateValue(value))
+            : [];
+    } catch (_error) {
+        unpaidDueDates = [];
+    }
+    const scheduleLastDueDate = isIsoDateValue(form.dataset.scheduleLastDueDate || '')
+        ? form.dataset.scheduleLastDueDate
+        : '';
     const inlineCustomerToggle = document.querySelector('[data-inline-customer-toggle]');
     const inlineCustomerPanel = form.querySelector('[data-inline-customer-panel]');
     const inlineCustomerFlag = form.querySelector('[data-inline-customer-flag]');
@@ -962,6 +985,34 @@
         }).format(value);
     };
 
+    const setPreviewValue = (target, newValue, changed) => {
+        if (!(target instanceof HTMLElement)) {
+            return;
+        }
+
+        const original = target.dataset.originalPreview || target.textContent || '';
+        if (isEditLoanForm && changed && String(original).trim() !== String(newValue).trim()) {
+            target.innerHTML = '';
+
+            const oldSpan = document.createElement('span');
+            oldSpan.className = 'preview-old-value';
+            oldSpan.textContent = original;
+
+            const arrowSpan = document.createElement('span');
+            arrowSpan.className = 'preview-change-arrow';
+            arrowSpan.textContent = ' -> ';
+
+            const newSpan = document.createElement('span');
+            newSpan.className = 'preview-new-value';
+            newSpan.textContent = newValue;
+
+            target.append(oldSpan, arrowSpan, newSpan);
+            return;
+        }
+
+        target.textContent = newValue;
+    };
+
     const validIsoDate = (value) => /^\d{4}-\d{2}-\d{2}$/.test(String(value || ''));
 
     const addToIsoDate = (isoDate, amount, unit) => {
@@ -1020,7 +1071,7 @@
         const firstDueDate = form.getAttribute('data-first-due-date') || '';
         const issuedDate = issuedDateInput ? issuedDateInput.value : '';
         const startDate = issuedDate || form.getAttribute('data-start-date') || '';
-        let dueDate = repaymentLocked && validIsoDate(firstDueDate)
+        let dueDate = form.getAttribute('data-preserve-first-due-date') === '1' && validIsoDate(firstDueDate)
             ? firstDueDate
             : addToIsoDate(startDate, 1, 'days');
 
@@ -1035,6 +1086,58 @@
         }
 
         return endDate;
+    };
+
+    const calculateCollectedLoanEndDate = (unpaidCount, frequency) => {
+        const safeUnpaidCount = Math.max(Math.floor(unpaidCount), 0);
+        if (safeUnpaidCount <= 0) {
+            return '';
+        }
+
+        if (safeUnpaidCount <= unpaidDueDates.length) {
+            return unpaidDueDates
+                .slice(0, safeUnpaidCount)
+                .reduce((latest, dueDate) => dueDate > latest ? dueDate : latest, '');
+        }
+
+        let endDate = scheduleLastDueDate || unpaidDueDates[unpaidDueDates.length - 1] || '';
+        if (!validIsoDate(endDate)) {
+            return '';
+        }
+
+        for (let slotCount = unpaidDueDates.length; slotCount < safeUnpaidCount; slotCount += 1) {
+            endDate = nextCollectibleDate(nextFrequencyDate(endDate, frequency));
+        }
+
+        return endDate;
+    };
+
+    const initialLoanEditValues = isEditLoanForm ? {
+        principal: principalInput instanceof HTMLInputElement ? principalInput.value : '',
+        interestRate: interestInput instanceof HTMLInputElement ? interestInput.value : '',
+        interestType: interestTypeInput instanceof HTMLSelectElement ? interestTypeInput.value : '',
+        interestMonths: interestMonthsInput instanceof HTMLInputElement ? interestMonthsInput.value : '',
+        issuedDate: issuedDateInput instanceof HTMLInputElement ? issuedDateInput.value : '',
+        frequency: frequencyInput instanceof HTMLSelectElement ? frequencyInput.value : '',
+        timeframeValue: timeframeValueInput instanceof HTMLInputElement ? timeframeValueInput.value : '',
+        timeframeUnit: timeframeUnitInput instanceof HTMLSelectElement ? timeframeUnitInput.value : '',
+    } : null;
+
+    const numericValueChanged = (oldValue, newValue) => Math.abs(toNumber(oldValue) - toNumber(newValue)) >= 0.005;
+
+    const loanEditPreviewChanged = () => {
+        if (!initialLoanEditValues) {
+            return true;
+        }
+
+        return numericValueChanged(initialLoanEditValues.principal, principalInput instanceof HTMLInputElement ? principalInput.value : '')
+            || numericValueChanged(initialLoanEditValues.interestRate, interestInput instanceof HTMLInputElement ? interestInput.value : '')
+            || initialLoanEditValues.interestType !== (interestTypeInput instanceof HTMLSelectElement ? interestTypeInput.value : '')
+            || numericValueChanged(initialLoanEditValues.interestMonths, interestMonthsInput instanceof HTMLInputElement ? interestMonthsInput.value : '')
+            || initialLoanEditValues.issuedDate !== (issuedDateInput instanceof HTMLInputElement ? issuedDateInput.value : '')
+            || initialLoanEditValues.frequency !== (frequencyInput instanceof HTMLSelectElement ? frequencyInput.value : '')
+            || numericValueChanged(initialLoanEditValues.timeframeValue, timeframeValueInput instanceof HTMLInputElement ? timeframeValueInput.value : '')
+            || initialLoanEditValues.timeframeUnit !== (timeframeUnitInput instanceof HTMLSelectElement ? timeframeUnitInput.value : '');
     };
 
     const installmentCountFromTimeframe = (frequency, timeframeValue, timeframeUnit) => {
@@ -1070,6 +1173,12 @@
     };
 
     const updatePreview = () => {
+        const editToggle = isEditLoanForm ? form.querySelector('[data-loan-detail-edit-toggle]') : null;
+        const editModeActive = !isEditLoanForm || (editToggle instanceof HTMLInputElement && editToggle.checked);
+        if (isEditLoanForm && !editModeActive) {
+            return;
+        }
+
         const principal = toNumber(principalInput.value);
         const interestRate = toNumber(interestInput.value);
         const interestType = interestTypeInput && interestTypeInput.value === 'monthly'
@@ -1085,28 +1194,57 @@
         const profit = total - principal;
         const roundedEnabled = Boolean(roundedToggle && roundedToggle.checked);
         const roundedAmount = roundedAmountInput ? toNumber(roundedAmountInput.value) : 0;
+        const previewChanged = loanEditPreviewChanged() || (roundedEnabled && roundedAmount > 0);
+        if (isEditLoanForm && !previewChanged) {
+            return;
+        }
+
         let count = baseCount;
         let installment = count > 0 ? total / count : 0;
+        let lastAmountBasis = total;
+        let collectedLoanUnpaidCount = 0;
 
-        if (roundedEnabled && roundedAmount > 0 && total > 0) {
+        if (isEditLoanForm && collectedTotal > 0) {
+            const unpaidTotal = Math.max(total - collectedTotal, 0);
+            let unpaidCount;
+
+            if (roundedEnabled && roundedAmount > 0 && unpaidTotal > 0) {
+                unpaidCount = Math.max(Math.ceil(unpaidTotal / roundedAmount), protectedUnpaidCount, 1);
+                installment = roundedAmount;
+            } else {
+                unpaidCount = Math.max(baseCount - paidOrLinkedCount, protectedUnpaidCount, 1);
+                installment = unpaidCount > 0 ? unpaidTotal / unpaidCount : 0;
+            }
+
+            count = paidOrLinkedCount + unpaidCount;
+            lastAmountBasis = unpaidTotal;
+            collectedLoanUnpaidCount = unpaidCount;
+        } else if (roundedEnabled && roundedAmount > 0 && total > 0) {
             count = Math.max(Math.ceil(total / roundedAmount), 1);
             installment = roundedAmount;
         }
 
-        if (installmentCountEl) {
-            installmentCountEl.textContent = String(count);
-        }
-        if (endDateEl) {
-            endDateEl.textContent = formatDisplayDate(calculateEndDate(count, frequency));
-        }
-        totalEl.textContent = formatMoney(total);
-        installmentEl.textContent = formatMoney(installment);
+        const previewEndDate = isEditLoanForm && collectedTotal > 0
+            ? (calculateCollectedLoanEndDate(collectedLoanUnpaidCount, frequency) || calculateEndDate(count, frequency))
+            : calculateEndDate(count, frequency);
+
+        setPreviewValue(installmentCountEl, String(count), previewChanged);
+        setPreviewValue(endDateEl, formatDisplayDate(previewEndDate), previewChanged);
+        setPreviewValue(totalEl, formatMoney(total), previewChanged);
+        setPreviewValue(installmentEl, formatMoney(installment), previewChanged);
         if (roundedHint) {
-            if (roundedEnabled && roundedAmount > 0 && total > 0) {
-                const lastAmount = total - (roundedAmount * Math.max(count - 1, 0));
+            if (isEditLoanForm && total < collectedTotal) {
+                roundedHint.textContent = 'Total repayable cannot be less than already collected.';
+            } else if (roundedEnabled && roundedAmount > 0 && lastAmountBasis > 0) {
+                const unpaidInstallmentCount = isEditLoanForm && collectedTotal > 0
+                    ? Math.max(count - paidOrLinkedCount, 1)
+                    : count;
+                const lastAmount = lastAmountBasis - (roundedAmount * Math.max(unpaidInstallmentCount - 1, 0));
                 roundedHint.textContent = `Last installment will be ${formatMoney(lastAmount)}.`;
             } else {
-                roundedHint.textContent = 'When enabled, the last installment will carry the remaining balance.';
+                roundedHint.textContent = isEditLoanForm && collectedTotal > 0
+                    ? 'Preview uses the unpaid balance after already collected amount.'
+                    : 'When enabled, the last installment will carry the remaining balance.';
             }
         }
         if (profitEl) {

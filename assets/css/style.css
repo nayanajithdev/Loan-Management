@@ -1526,6 +1526,23 @@ button {
     display: none;
 }
 
+.loan-details-panel-head {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin: -2px 0 0;
+}
+
+.loan-details-title {
+    margin: 0;
+}
+
+.loan-details-panel-head + .loan-form-divider {
+    margin-top: 6px;
+}
+
 .loan-payment-layout {
     display: grid;
     grid-template-columns: minmax(0, 7fr) minmax(320px, 3fr);
@@ -2131,7 +2148,9 @@ th {
 
 .create-loan-preview-grid .calc-preview-item h3 {
     margin-top: 10px;
-    font-size: clamp(30px, 2.4vw, 42px);
+    font-size: 28px;
+    white-space: normal;
+    overflow-wrap: anywhere;
 }
 
 .create-loan-preview-grid .calc-preview-item p {
@@ -3267,64 +3286,7 @@ textarea {
     gap: 8px;
 }
 
-.loan-schedule-row {
-    display: grid;
-    grid-template-columns: 36px minmax(0, 1fr);
-    gap: 10px;
-    align-items: center;
-    max-width: 320px;
-}
-
-.loan-schedule-checkbox-field {
-    display: grid;
-    place-items: center;
-    width: 36px;
-    height: 36px;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    background: var(--surface-2);
-}
-
-.loan-schedule-checkbox-input {
-    -webkit-appearance: none;
-    -moz-appearance: none;
-    appearance: none;
-    width: 16px;
-    height: 16px;
-    margin: 0;
-    border: 1px solid rgba(255, 255, 255, 0.28);
-    border-radius: 4px;
-    background: rgba(255, 255, 255, 0.04);
-    transition: 0.2s ease;
-    cursor: pointer;
-}
-
-.loan-schedule-checkbox-input:checked {
-    border-color: #2bb36c;
-    background-color: rgba(43, 179, 108, 0.2);
-    box-shadow: inset 0 0 0 1px rgba(43, 179, 108, 0.25);
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%232bb36c' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E");
-    background-repeat: no-repeat;
-    background-position: center;
-    background-size: 11px 11px;
-}
-
-.loan-schedule-checkbox-input:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-}
-
-.loan-schedule-row input[type="date"] {
-    width: 100%;
-    padding-left: 12px;
-}
-
-.loan-schedule-row input[type="date"]:disabled {
-    opacity: 0.65;
-    color: #9c9c9c;
-    cursor: not-allowed;
-}
-
+.loan-schedule-row,
 .loan-rounding-row {
     display: grid;
     grid-template-columns: 40px minmax(0, 1fr);
@@ -3351,6 +3313,7 @@ textarea {
     accent-color: var(--accent);
 }
 
+.loan-schedule-toggle,
 .loan-rounding-toggle {
     position: relative;
     min-height: 38px;
@@ -3364,12 +3327,14 @@ textarea {
     justify-content: center;
 }
 
+.loan-schedule-toggle input[type="checkbox"],
 .loan-rounding-toggle input[type="checkbox"] {
     position: absolute;
     opacity: 0;
     pointer-events: none;
 }
 
+.loan-schedule-checkbox,
 .loan-rounding-checkbox {
     width: 17px;
     height: 17px;
@@ -3384,6 +3349,7 @@ textarea {
     transition: 0.2s ease;
 }
 
+.loan-schedule-checkbox svg,
 .loan-rounding-checkbox svg {
     width: 13px;
     height: 13px;
@@ -3391,23 +3357,30 @@ textarea {
     transition: 0.2s ease;
 }
 
+.loan-schedule-row.is-checked,
+.loan-schedule-row:has(input[type="checkbox"]:checked),
 .loan-rounding-row.is-checked,
 .loan-rounding-row:has(input[type="checkbox"]:checked) {
     border-color: rgba(126, 224, 162, 0.55);
     background: var(--surface-2);
 }
 
+.loan-schedule-toggle.is-checked .loan-schedule-checkbox,
+.loan-schedule-toggle input[type="checkbox"]:checked + .loan-schedule-checkbox,
 .loan-rounding-toggle.is-checked .loan-rounding-checkbox,
 .loan-rounding-toggle input[type="checkbox"]:checked + .loan-rounding-checkbox {
     border-color: #7ee0a2;
     background: #7ee0a2;
 }
 
+.loan-schedule-toggle.is-checked .loan-schedule-checkbox svg,
+.loan-schedule-toggle input[type="checkbox"]:checked + .loan-schedule-checkbox svg,
 .loan-rounding-toggle.is-checked .loan-rounding-checkbox svg,
 .loan-rounding-toggle input[type="checkbox"]:checked + .loan-rounding-checkbox svg {
     opacity: 1;
 }
 
+.loan-schedule-row input[type="date"],
 .loan-rounding-row input[type="number"] {
     width: 100%;
     height: 100%;
@@ -3419,15 +3392,18 @@ textarea {
     padding: 0 12px 0 0;
 }
 
+.loan-schedule-row input[type="date"]:focus,
 .loan-rounding-row input[type="number"]:focus {
     outline: none;
     box-shadow: none;
 }
 
+.loan-schedule-row:focus-within,
 .loan-rounding-row:focus-within {
     box-shadow: inset 0 0 0 1px #ffffff;
 }
 
+.loan-schedule-row input[type="date"]:disabled,
 .loan-rounding-row input[type="number"]:disabled {
     opacity: 0.65;
     color: #9c9c9c;
@@ -3500,159 +3476,17 @@ textarea {
     text-overflow: ellipsis;
 }
 
-.loan-extend-search-panel .panel-head {
-    align-items: flex-end;
-    gap: 16px;
+.preview-old-value {
+    opacity: 0.56;
 }
 
-.loan-extend-search-form {
-    justify-content: flex-end;
+.preview-change-arrow {
+    opacity: 0.72;
+    padding: 0 2px;
 }
 
-.loan-extend-results-wrap {
-    max-height: 330px;
-    overflow: auto;
-}
-
-.loan-extend-layout {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(360px, 0.95fr);
-    gap: 16px;
-    align-items: start;
-}
-
-.loan-extend-layout .panel {
-    margin-bottom: 0;
-}
-
-.loan-extend-left-column {
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-    min-width: 0;
-}
-
-.loan-extend-details-panel,
-.loan-extend-options-panel {
-    min-width: 0;
-}
-
-.loan-extend-detail-groups {
-    display: grid;
-    gap: 18px;
-}
-
-.loan-extend-detail-group {
-    padding-top: 16px;
-    border-top: 1px solid var(--edge);
-}
-
-.loan-extend-detail-group:first-child {
-    padding-top: 0;
-    border-top: 0;
-}
-
-.loan-extend-detail-grid {
-    gap: 12px;
-}
-
-.loan-extend-detail-grid .field {
-    grid-column: span 4;
-    margin: 0;
-}
-
-.loan-extend-detail-grid .readonly-value {
-    font-weight: 700;
-}
-
-.loan-extend-detail-grid.is-four .field {
-    grid-column: span 3;
-}
-
-.loan-extend-detail-grid .readonly-value-success {
-    color: var(--success);
-}
-
-.loan-extend-detail-grid .readonly-value-accent {
-    color: var(--accent);
-}
-
-.loan-extend-details-panel .panel-head {
-    margin-bottom: 18px;
-}
-
-.loan-extend-options-grid .field {
-    grid-column: span 6;
-}
-
-.loan-extend-options-grid .field.full {
-    grid-column: span 12;
-}
-
-.loan-extend-date-toggle-field {
-    gap: 8px;
-}
-
-.loan-extend-preview-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 25px 30px;
-    margin-top: 30px;
-}
-
-.loan-extend-preview-grid .calc-preview-item {
-    padding: 0;
-    border-radius: 0;
-    background: transparent;
-    box-shadow: none;
-}
-
-.loan-extend-preview-grid .calc-preview-item p {
-    color: #d5d5d5;
-    font-size: 13px;
-}
-
-.loan-extend-preview-grid .calc-preview-item h3 {
-    margin-top: 4px;
-    color: var(--text);
-    font-size: 23px;
-    line-height: 1.2;
-}
-
-.loan-extend-preview-grid .calc-preview-item:nth-child(1) h3 {
-    color: var(--accent);
-}
-
-.loan-extend-preview-grid .calc-preview-item:nth-child(2) h3 {
-    color: #2f7bff;
-}
-
-.loan-extend-preview-grid .calc-preview-item:nth-child(3) h3 {
-    color: var(--success);
-}
-
-.loan-extend-submit-btn {
-    width: 100%;
-    min-height: 46px;
-    margin-top: 24px;
-}
-
-.loan-extend-form .inline-confirm-actions {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 10px;
-    width: 100%;
-    margin-top: 14px;
-}
-
-.loan-extend-form .inline-confirm-actions .btn {
-    width: 100%;
-    min-width: 0;
-    min-height: 46px;
-}
-
-.loan-extend-empty {
-    margin: 0;
-    color: var(--muted);
+.preview-new-value {
+    opacity: 1;
 }
 
 .split-layout {
@@ -4492,21 +4326,6 @@ textarea {
 
     .create-loan-preview-panel {
         position: static;
-    }
-
-    .loan-extend-search-panel .panel-head,
-    .loan-extend-layout {
-        grid-template-columns: 1fr;
-    }
-
-    .loan-extend-search-panel .panel-head {
-        align-items: stretch;
-    }
-
-    .loan-extend-search-form,
-    .loan-extend-search-form .field,
-    .loan-extend-search-form .search-control {
-        width: 100%;
     }
 
     .sidebar {
@@ -5913,32 +5732,6 @@ textarea {
 
     .loan-rounding-row {
         grid-template-columns: 40px minmax(0, 1fr);
-    }
-
-    .loan-extend-preview-grid {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 18px 14px;
-    }
-
-    .loan-extend-preview-grid .calc-preview-item h3 {
-        font-size: 24px;
-    }
-
-    .loan-extend-detail-grid {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-
-    .loan-extend-detail-grid .field {
-        grid-column: span 1;
-    }
-
-    .loan-extend-detail-grid div.full {
-        grid-column: 1 / -1;
-    }
-
-    .loan-extend-options-grid .field,
-    .loan-extend-options-grid .field.full {
-        grid-column: span 12;
     }
 
     .settings-two-col {

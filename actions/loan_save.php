@@ -110,12 +110,12 @@ if ($assignedUserId !== null && $assignedUserId <= 0) {
 $totalAmount = loan_total_amount($principal, $interestRate, $interestRateType, $interestRateMonths);
 if ($useRoundedInstallment) {
     if ($roundedInstallmentAmount <= 0) {
-        set_flash('error', 'Rounded installment amount must be greater than zero.');
+        set_flash('error', 'Change installment amount must be greater than zero.');
         redirect('pages/loan_create.php');
     }
 
     if ($roundedInstallmentAmount > $totalAmount) {
-        set_flash('error', 'Rounded installment amount cannot be greater than total repayable amount.');
+        set_flash('error', 'Change installment amount cannot be greater than total repayable amount.');
         redirect('pages/loan_create.php');
     }
 

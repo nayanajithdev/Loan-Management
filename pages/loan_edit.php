@@ -37,7 +37,6 @@ $customers = $pdo->query("SELECT id, customer_code, full_name, nic FROM customer
 $users = assignable_collector_rows($pdo, $currentAssignedUserId > 0 ? $currentAssignedUserId : null);
 $current = current_user();
 $canEditLoan = can('loans.edit');
-$canExtendLoan = can('loans.extend');
 $canEditAssignment = can('loans.assign');
 $canScheduleNextPayment = can('collections.schedule');
 $canDeleteLoan = can('loans.delete');
@@ -123,6 +122,42 @@ $loanTotalRepayable = (float) ($loan['total_amount'] ?? 0);
 $loanCollectedStmt = $pdo->prepare('SELECT COALESCE(SUM(amount), 0) FROM collections WHERE loan_id = :loan_id');
 $loanCollectedStmt->execute(['loan_id' => $loanId]);
 $loanTotalCollected = (float) $loanCollectedStmt->fetchColumn();
+$loanPaidMetaStmt = $pdo->prepare(
+    "SELECT
+        SUM(CASE
+            WHEN li.due_amount <= li.paid_amount + 0.009
+                 AND (li.paid_amount > 0 OR EXISTS (SELECT 1 FROM collections c WHERE c.installment_id = li.id))
+            THEN 1 ELSE 0 END) AS paid_or_linked_count,
+        SUM(CASE
+            WHEN li.due_amount > li.paid_amount + 0.009
+                 AND (li.paid_amount > 0 OR EXISTS (SELECT 1 FROM collections c WHERE c.installment_id = li.id))
+            THEN 1 ELSE 0 END) AS protected_unpaid_count
+     FROM loan_installments li
+     WHERE li.loan_id = :loan_id"
+);
+$loanPaidMetaStmt->execute(['loan_id' => $loanId]);
+$loanPaidMeta = $loanPaidMetaStmt->fetch() ?: [];
+$loanPaidOrLinkedCount = (int) ($loanPaidMeta['paid_or_linked_count'] ?? 0);
+$loanProtectedUnpaidCount = (int) ($loanPaidMeta['protected_unpaid_count'] ?? 0);
+$loanUnpaidDueDatesStmt = $pdo->prepare(
+    "SELECT due_date
+     FROM loan_installments
+     WHERE loan_id = :loan_id
+       AND due_amount > paid_amount + 0.009
+     ORDER BY installment_no ASC, due_date ASC, id ASC"
+);
+$loanUnpaidDueDatesStmt->execute(['loan_id' => $loanId]);
+$loanUnpaidDueDates = array_values(array_filter(array_map('strval', $loanUnpaidDueDatesStmt->fetchAll(PDO::FETCH_COLUMN))));
+$loanMaxDueDateStmt = $pdo->prepare('SELECT MAX(due_date) FROM loan_installments WHERE loan_id = :loan_id');
+$loanMaxDueDateStmt->execute(['loan_id' => $loanId]);
+$loanMaxDueDate = (string) ($loanMaxDueDateStmt->fetchColumn() ?: '');
+$loanScheduleLastDueDate = (string) (($loan['end_date'] ?? '') ?: ($loan['first_due_date'] ?? ''));
+if ($loanMaxDueDate !== '' && ($loanScheduleLastDueDate === '' || $loanMaxDueDate > $loanScheduleLastDueDate)) {
+    $loanScheduleLastDueDate = $loanMaxDueDate;
+}
+if ($loanScheduleLastDueDate === '') {
+    $loanScheduleLastDueDate = next_collectible_date($pdo, (new DateTimeImmutable($issuedDate))->add(new DateInterval('P1D'))->format('Y-m-d'));
+}
 $loanBalance = max(0.0, $loanTotalRepayable - $loanTotalCollected);
 $loanProgressPercent = $loanTotalRepayable > 0
     ? min(100.0, ($loanTotalCollected / $loanTotalRepayable) * 100)
@@ -200,9 +235,6 @@ require __DIR__ . '/../includes/layout_start.php';
             <?php if (can('today_collections.view')): ?>
                 <a class="btn" href="<?= e(url('pages/today_collections.php')) ?>">Today Collection</a>
             <?php endif; ?>
-            <?php if ($canExtendLoan): ?>
-                <a class="btn" href="<?= e(url('pages/loan_extend.php?loan_id=' . $loanId)) ?>">Extend Loan</a>
-            <?php endif; ?>
         </div>
         <div class="panel-head-actions">
             <?php if ($canViewCustomer): ?>
@@ -275,19 +307,34 @@ require __DIR__ . '/../includes/layout_start.php';
             action="<?= e(url('actions/loan_update.php')) ?>"
             data-start-date="<?= e($issuedDate) ?>"
             data-first-due-date="<?= e((string) ($loan['first_due_date'] ?? '')) ?>"
-            data-repayment-locked="<?= $repaymentLocked ? '1' : '0' ?>"
             data-holiday-dates="<?= e((string) json_encode($holidayDates, JSON_UNESCAPED_SLASHES)) ?>"
             data-money-decimals="<?= e((string) money_display_decimals($pdo)) ?>"
+            data-collected-total="<?= e(number_format($loanTotalCollected, 2, '.', '')) ?>"
+            data-paid-or-linked-count="<?= e((string) $loanPaidOrLinkedCount) ?>"
+            data-protected-unpaid-count="<?= e((string) $loanProtectedUnpaidCount) ?>"
+            data-unpaid-due-dates="<?= e((string) json_encode($loanUnpaidDueDates, JSON_UNESCAPED_SLASHES)) ?>"
+            data-schedule-last-due-date="<?= e($loanScheduleLastDueDate) ?>"
+            data-loan-details-edit-form
         >
         <?= csrf_input() ?>
         <input type="hidden" name="loan_id" value="<?= e((string) $loan['id']) ?>">
 
         <div class="create-loan-body">
         <div class="create-loan-main form-grid">
+        <div class="loan-details-panel-head">
+            <h2 class="panel-title loan-details-title">Loan Details</h2>
+            <?php if ($canEditLoan): ?>
+                <label class="edit-mode-switch" for="loan-details-edit-switch" title="Enable or disable loan detail edit mode">
+                    <input type="checkbox" id="loan-details-edit-switch" data-loan-detail-edit-toggle>
+                    <span class="edit-mode-slider"></span>
+                    <span class="edit-mode-label"><span class="edit-mode-prefix">Edit:</span> <span class="edit-mode-state" data-loan-detail-edit-state>Off</span></span>
+                </label>
+            <?php endif; ?>
+        </div>
         <div class="loan-form-divider">Loan Details</div>
         <div class="field">
             <label>Customer</label>
-            <select name="customer_id" required <?= $repaymentLocked ? 'disabled' : '' ?>>
+            <select name="customer_id" required <?= ($canEditLoan && !$repaymentLocked) ? 'disabled data-loan-edit-controlled' : 'disabled' ?>>
                 <option value="">Select customer</option>
                 <?php foreach ($customers as $customer): ?>
                     <option value="<?= e((string) $customer['id']) ?>" <?= (int) $loan['customer_id'] === (int) $customer['id'] ? 'selected' : '' ?>>
@@ -302,62 +349,53 @@ require __DIR__ . '/../includes/layout_start.php';
 
         <div class="field">
             <label>Principal Amount</label>
-            <input type="number" step="0.01" name="principal_amount" value="<?= e((string) $loan['principal_amount']) ?>" required <?= $repaymentLocked ? 'readonly' : '' ?>>
+            <input type="number" step="0.01" name="principal_amount" value="<?= e((string) $loan['principal_amount']) ?>" required <?= $canEditLoan ? 'readonly data-loan-edit-controlled data-loan-edit-readonly' : 'readonly' ?>>
         </div>
 
         <div class="field">
             <label>Loan Issued Date</label>
-            <input type="date" name="issued_date" value="<?= e($issuedDate) ?>" required <?= $canEditLoan ? '' : 'disabled' ?>>
+            <input type="date" name="issued_date" value="<?= e($issuedDate) ?>" required <?= $canEditLoan ? 'readonly data-loan-edit-controlled data-loan-edit-readonly' : 'readonly' ?>>
         </div>
 
         <div class="loan-form-divider">Terms &amp; Repayment</div>
         <div class="field">
             <label>Interest Rate (%)</label>
             <div class="combo-field combo-field-interest">
-                <input type="number" step="0.01" name="interest_rate" value="<?= e((string) $loan['interest_rate']) ?>" required <?= $repaymentLocked ? 'readonly' : '' ?>>
-                <select name="interest_rate_type" required <?= $repaymentLocked ? 'disabled' : '' ?>>
+                <input type="number" step="0.01" name="interest_rate" value="<?= e((string) $loan['interest_rate']) ?>" required <?= $canEditLoan ? 'readonly data-loan-edit-controlled data-loan-edit-readonly' : 'readonly' ?>>
+                <select name="interest_rate_type" required <?= $canEditLoan ? 'disabled data-loan-edit-controlled' : 'disabled' ?>>
                     <option value="amount_based" <?= $defaultInterestRateType === 'amount_based' ? 'selected' : '' ?>>Amount Based</option>
                     <option value="monthly" <?= $defaultInterestRateType === 'monthly' ? 'selected' : '' ?>>Monthly</option>
                 </select>
             </div>
-            <?php if ($repaymentLocked): ?>
-                <input type="hidden" name="interest_rate_type" value="<?= e($defaultInterestRateType) ?>">
-            <?php endif; ?>
         </div>
         <div class="field" data-interest-months-field>
             <label>Calculate Interest Rate (months)</label>
-            <input type="number" min="1" name="interest_rate_months" value="<?= e((string) $defaultInterestRateMonths) ?>" <?= $repaymentLocked ? 'readonly' : '' ?>>
+            <input type="number" min="1" name="interest_rate_months" value="<?= e((string) $defaultInterestRateMonths) ?>" <?= $canEditLoan ? 'readonly data-loan-edit-controlled data-loan-edit-readonly' : 'readonly' ?>>
         </div>
 
         <div class="field">
             <label>Installment Frequency</label>
-            <select name="installment_frequency" required <?= $repaymentLocked ? 'disabled' : '' ?>>
+            <select name="installment_frequency" required <?= $canEditLoan ? 'disabled data-loan-edit-controlled' : 'disabled' ?>>
                 <option value="daily" <?= $loan['installment_frequency'] === 'daily' ? 'selected' : '' ?>>Daily</option>
                 <option value="weekly" <?= $loan['installment_frequency'] === 'weekly' ? 'selected' : '' ?>>Weekly</option>
                 <option value="monthly" <?= $loan['installment_frequency'] === 'monthly' ? 'selected' : '' ?>>Monthly</option>
             </select>
-            <?php if ($repaymentLocked): ?>
-                <input type="hidden" name="installment_frequency" value="<?= e((string) $loan['installment_frequency']) ?>">
-            <?php endif; ?>
         </div>
 
         <div class="field">
             <label>Timeframe</label>
             <div class="combo-field">
-                <input type="number" min="1" name="timeframe_value" value="<?= e((string) $defaultTimeframeValue) ?>" required <?= $repaymentLocked ? 'readonly' : '' ?>>
-                <select name="timeframe_unit" required <?= $repaymentLocked ? 'disabled' : '' ?>>
+                <input type="number" min="1" name="timeframe_value" value="<?= e((string) $defaultTimeframeValue) ?>" required <?= $canEditLoan ? 'readonly data-loan-edit-controlled data-loan-edit-readonly' : 'readonly' ?>>
+                <select name="timeframe_unit" required <?= $canEditLoan ? 'disabled data-loan-edit-controlled' : 'disabled' ?>>
                     <option value="days" <?= $defaultTimeframeUnit === 'days' ? 'selected' : '' ?>>Days</option>
                     <option value="months" <?= $defaultTimeframeUnit === 'months' ? 'selected' : '' ?>>Months</option>
                 </select>
-                <?php if ($repaymentLocked): ?>
-                    <input type="hidden" name="timeframe_unit" value="<?= e($defaultTimeframeUnit) ?>">
-                <?php endif; ?>
             </div>
         </div>
 
         <div class="field">
             <label>Status</label>
-            <select name="status" required>
+            <select name="status" required <?= $canEditLoan ? 'disabled data-loan-edit-controlled' : 'disabled' ?>>
                 <option value="active" <?= $loan['status'] === 'active' ? 'selected' : '' ?>>Active</option>
                 <option value="closed" <?= $loan['status'] === 'closed' ? 'selected' : '' ?>>Closed</option>
                 <option value="defaulted" <?= $loan['status'] === 'defaulted' ? 'selected' : '' ?>>Defaulted</option>
@@ -366,7 +404,7 @@ require __DIR__ . '/../includes/layout_start.php';
 
         <div class="field">
             <label>Assign Loan To Collector</label>
-            <select name="assigned_user_id" <?= $canEditAssignment ? '' : 'disabled' ?>>
+            <select name="assigned_user_id" <?= ($canEditLoan && $canEditAssignment) ? 'disabled data-loan-edit-controlled' : 'disabled' ?>>
                 <option value="0" <?= $currentAssignedUserId <= 0 ? 'selected' : '' ?>>All users</option>
                 <?php foreach ($users as $user): ?>
                     <option value="<?= e((string) $user['id']) ?>" <?= $currentAssignedUserId === (int) $user['id'] ? 'selected' : '' ?>>
@@ -379,23 +417,44 @@ require __DIR__ . '/../includes/layout_start.php';
             <?php endif; ?>
         </div>
 
-        <?php if ($canScheduleNextPayment): ?>
+        <?php if ($canScheduleNextPayment || $canEditLoan): ?>
             <div class="loan-form-divider">Installment Options</div>
-            <div class="field loan-schedule-field">
+        <?php endif; ?>
+        <?php if ($canScheduleNextPayment): ?>
+            <div class="field loan-schedule-field" data-loan-schedule-options>
                 <label>Schedule Next Payment</label>
                 <div class="loan-schedule-row">
-                    <div class="loan-schedule-checkbox-field">
+                    <label class="checkline loan-schedule-toggle" for="schedule-next-payment-toggle">
                         <input type="checkbox" name="schedule_next_payment" id="schedule-next-payment-toggle" value="1" class="loan-schedule-checkbox-input">
-                    </div>
+                        <span class="loan-schedule-checkbox" aria-hidden="true">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+                        </span>
+                    </label>
                     <input type="date" name="next_payment_date" id="next-payment-date-input" value="<?= e($tomorrowDate) ?>" min="<?= e($tomorrowDate) ?>" disabled>
                 </div>
+                <small>When enabled, the next unpaid installment date will be moved.</small>
+            </div>
+        <?php endif; ?>
+        <?php if ($canEditLoan): ?>
+            <div class="field full" data-loan-rounding-options hidden>
+                <label>Change Installment Amount</label>
+                <div class="loan-rounding-row">
+                    <label class="checkline loan-rounding-toggle">
+                        <input type="checkbox" name="use_rounded_installment" value="1" id="use-rounded-installment" disabled>
+                        <span class="loan-rounding-checkbox" aria-hidden="true">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+                        </span>
+                    </label>
+                    <input type="number" step="0.01" min="0.01" name="rounded_installment_amount" id="rounded-installment-amount" placeholder="Installment amount" disabled>
+                </div>
+                <small id="rounded-installment-hint">When enabled, the last unpaid installment will carry the remaining balance.</small>
             </div>
         <?php endif; ?>
 
         <div class="loan-form-divider">Notes</div>
         <div class="field full">
             <label>Note</label>
-            <textarea name="notes" placeholder="Optional"><?= e((string) ($loan['notes'] ?? '')) ?></textarea>
+            <textarea name="notes" placeholder="Optional" <?= $canEditLoan ? 'readonly data-loan-edit-controlled data-loan-edit-readonly' : 'readonly' ?>><?= e((string) ($loan['notes'] ?? '')) ?></textarea>
         </div>
 
         </div>
@@ -420,8 +479,8 @@ require __DIR__ . '/../includes/layout_start.php';
                     <h3><span id="preview-end-date"><?= e($loanEndDate !== '' ? display_date($loanEndDate) : '-') ?></span></h3>
                 </div>
             </div>
-            <?php if ($canEditLoan): ?>
-                <button type="submit" class="btn btn-primary create-loan-submit-btn">Update Loan</button>
+            <?php if ($canEditLoan || $canScheduleNextPayment): ?>
+                <button type="submit" class="btn btn-primary create-loan-submit-btn" data-loan-submit-button hidden><?= $canEditLoan ? 'Update Loan' : 'Schedule Next Payment' ?></button>
             <?php endif; ?>
         </aside>
         </div>
@@ -784,6 +843,220 @@ require __DIR__ . '/../includes/layout_start.php';
 
     scheduleToggle.addEventListener('change', syncSchedule);
     syncSchedule();
+})();
+
+(() => {
+    const form = document.querySelector('[data-loan-details-edit-form]');
+    if (!(form instanceof HTMLFormElement)) {
+        return;
+    }
+
+    const editToggle = form.querySelector('[data-loan-detail-edit-toggle]');
+    const editState = form.querySelector('[data-loan-detail-edit-state]');
+    const controls = Array.from(form.querySelectorAll('[data-loan-edit-controlled]'));
+    const scheduleOptions = form.querySelector('[data-loan-schedule-options]');
+    const roundingOptions = form.querySelector('[data-loan-rounding-options]');
+    const roundedToggle = form.querySelector('[name="use_rounded_installment"]');
+    const roundedAmount = form.querySelector('[name="rounded_installment_amount"]');
+    const scheduleToggle = form.querySelector('[name="schedule_next_payment"]');
+    const scheduleInput = form.querySelector('[name="next_payment_date"]');
+    const interestType = form.querySelector('[name="interest_rate_type"]');
+    const interestMonths = form.querySelector('[name="interest_rate_months"]');
+    const submitButton = form.querySelector('[data-loan-submit-button]');
+    const previewTargets = [
+        document.getElementById('preview-total'),
+        document.getElementById('preview-installment'),
+        document.getElementById('preview-installment-count'),
+        document.getElementById('preview-end-date'),
+    ].filter((target) => target instanceof HTMLElement);
+    const originalControlValues = new Map();
+    const originalPreviewValues = new Map();
+
+    controls.forEach((control) => {
+        if (control instanceof HTMLInputElement || control instanceof HTMLTextAreaElement || control instanceof HTMLSelectElement) {
+            originalControlValues.set(control, control.value);
+        }
+    });
+    previewTargets.forEach((target) => {
+        const value = target.textContent || '';
+        originalPreviewValues.set(target, value);
+        target.dataset.originalPreview = value;
+    });
+
+    const restoreLoanDetails = () => {
+        originalControlValues.forEach((value, control) => {
+            control.value = value;
+        });
+        originalPreviewValues.forEach((value, target) => {
+            target.textContent = value;
+        });
+    };
+
+    const setReadonly = (control, readonly) => {
+        if (control instanceof HTMLInputElement || control instanceof HTMLTextAreaElement) {
+            if (control.hasAttribute('data-loan-edit-readonly')) {
+                control.readOnly = readonly;
+            } else {
+                control.disabled = readonly;
+            }
+        } else if (control instanceof HTMLSelectElement) {
+            control.disabled = readonly;
+        }
+    };
+
+    const syncInterestMonths = (editing) => {
+        if (!(interestMonths instanceof HTMLInputElement) || !(interestType instanceof HTMLSelectElement)) {
+            return;
+        }
+        if (interestType.value !== 'monthly') {
+            interestMonths.disabled = true;
+            interestMonths.readOnly = true;
+            return;
+        }
+        interestMonths.disabled = false;
+        interestMonths.readOnly = !editing;
+    };
+
+    const numberValueChanged = (oldValue, newValue) => {
+        const oldNumber = Number(oldValue);
+        const newNumber = Number(newValue);
+        if (!Number.isFinite(oldNumber) || !Number.isFinite(newNumber)) {
+            return String(oldValue).trim() !== String(newValue).trim();
+        }
+
+        return Math.abs(oldNumber - newNumber) >= 0.005;
+    };
+
+    const controlChanged = (control) => {
+        const original = originalControlValues.get(control);
+        if (original === undefined) {
+            return false;
+        }
+        if (control instanceof HTMLInputElement && control.type === 'number') {
+            return numberValueChanged(original, control.value);
+        }
+
+        return String(original).trim() !== String(control.value).trim();
+    };
+
+    const loanDetailsChanged = () => {
+        const editing = editToggle instanceof HTMLInputElement && editToggle.checked;
+        if (!editing) {
+            return false;
+        }
+
+        const controlledChanged = controls.some((control) => {
+            const isEditableControl = control instanceof HTMLInputElement
+                || control instanceof HTMLTextAreaElement
+                || control instanceof HTMLSelectElement;
+
+            return isEditableControl ? controlChanged(control) : false;
+        });
+        const roundingChanged = roundedToggle instanceof HTMLInputElement
+            && roundedToggle.checked
+            && (!(roundedAmount instanceof HTMLInputElement) || roundedAmount.value.trim() !== '');
+
+        return controlledChanged || roundingChanged;
+    };
+
+    const scheduleChanged = () => {
+        return scheduleToggle instanceof HTMLInputElement
+            && scheduleToggle.checked
+            && !(scheduleOptions instanceof HTMLElement && scheduleOptions.hidden);
+    };
+
+    const syncSubmitButton = () => {
+        if (!(submitButton instanceof HTMLButtonElement)) {
+            return;
+        }
+
+        submitButton.hidden = !(loanDetailsChanged() || scheduleChanged());
+    };
+
+    const setEditMode = (editing) => {
+        if (!editing) {
+            restoreLoanDetails();
+        }
+
+        controls.forEach((control) => setReadonly(control, !editing));
+        syncInterestMonths(editing);
+
+        if (editState instanceof HTMLElement) {
+            editState.textContent = editing ? 'On' : 'Off';
+        }
+
+        if (scheduleOptions instanceof HTMLElement) {
+            scheduleOptions.hidden = editing;
+            if (editing) {
+                const scheduleToggle = scheduleOptions.querySelector('[name="schedule_next_payment"]');
+                const scheduleInput = scheduleOptions.querySelector('[name="next_payment_date"]');
+                if (scheduleToggle instanceof HTMLInputElement) {
+                    scheduleToggle.checked = false;
+                }
+                if (scheduleInput instanceof HTMLInputElement) {
+                    scheduleInput.disabled = true;
+                    scheduleInput.required = false;
+                }
+            }
+        }
+
+        if (roundingOptions instanceof HTMLElement) {
+            roundingOptions.hidden = !editing;
+        }
+        if (roundedToggle instanceof HTMLInputElement) {
+            roundedToggle.disabled = !editing;
+            if (!editing) {
+                roundedToggle.checked = false;
+            }
+            roundedToggle.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+        if (roundedAmount instanceof HTMLInputElement && !editing) {
+            roundedAmount.value = '';
+            roundedAmount.disabled = true;
+            roundedAmount.required = false;
+        }
+
+        syncSubmitButton();
+    };
+
+    if (editToggle instanceof HTMLInputElement) {
+        editToggle.addEventListener('change', () => setEditMode(editToggle.checked));
+        setEditMode(editToggle.checked);
+    } else {
+        setEditMode(false);
+    }
+
+    if (interestType instanceof HTMLSelectElement) {
+        interestType.addEventListener('change', () => setTimeout(() => syncInterestMonths(editToggle instanceof HTMLInputElement && editToggle.checked), 0));
+    }
+
+    controls.forEach((control) => {
+        if (control instanceof HTMLInputElement || control instanceof HTMLTextAreaElement || control instanceof HTMLSelectElement) {
+            control.addEventListener('input', syncSubmitButton);
+            control.addEventListener('change', syncSubmitButton);
+        }
+    });
+    [roundedToggle, roundedAmount, scheduleToggle, scheduleInput].forEach((control) => {
+        if (control instanceof HTMLInputElement) {
+            control.addEventListener('input', syncSubmitButton);
+            control.addEventListener('change', syncSubmitButton);
+        }
+    });
+    syncSubmitButton();
+
+    form.addEventListener('submit', () => {
+        controls.forEach((control) => {
+            if (control instanceof HTMLInputElement || control instanceof HTMLTextAreaElement) {
+                control.readOnly = false;
+                control.disabled = false;
+            } else if (control instanceof HTMLSelectElement) {
+                control.disabled = false;
+            }
+        });
+        if (roundedToggle instanceof HTMLInputElement && !(editToggle instanceof HTMLInputElement && editToggle.checked)) {
+            roundedToggle.disabled = true;
+        }
+    });
 })();
 
 (() => {
