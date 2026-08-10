@@ -4314,7 +4314,7 @@ function dashboard_collection_chart_html(PDO $pdo, array $chart, string $mode): 
         <?php foreach (($chart['bars'] ?? []) as $bar): ?>
             <div class="collection-bar-item">
                 <div class="collection-bar-track" aria-hidden="true">
-                    <span style="height: <?= e(number_format((float) $bar['height'], 2, '.', '')) ?>%"></span>
+                    <span style="height: <?= e(number_format((float) $bar['height'], 2, '.', '')) ?>%; --bar-size: <?= e(number_format((float) $bar['height'], 2, '.', '')) ?>%"></span>
                 </div>
                 <strong><?= e((string) $bar['label']) ?></strong>
                 <small><?= e(money_label($pdo, (float) $bar['value'])) ?></small>

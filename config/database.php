@@ -44,7 +44,7 @@ function render_database_unavailable_page(): never
                 radial-gradient(circle at center, rgba(35, 56, 72, 0.42), transparent 38%),
                 linear-gradient(135deg, #0b1117 0%, #101820 48%, #0b1117 100%);
             color: var(--text);
-            font-family: Manrope, Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            font-family: Manrope, Arial, Helvetica, sans-serif;
             padding: 18px;
         }
         .db-error-card {

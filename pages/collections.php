@@ -15,9 +15,8 @@ $currentUserId = (int) ($current['id'] ?? 0);
 $selectedCustomerId = (int) ($_GET['customer_id'] ?? 0);
 $search = trim((string) ($_GET['q'] ?? ''));
 $search = mb_substr($search, 0, 120);
-$offset = max(0, (int) ($_GET['offset'] ?? 0));
 $perPage = 50;
-$queryLimit = $perPage + 1;
+$currentPage = max(1, (int) ($_GET['page'] ?? 1));
 $paymentMethodSelectionEnabled = payment_method_selection_enabled($pdo);
 
 $scopeSql = '';
@@ -45,6 +44,47 @@ if ($search !== '') {
     $params['search_phone'] = $searchTerm;
 }
 
+$countStmt = $pdo->prepare(
+    "SELECT COUNT(*)
+     FROM (
+        SELECT 1
+        FROM collections col
+        JOIN loans l ON l.id = col.loan_id
+        JOIN customers c ON c.id = l.customer_id
+        LEFT JOIN users u ON u.id = col.collected_by_user_id
+        {$scopeSql}{$legacyCustomerFilterSql}{$searchFilterSql}
+        GROUP BY COALESCE(col.payment_ref, CONCAT('legacy-', col.id)), l.loan_number, c.full_name
+     ) grouped_collections"
+);
+$countStmt->execute($params);
+$totalCollections = (int) $countStmt->fetchColumn();
+$totalPages = max(1, (int) ceil($totalCollections / $perPage));
+if ($currentPage > $totalPages) {
+    $currentPage = $totalPages;
+}
+$offset = ($currentPage - 1) * $perPage;
+$showingFrom = $totalCollections > 0 ? $offset + 1 : 0;
+$showingTo = min($offset + $perPage, $totalCollections);
+$pageStart = max(1, $currentPage - 2);
+$pageEnd = min($totalPages, $currentPage + 2);
+
+$baseQueryParams = [];
+if ($selectedCustomerId > 0) {
+    $baseQueryParams['customer_id'] = $selectedCustomerId;
+}
+if ($search !== '') {
+    $baseQueryParams['q'] = $search;
+}
+$paginationUrl = static function (int $page) use ($baseQueryParams): string {
+    $params = $baseQueryParams;
+    if ($page > 1) {
+        $params['page'] = $page;
+    }
+
+    $query = http_build_query($params);
+    return url('pages/collections.php' . ($query !== '' ? '?' . $query : ''));
+};
+
 $collectionsStmt = $pdo->prepare(
     "SELECT
         MAX(col.id) AS latest_id,
@@ -64,16 +104,10 @@ $collectionsStmt = $pdo->prepare(
      {$scopeSql}{$legacyCustomerFilterSql}{$searchFilterSql}
      GROUP BY COALESCE(col.payment_ref, CONCAT('legacy-', col.id)), l.loan_number, c.full_name
      ORDER BY latest_id DESC
-     LIMIT {$queryLimit} OFFSET {$offset}"
+     LIMIT {$perPage} OFFSET {$offset}"
 );
 $collectionsStmt->execute($params);
-$collectionsRaw = $collectionsStmt->fetchAll();
-$hasMore = count($collectionsRaw) > $perPage;
-$collections = $hasMore ? array_slice($collectionsRaw, 0, $perPage) : $collectionsRaw;
-
-$queryForMore = $_GET;
-$queryForMore['offset'] = $offset + $perPage;
-$loadMoreUrl = url('pages/collections.php') . '?' . http_build_query($queryForMore);
+$collections = $collectionsStmt->fetchAll();
 
 require __DIR__ . '/../includes/layout_start.php';
 ?>
@@ -96,7 +130,7 @@ require __DIR__ . '/../includes/layout_start.php';
     </div>
 </form>
 
-<section class="panel">
+<section class="panel collections-history-panel">
     <div class="table-wrap">
         <table class="collection-history-table collections-history-table <?= $paymentMethodSelectionEnabled ? '' : 'is-method-hidden' ?>">
             <thead>
@@ -125,26 +159,41 @@ require __DIR__ . '/../includes/layout_start.php';
                     }
                     ?>
                     <tr>
-                        <td><?= e(display_datetime((string) ($item['collected_at'] ?? ''), display_date((string) $item['collected_on']))) ?></td>
-                        <td><?= e($item['loan_number']) ?></td>
-                        <td><?= e($item['full_name']) ?></td>
-                        <td><?= e(money_label($pdo, (float) $item['amount'])) ?></td>
-                        <td><?= e((string) ($item['collected_by_name'] ?? '-')) ?></td>
+                        <td data-label="Date"><?= e(display_datetime((string) ($item['collected_at'] ?? ''), display_date((string) $item['collected_on']))) ?></td>
+                        <td data-label="Loan no"><?= e($item['loan_number']) ?></td>
+                        <td data-label="Customer"><?= e($item['full_name']) ?></td>
+                        <td data-label="Amount"><?= e(money_label($pdo, (float) $item['amount'])) ?></td>
+                        <td data-label="By"><?= e((string) ($item['collected_by_name'] ?? '-')) ?></td>
                         <?php if ($paymentMethodSelectionEnabled): ?>
-                            <td><?= e($item['method']) ?></td>
+                            <td data-label="Method"><?= e($item['method']) ?></td>
                         <?php endif; ?>
-                        <td class="collection-history-note"><?= e($note) ?></td>
+                        <td data-label="Note" class="collection-history-note <?= $note === '' ? 'is-empty-note' : '' ?>"><?= e($note) ?></td>
                     </tr>
                 <?php endforeach; ?>
             <?php endif; ?>
             </tbody>
         </table>
     </div>
-    <div id="collection-history-load-more-wrap">
-        <?php if ($hasMore): ?>
-            <div class="reports-filter-actions" style="justify-content: flex-end; margin-top: 12px;">
-                <a class="btn btn-primary" href="<?= e($loadMoreUrl) ?>">Load More</a>
-            </div>
+    <div id="collection-history-pagination-wrap">
+        <?php if ($totalCollections > 0): ?>
+            <nav class="pagination-bar" aria-label="Collection history pagination">
+                <p class="pagination-info">
+                    Showing <?= e((string) $showingFrom) ?>-<?= e((string) $showingTo) ?> of <?= e((string) $totalCollections) ?>
+                </p>
+                <?php if ($totalPages > 1): ?>
+                    <div class="pagination-links">
+                        <a class="btn pagination-link <?= $currentPage <= 1 ? 'is-disabled' : '' ?>" href="<?= e($paginationUrl(max(1, $currentPage - 1))) ?>">Previous</a>
+                        <?php for ($pageNumber = $pageStart; $pageNumber <= $pageEnd; $pageNumber++): ?>
+                            <?php if ($pageNumber === $currentPage): ?>
+                                <span class="btn pagination-link is-current"><?= e((string) $pageNumber) ?></span>
+                            <?php else: ?>
+                                <a class="btn pagination-link" href="<?= e($paginationUrl($pageNumber)) ?>"><?= e((string) $pageNumber) ?></a>
+                            <?php endif; ?>
+                        <?php endfor; ?>
+                        <a class="btn pagination-link <?= $currentPage >= $totalPages ? 'is-disabled' : '' ?>" href="<?= e($paginationUrl(min($totalPages, $currentPage + 1))) ?>">Next</a>
+                    </div>
+                <?php endif; ?>
+            </nav>
         <?php endif; ?>
     </div>
 </section>

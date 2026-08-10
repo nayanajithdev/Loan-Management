@@ -18,16 +18,16 @@
 @media print {
     @page {
         size: A4;
-        margin: 10mm 9mm 14mm;
+        margin: 0;
     }
 
     html,
     body {
-        width: auto;
-        min-height: 0;
+        width: 210mm;
+        min-height: 297mm;
         margin: 0 !important;
         background: #ffffff !important;
-        color: #151515 !important;
+        color: #061f4b !important;
     }
 
     body * {
@@ -50,25 +50,26 @@
         position: absolute;
         top: 0;
         left: 0;
-        width: 100%;
-        padding: 0 4mm 14mm;
+        width: 210mm;
+        min-height: 297mm;
+        padding: 12mm 16mm 14mm;
         box-sizing: border-box;
         background: #ffffff;
-        color: #151515;
-        font-family: "Roboto", Arial, Helvetica, sans-serif;
-        font-size: 12pt;
-        line-height: 1.35;
+        color: #061f4b;
+        font-family: Arial, Helvetica, sans-serif;
+        font-size: 10pt;
+        line-height: 1.3;
         -webkit-print-color-adjust: exact;
         print-color-adjust: exact;
     }
 
     .print-report-header {
         display: grid;
-        grid-template-columns: 32mm minmax(0, 1fr) 48mm;
-        gap: 7mm;
-        align-items: center;
-        color: #09245a;
-        padding-top: 2mm;
+        grid-template-columns: 52mm minmax(0, 1fr) 52mm;
+        gap: 8mm;
+        align-items: end;
+        min-height: 25mm;
+        color: #061f4b;
     }
 
     .print-report-title-block {
@@ -79,43 +80,53 @@
     .print-report-logo-slot {
         display: flex;
         align-items: center;
-        justify-content: center;
-        min-height: 26mm;
+        justify-content: flex-start;
+        width: 52mm;
+        height: 24mm;
+        overflow: hidden;
+        color: #061f4b;
     }
 
     .print-report-logo-slot img {
         display: block;
-        max-width: 28mm;
-        max-height: 26mm;
+        max-width: 100%;
+        max-height: 100%;
         object-fit: contain;
     }
 
-    .print-report-note {
-        color: #09245a;
-        font-size: 13pt;
+    .print-report-logo-placeholder {
+        font-size: 20pt;
+        line-height: 1;
         font-weight: 800;
+    }
+
+    .print-report-note {
+        color: #061f4b;
+        font-size: 10pt;
+        font-weight: 700;
         line-height: 1.25;
         text-align: right;
+        white-space: nowrap;
         overflow-wrap: anywhere;
     }
 
     .print-report-header h1 {
         margin: 0;
-        font-family: "Roboto", Arial, Helvetica, sans-serif;
-        font-size: 24pt;
-        line-height: 1.1;
+        font-family: Arial, Helvetica, sans-serif;
+        font-size: 20pt;
+        line-height: 1.05;
         font-weight: 800;
     }
 
     .print-report-header p {
-        margin: 1.5mm 0 0;
-        font-size: 11.5pt;
+        margin: 1.4mm 0 0;
+        font-size: 10pt;
         font-weight: 700;
-        color: #15264f;
+        color: #061f4b;
     }
 
     .print-report-contact {
-        font-family: "Roboto", Arial, Helvetica, sans-serif;
+        font-family: Arial, Helvetica, sans-serif;
         font-style: italic;
         font-weight: 700;
     }
@@ -126,32 +137,33 @@
 
     .print-report-rule,
     .print-report-footer {
-        border-top: 2px solid #09245a;
+        border-top: 1pt solid #202020;
     }
 
     .print-report-rule {
-        margin: 5mm 3mm 8mm;
+        margin: 8mm -16mm 9mm;
     }
 
     .print-report-summary {
         display: grid;
-        grid-template-columns: minmax(0, 1fr) 88mm;
-        gap: 7mm;
+        grid-template-columns: minmax(0, 98mm) minmax(0, 64mm);
+        gap: 16mm;
         align-items: start;
-        margin: 0 3mm 8mm;
+        margin: 0 0 9mm;
     }
 
     .print-customer-block {
         min-width: 0;
-        color: #09245a;
+        color: #061f4b;
     }
 
     .print-info-row {
         display: grid;
-        grid-template-columns: 33mm 5mm minmax(0, 1fr);
-        gap: 2.5mm;
+        grid-template-columns: 34mm 5mm minmax(0, 1fr);
+        gap: 2mm;
         align-items: start;
-        margin-bottom: 4.8mm;
+        margin-bottom: 5mm;
+        font-size: 10pt;
     }
 
     .print-info-row strong {
@@ -168,82 +180,53 @@
     }
 
     .print-amount-summary {
-        position: relative;
         width: 100%;
         box-sizing: border-box;
-        transform: translateX(7.5mm);
-        overflow: hidden;
-        border: 1px solid #d9e4ef;
-        border-radius: 0;
         background: #ffffff;
-        color: #09245a;
+        color: #061f4b;
     }
 
     .print-amount-summary::after {
-        content: "";
-        position: absolute;
-        top: 0;
-        right: 0;
-        bottom: 0;
-        width: 1.2px;
-        background: #c4d2e2;
-        z-index: 1;
+        content: none;
     }
 
-    .print-amount-summary div {
-        display: grid;
-        grid-template-columns: 38mm minmax(0, 1fr);
-        gap: 5mm;
-        align-items: center;
-        padding: 3.8mm 7mm 3.8mm 5mm;
-    }
-
-    .print-amount-summary span {
-        font-weight: 800;
+    .print-amount-summary .print-info-row {
+        grid-template-columns: 34mm 5mm minmax(0, 1fr);
     }
 
     .print-amount-summary strong {
-        min-width: 0;
-        font-weight: 600;
-        white-space: nowrap;
-        text-align: right;
-        font-size: 11.2pt;
-    }
-
-    .print-amount-summary .print-balance-row {
-        background: #eaf4fb;
-        border-top: 1px solid #cbd5e1;
-        border-bottom: 1px solid #cbd5e1;
-    }
-
-    .print-amount-summary .print-balance-row strong,
-    .print-amount-summary .print-balance-row span {
-        font-size: 13pt;
         font-weight: 800;
     }
 
+    .print-amount-summary p {
+        min-width: 0;
+        font-weight: 400;
+        white-space: nowrap;
+        text-align: right;
+        font-size: 10pt;
+    }
+
+    .print-summary-rule {
+        margin: 1mm 0 5mm;
+        border-top: 1pt solid #202020;
+    }
+
+    .print-amount-summary .print-balance-row strong {
+        font-size: 10pt;
+        font-weight: 800;
+    }
+
+    .print-amount-summary .print-balance-row p {
+        font-size: 10pt;
+        font-weight: 400;
+    }
+
     .print-collection-table {
-        width: calc(100% - 6mm);
-        margin: 0 3mm 16mm;
+        width: 100%;
+        margin: 0;
         border-collapse: collapse;
         page-break-inside: auto;
         table-layout: fixed;
-    }
-
-    .print-collection-table .print-loan-col {
-        width: 30%;
-    }
-
-    .print-collection-table .print-inst-col {
-        width: 14%;
-    }
-
-    .print-collection-table .print-date-col {
-        width: 25%;
-    }
-
-    .print-collection-table .print-payment-col {
-        width: 31%;
     }
 
     .print-collection-table thead {
@@ -251,19 +234,21 @@
     }
 
     .print-collection-table th {
-        padding: 3mm 4mm;
-        background: #09245a;
+        padding: 3mm 3mm;
+        background: #08265f;
         border: 1px solid #7484a7;
         color: #ffffff;
-        font-size: 12pt;
+        font-size: 10pt;
+        font-weight: 800;
         text-align: center;
     }
 
     .print-collection-table td {
-        padding: 2.4mm 4mm;
+        padding: 2.7mm 3mm;
         border-right: 1px solid #e5e7eb;
         border-left: 1px solid #e5e7eb;
         border-bottom: 1px dashed #d9dee8;
+        font-size: 10pt;
         text-align: center;
         vertical-align: top;
     }
@@ -272,13 +257,130 @@
         text-align: right;
     }
 
+    .single-customer-collection-grid {
+        width: 178mm;
+        margin: 0 0 16mm;
+        color: #061f4b;
+        font-size: 10pt;
+    }
+
+    .single-customer-collection-row {
+        display: grid;
+        grid-template-columns: 36mm 64mm 78mm;
+    }
+
+    .single-customer-collection-row > div,
+    .single-customer-collection-empty {
+        min-width: 0;
+        padding: 2.7mm 3mm;
+        border-right: 1px solid #e5e7eb;
+        border-left: 1px solid #e5e7eb;
+        border-bottom: 1px dashed #d9dee8;
+        text-align: center;
+        overflow: hidden;
+    }
+
+    .single-customer-collection-head > div {
+        padding: 3mm;
+        background: #08265f;
+        border: 1px solid #7484a7;
+        border-right: 0;
+        color: #ffffff;
+        font-weight: 800;
+        text-transform: uppercase;
+    }
+
+    .single-customer-collection-head > div:last-child {
+        border-right: 1px solid #7484a7;
+    }
+
+    .single-customer-collection-row > div:last-child {
+        text-align: right;
+    }
+
+    .single-customer-collection-empty {
+        width: 178mm;
+        text-align: center;
+    }
+
+    .loan-collection-print-report.is-print-active {
+        padding: 9mm 14mm 14mm;
+    }
+
+    .loan-collection-print-report.is-print-active .print-report-rule {
+        margin: 5.5mm 0 8mm;
+        border-top: 1.5pt solid #1a2f5c;
+    }
+
+    .loan-collection-print-report.is-print-active .print-report-summary {
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        gap: 12mm;
+        margin: 0 0 5mm;
+    }
+
+    .loan-collection-print-report.is-print-active .print-info-row {
+        grid-template-columns: 31mm 5mm minmax(0, 1fr);
+        gap: 0;
+        margin-bottom: 3.1mm;
+        line-height: 1.3;
+    }
+
+    .loan-collection-print-report.is-print-active .print-amount-summary {
+        width: 76mm;
+        justify-self: end;
+    }
+
+    .loan-collection-print-report.is-print-active .print-amount-summary .print-info-row {
+        grid-template-columns: 38mm 5mm minmax(0, 1fr);
+    }
+
+    .loan-collection-print-report.is-print-active .print-amount-summary p {
+        text-align: left;
+    }
+
+    .loan-collection-print-report.is-print-active .single-customer-collection-grid {
+        width: 182mm;
+        margin: 0 0 16mm;
+    }
+
+    .loan-collection-print-report.is-print-active .single-customer-collection-row {
+        grid-template-columns: 38mm 84mm 60mm;
+    }
+
+    .loan-collection-print-report.is-print-active .single-customer-collection-row > div,
+    .loan-collection-print-report.is-print-active .single-customer-collection-empty {
+        padding: 2.8mm 4mm;
+        border-bottom: 1px dotted #cccccc;
+    }
+
+    .loan-collection-print-report.is-print-active .single-customer-collection-head > div {
+        padding: 3mm 4mm;
+        background: #ffffff;
+        border: 1px solid #d6dbe5;
+        border-color: #d6dbe5;
+        color: #1a2f5c;
+    }
+
+    .loan-collection-print-report.is-print-active .single-customer-collection-row > div:last-child {
+        text-align: center;
+    }
+
+    .loan-collection-print-report.is-print-active .single-customer-collection-time {
+        margin-left: 3mm;
+        white-space: nowrap;
+    }
+
+    .loan-collection-print-report.is-print-active .single-customer-collection-empty {
+        width: 182mm;
+    }
+
     .daily-print-meta {
         display: flex;
         justify-content: flex-end;
         gap: 3mm;
-        margin: 0 3mm 5mm;
-        color: #09245a;
-        font-size: 12pt;
+        margin: 0 0 5mm;
+        color: #061f4b;
+        font-size: 10pt;
     }
 
     .daily-print-meta span,
@@ -286,9 +388,282 @@
         font-weight: 800;
     }
 
+    .daily-print-meta p {
+        margin: 0;
+    }
+
+    .daily-collections-print-report.is-print-active {
+        width: 210mm !important;
+        max-width: 210mm !important;
+        padding: 9mm 14mm 14mm;
+        margin: 0 !important;
+        overflow: hidden;
+    }
+
+    .daily-collections-print-report.is-print-active,
+    .daily-collections-print-report.is-print-active * {
+        box-sizing: border-box !important;
+    }
+
+    .daily-collections-print-report.is-print-active .print-report-rule {
+        margin: 5.5mm 0 8mm;
+        border-top: 1.5pt solid #1a2f5c;
+    }
+
+    .daily-collections-print-report.is-print-active .daily-print-meta {
+        display: grid;
+        grid-template-columns: 31mm 5mm minmax(0, 1fr);
+        gap: 0;
+        justify-content: initial;
+        width: 88mm;
+        margin: 0 0 5mm;
+        line-height: 1.3;
+    }
+
+    .daily-collections-print-report.is-print-active .daily-print-meta p {
+        font-weight: 400;
+    }
+
+    .daily-collections-print-report.is-print-active .daily-report-content {
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+
+    .daily-collections-print-report.is-print-active .daily-report-details {
+        width: 100% !important;
+        max-width: 100% !important;
+        margin: 0 0 5mm;
+    }
+
+    .daily-collections-print-report.is-print-active .daily-report-details table {
+        width: 100% !important;
+        max-width: 100% !important;
+        border-collapse: collapse;
+        border: 0;
+        table-layout: fixed;
+    }
+
+    .daily-collections-print-report.is-print-active .daily-report-details td {
+        padding: 1.5mm 2mm;
+        border: 0;
+        color: #061f4b;
+        font-size: 10pt;
+        line-height: 1.3;
+        vertical-align: top;
+    }
+
+    .daily-collections-print-report.is-print-active .daily-report-details .label {
+        width: 31mm;
+        font-weight: 800;
+        white-space: nowrap;
+    }
+
+    .daily-collections-print-report.is-print-active .daily-report-details .colon {
+        width: 5mm;
+    }
+
+    .daily-collections-print-report.is-print-active .daily-report-table {
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+        margin: 0 !important;
+        border-collapse: collapse;
+        table-layout: fixed;
+    }
+
+    .daily-collections-print-report.is-print-active .daily-report-table th,
+    .daily-collections-print-report.is-print-active .daily-report-table td {
+        box-sizing: border-box;
+        min-width: 0;
+        max-width: 100%;
+        padding: 2.8mm 4mm;
+        border-right: 1px solid #d6dbe5;
+        border-left: 1px solid #d6dbe5;
+        color: #061f4b;
+        font-size: 10pt;
+        text-align: center;
+        vertical-align: middle;
+        overflow: hidden;
+        overflow-wrap: anywhere;
+    }
+
+    .daily-collections-print-report.is-print-active .daily-report-table th {
+        background: #ffffff;
+        border-top: 1px solid #d6dbe5;
+        border-bottom: 1px solid #d6dbe5;
+        font-weight: 800;
+    }
+
+    .daily-collections-print-report.is-print-active .daily-report-table td {
+        border-bottom: 1px dotted #cccccc;
+        font-weight: 400;
+    }
+
+    .daily-collections-print-report.is-print-active .daily-report-total-row {
+        display: grid;
+        grid-template-columns: 31mm 5mm 40mm;
+        width: 76mm;
+        margin: 5mm 0 0 auto;
+        color: #061f4b;
+        font-size: 10pt;
+        line-height: 1.3;
+    }
+
+    .daily-collections-print-report.is-print-active .daily-report-total-row .label,
+    .daily-collections-print-report.is-print-active .daily-report-total-row .colon {
+        font-weight: 400;
+        white-space: nowrap;
+    }
+
+    .daily-collections-print-report.is-print-active .daily-report-total-row .value {
+        font-weight: 800;
+        text-align: right;
+        white-space: nowrap;
+    }
+
+    .profit-daily-print-report.is-print-active,
+    .profit-monthly-print-report.is-print-active {
+        width: 210mm !important;
+        max-width: 210mm !important;
+        padding: 9mm 14mm 14mm;
+        margin: 0 !important;
+        overflow: hidden;
+    }
+
+    .profit-daily-print-report.is-print-active,
+    .profit-daily-print-report.is-print-active *,
+    .profit-monthly-print-report.is-print-active,
+    .profit-monthly-print-report.is-print-active * {
+        box-sizing: border-box !important;
+    }
+
+    .profit-daily-print-report.is-print-active .print-report-rule,
+    .profit-monthly-print-report.is-print-active .print-report-rule {
+        margin: 5.5mm 0 8mm;
+        border-top: 1.5pt solid #1a2f5c;
+    }
+
+    .profit-daily-print-report.is-print-active .profit-daily-report-content,
+    .profit-monthly-print-report.is-print-active .profit-monthly-report-content {
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+
+    .profit-daily-print-report.is-print-active .profit-daily-report-details,
+    .profit-monthly-print-report.is-print-active .profit-monthly-report-details {
+        width: 100% !important;
+        max-width: 100% !important;
+        margin: 0 0 5mm;
+    }
+
+    .profit-daily-print-report.is-print-active .profit-daily-report-details table,
+    .profit-monthly-print-report.is-print-active .profit-monthly-report-details table {
+        width: 100% !important;
+        max-width: 100% !important;
+        border-collapse: collapse;
+        border: 0;
+        table-layout: fixed;
+    }
+
+    .profit-daily-print-report.is-print-active .profit-daily-report-details td,
+    .profit-monthly-print-report.is-print-active .profit-monthly-report-details td {
+        padding: 1.5mm 2mm;
+        border: 0;
+        color: #061f4b;
+        font-size: 10pt;
+        line-height: 1.3;
+        vertical-align: top;
+    }
+
+    .profit-daily-print-report.is-print-active .profit-daily-report-details .label,
+    .profit-monthly-print-report.is-print-active .profit-monthly-report-details .label {
+        width: 31mm;
+        font-weight: 800;
+        white-space: nowrap;
+    }
+
+    .profit-daily-print-report.is-print-active .profit-daily-report-details .colon,
+    .profit-monthly-print-report.is-print-active .profit-monthly-report-details .colon {
+        width: 5mm;
+    }
+
+    .profit-daily-print-report.is-print-active .profit-daily-report-table,
+    .profit-monthly-print-report.is-print-active .profit-monthly-report-table {
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+        margin: 0 !important;
+        border-collapse: collapse;
+        table-layout: fixed;
+    }
+
+    .profit-daily-print-report.is-print-active .profit-daily-report-table th,
+    .profit-daily-print-report.is-print-active .profit-daily-report-table td,
+    .profit-monthly-print-report.is-print-active .profit-monthly-report-table th,
+    .profit-monthly-print-report.is-print-active .profit-monthly-report-table td {
+        box-sizing: border-box;
+        min-width: 0;
+        max-width: 100%;
+        padding: 2.8mm 4mm;
+        border-right: 1px solid #d6dbe5;
+        border-left: 1px solid #d6dbe5;
+        color: #061f4b;
+        font-size: 10pt;
+        text-align: center;
+        vertical-align: middle;
+        overflow: hidden;
+        overflow-wrap: anywhere;
+    }
+
+    .profit-daily-print-report.is-print-active .profit-daily-report-table th,
+    .profit-monthly-print-report.is-print-active .profit-monthly-report-table th {
+        background: #ffffff;
+        border-top: 1px solid #d6dbe5;
+        border-bottom: 1px solid #d6dbe5;
+        font-weight: 800;
+    }
+
+    .profit-daily-print-report.is-print-active .profit-daily-report-table td,
+    .profit-monthly-print-report.is-print-active .profit-monthly-report-table td {
+        border-bottom: 1px dotted #cccccc;
+        font-weight: 400;
+    }
+
+    .profit-daily-print-report.is-print-active .profit-daily-report-total-row,
+    .profit-monthly-print-report.is-print-active .profit-monthly-report-total-row {
+        display: grid;
+        grid-template-columns: 31mm 5mm 40mm;
+        width: 76mm;
+        margin: 5mm 0 0 auto;
+        color: #061f4b;
+        font-size: 10pt;
+        line-height: 1.3;
+    }
+
+    .profit-daily-print-report.is-print-active .profit-daily-report-total-row .label,
+    .profit-daily-print-report.is-print-active .profit-daily-report-total-row .colon,
+    .profit-monthly-print-report.is-print-active .profit-monthly-report-total-row .label,
+    .profit-monthly-print-report.is-print-active .profit-monthly-report-total-row .colon {
+        font-weight: 400;
+        white-space: nowrap;
+    }
+
+    .profit-daily-print-report.is-print-active .profit-daily-report-total-row .value,
+    .profit-monthly-print-report.is-print-active .profit-monthly-report-total-row .value {
+        font-weight: 800;
+        text-align: right;
+        white-space: nowrap;
+    }
+
     .daily-collections-print-table {
-        width: calc(100% - 6mm);
-        margin: 0 3mm 8mm;
+        width: 100%;
+        margin: 0 0 8mm;
         border-collapse: collapse;
         table-layout: fixed;
     }
@@ -315,10 +690,11 @@
 
     .daily-collections-print-table th {
         padding: 3mm 4mm;
-        background: #09245a;
+        background: #08265f;
         border: 1px solid #7484a7;
         color: #ffffff;
-        font-size: 12pt;
+        font-size: 10pt;
+        font-weight: 800;
         text-align: center;
     }
 
@@ -327,6 +703,7 @@
         border-right: 1px solid #e5e7eb;
         border-left: 1px solid #e5e7eb;
         border-bottom: 1px dashed #d9dee8;
+        font-size: 10pt;
         text-align: center;
         vertical-align: top;
     }
@@ -344,12 +721,12 @@
         display: flex;
         justify-content: flex-end;
         gap: 8mm;
-        width: calc(100% - 6mm);
-        margin: 0 3mm;
+        width: 100%;
+        margin: 0;
         padding: 4mm 5mm;
-        border-top: 2px solid #09245a;
-        color: #09245a;
-        font-size: 13pt;
+        border-top: 1pt solid #202020;
+        color: #061f4b;
+        font-size: 10pt;
     }
 
     .daily-print-total span,
@@ -359,16 +736,16 @@
 
     .print-report-footer {
         position: fixed;
-        right: 9mm;
+        right: 16mm;
         bottom: 6mm;
-        left: 9mm;
+        left: 16mm;
         display: flex;
         justify-content: space-between;
         padding-top: 3mm;
         color: #292929;
-        font-family: "Roboto", Arial, Helvetica, sans-serif;
+        font-family: Arial, Helvetica, sans-serif;
         font-style: italic;
-        font-size: 11pt;
+        font-size: 10pt;
     }
 
     .print-page-number::after {
@@ -382,7 +759,7 @@
 
 body {
     margin: 0;
-    font-family: 'Manrope', sans-serif;
+    font-family: 'Manrope', Arial, Helvetica, sans-serif;
     background:
         radial-gradient(circle at top left, rgba(35, 56, 72, 0.7) 0%, rgba(11, 17, 23, 0) 36%),
         linear-gradient(135deg, #0b1117 0%, #101820 48%, #0b1117 100%);
@@ -4060,6 +4437,8 @@ textarea {
 
 .dashboard-trend-panel {
     min-height: 340px;
+    padding: 0;
+    overflow: hidden;
 }
 
 .user-goals-panel {
@@ -4071,7 +4450,8 @@ textarea {
     align-items: center;
     justify-content: space-between;
     gap: 14px;
-    margin-bottom: 18px;
+    margin: 0;
+    padding: 18px 16px 10px;
 }
 
 .chart-kicker {
@@ -4101,7 +4481,7 @@ textarea {
     display: inline-flex;
     align-items: center;
     min-height: 34px;
-    padding: 0 14px;
+    padding: 0 16px;
     border-radius: 999px;
     background: rgba(0, 154, 255, 0.12);
     color: #37b8ff;
@@ -4138,9 +4518,10 @@ textarea {
     display: inline-flex;
     align-items: center;
     gap: 4px;
-    padding: 4px;
+    padding: 4px 5px;
     border-radius: 999px;
     background: rgba(4, 10, 16, 0.78);
+    box-shadow: inset 0 0 0 1px rgba(148, 184, 213, 0.08);
 }
 
 .chart-toggle a {
@@ -4155,8 +4536,10 @@ textarea {
 
 .chart-toggle a.active {
     color: var(--text);
-    background: rgba(255, 255, 255, 0.09);
-    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.1);
+    box-shadow:
+        inset 0 0 0 1px rgba(255, 255, 255, 0.08),
+        0 2px 7px rgba(0, 0, 0, 0.32);
 }
 
 .collection-bar-chart {
@@ -4165,13 +4548,11 @@ textarea {
     grid-template-columns: repeat(auto-fit, minmax(58px, 1fr));
     align-items: stretch;
     gap: 10px;
-    padding: 18px 18px 14px;
-    border-radius: 10px;
-    background:
-        linear-gradient(rgba(255, 255, 255, 0.045) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
-    background-size: 100% 68px, 34px 100%;
-    box-shadow: inset 0 0 0 1px var(--edge);
+    padding: 10px 26px 14px;
+    border-radius: 0;
+    background: linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+    background-size: 100% 68px;
+    box-shadow: none;
 }
 
 .collection-bar-item {
@@ -4946,6 +5327,14 @@ textarea {
         display: none;
     }
 
+    .collections-history-panel {
+        padding: 0;
+        border: 0;
+        border-radius: 0;
+        background: transparent;
+        box-shadow: none;
+    }
+
     .customer-mobile-card-list {
         display: grid;
         gap: 12px;
@@ -5034,6 +5423,153 @@ textarea {
         background: rgba(8, 15, 24, 0.72);
         color: var(--text);
         font-size: 15px;
+    }
+
+    .collections-history-table,
+    .collections-history-table.is-method-hidden {
+        min-width: 0 !important;
+        table-layout: auto;
+    }
+
+    .collections-history-table thead {
+        display: none;
+    }
+
+    .collections-history-table,
+    .collections-history-table tbody,
+    .collections-history-table tr,
+    .collections-history-table td {
+        display: block;
+        width: 100% !important;
+        max-width: 100% !important;
+    }
+
+    .collections-history-table tbody {
+        display: grid;
+        gap: 12px;
+    }
+
+    .collections-history-table tbody tr {
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr) auto;
+        column-gap: 4px;
+        row-gap: 8px;
+        width: 100%;
+        min-width: 0;
+        max-width: 100%;
+        padding: 14px 12px;
+        border: 1px solid var(--edge);
+        border-radius: 10px;
+        background: rgba(10, 19, 27, 0.62);
+        overflow: hidden;
+    }
+
+    .collection-history-table tbody tr:nth-child(odd),
+    .collection-history-table tbody tr:nth-child(even) {
+        background: rgba(10, 19, 27, 0.62);
+    }
+
+    .collections-history-table tbody td {
+        display: flex;
+        gap: 4px;
+        align-items: center;
+        min-width: 0;
+        border: 0;
+        padding: 0;
+        color: var(--text);
+        font-size: 12px;
+        line-height: 1.25;
+        text-align: left !important;
+        overflow-wrap: normal;
+        word-break: normal;
+    }
+
+    .collections-history-table tbody td::before {
+        content: "";
+        display: none;
+    }
+
+    .collections-history-table tbody td:nth-child(2) {
+        grid-column: 1;
+        grid-row: 1;
+        font-weight: 700;
+        white-space: nowrap;
+    }
+
+    .collections-history-table tbody td:nth-child(2)::after {
+        content: " -";
+    }
+
+    .collections-history-table tbody td:nth-child(3) {
+        grid-column: 2;
+        grid-row: 1;
+        font-weight: 700;
+        overflow-wrap: anywhere;
+        word-break: normal;
+    }
+
+    .collections-history-table tbody td:nth-child(4) {
+        grid-column: 3;
+        grid-row: 1;
+        justify-content: flex-end;
+        font-weight: 800;
+        text-align: right !important;
+        white-space: nowrap;
+    }
+
+    .collections-history-table tbody td:nth-child(1) {
+        grid-column: 1 / 3;
+        grid-row: 2;
+        white-space: nowrap;
+    }
+
+    .collections-history-table tbody td:nth-child(5) {
+        grid-column: 3;
+        grid-row: 2;
+        justify-content: flex-end;
+        font-weight: 700;
+        white-space: nowrap;
+    }
+
+    .collections-history-table tbody td:nth-child(5)::before {
+        content: "By";
+        display: inline;
+        color: var(--text);
+        font-size: 12px;
+        font-weight: 400;
+        letter-spacing: 0;
+        text-transform: none;
+    }
+
+    .collections-history-table tbody td[data-label="Method"] {
+        display: none;
+    }
+
+    .collections-history-table tbody td[data-label="Note"],
+    .collections-history-table.is-method-hidden tbody td:nth-child(6),
+    .collections-history-table:not(.is-method-hidden) tbody td:nth-child(7) {
+        grid-column: 1 / -1;
+        grid-row: 3;
+        padding-top: 8px;
+        border-top: 1px solid rgba(148, 184, 213, 0.12);
+        max-width: none;
+        overflow: visible;
+        white-space: normal;
+    }
+
+    .collections-history-table tbody td.is-empty-note {
+        display: none;
+    }
+
+    .collections-history-table tbody td:not([data-label]) {
+        grid-column: 1 / -1;
+        padding: 14px;
+        text-align: center !important;
+    }
+
+    .collections-history-table tbody td:not([data-label])::before {
+        content: "";
+        display: none;
     }
 
     .loans-list-panel {
@@ -5375,7 +5911,7 @@ textarea {
 
     .loan-history-panel {
         margin: 0;
-        padding: 14px;
+        padding: 14px 0;
         border-radius: 0;
         background: transparent;
         box-shadow: inset 0 1px 0 var(--edge);
@@ -5707,18 +6243,53 @@ textarea {
         width: 100%;
     }
 
-    .collection-bar-chart-monthly {
-        overflow-x: auto;
-        grid-template-columns: repeat(12, minmax(64px, 1fr));
+    .collection-bar-chart,
+    .collection-bar-chart-monthly,
+    .collection-bar-chart-weekly {
+        min-height: 0;
+        overflow-x: hidden;
+        grid-template-columns: 1fr;
+        gap: 14px;
+        padding: 10px 16px 18px;
+        background: none;
     }
 
-    .collection-bar-chart-weekly {
-        overflow-x: auto;
-        grid-template-columns: repeat(7, minmax(64px, 1fr));
+    .collection-bar-item {
+        display: grid;
+        grid-template-columns: 38px minmax(0, 1fr);
+        grid-template-rows: auto auto;
+        gap: 4px 10px;
+        align-items: center;
+        text-align: left;
+    }
+
+    .collection-bar-item strong {
+        grid-column: 1;
+        grid-row: 1;
+        color: var(--text);
+        font-size: 13px;
+        font-weight: 700;
     }
 
     .collection-bar-track {
-        height: 180px;
+        grid-column: 2;
+        grid-row: 1;
+        height: 26px;
+        justify-content: flex-start;
+    }
+
+    .collection-bar-track span {
+        width: var(--bar-size, 2%);
+        height: 100% !important;
+        min-width: 3px;
+        border-radius: 0 5px 5px 0;
+    }
+
+    .collection-bar-item small {
+        grid-column: 2;
+        grid-row: 2;
+        color: #9fb6c8;
+        font-size: 11px;
     }
 
     .calc-preview-grid {
