@@ -5,8 +5,6 @@ defined('APP_NAME') || exit;
     <div class="print-report-logo-slot">
         <?php if ($businessIconPath !== ''): ?>
             <img src="<?= e(url($businessIconPath)) ?>" alt="">
-        <?php else: ?>
-            <span class="print-report-logo-placeholder">logo</span>
         <?php endif; ?>
     </div>
     <div class="print-report-title-block">
