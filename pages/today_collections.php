@@ -370,6 +370,18 @@ require __DIR__ . '/../includes/layout_start.php';
                 </article>
             <?php endforeach; ?>
         <?php endif; ?>
+        <?php if ($collectionTotalPages > 1): ?>
+            <nav class="pagination-bar today-mobile-pagination" aria-label="Collection pagination">
+                <p class="pagination-info">Showing <?= e((string) $collectionPageStart) ?>-<?= e((string) $collectionPageEnd) ?> of <?= e((string) $collectionTotalCount) ?></p>
+                <div class="pagination-links">
+                    <a class="btn pagination-link <?= $collectionPage <= 1 ? 'is-disabled' : '' ?>" href="<?= e($paginationUrl(max(1, $collectionPage - 1))) ?>">Prev</a>
+                    <?php for ($pageNumber = 1; $pageNumber <= $collectionTotalPages; $pageNumber++): ?>
+                        <a class="btn pagination-link <?= $pageNumber === $collectionPage ? 'is-current' : '' ?>" href="<?= e($paginationUrl($pageNumber)) ?>"><?= e((string) $pageNumber) ?></a>
+                    <?php endfor; ?>
+                    <a class="btn pagination-link <?= $collectionPage >= $collectionTotalPages ? 'is-disabled' : '' ?>" href="<?= e($paginationUrl(min($collectionTotalPages, $collectionPage + 1))) ?>">Next</a>
+                </div>
+            </nav>
+        <?php endif; ?>
     </div>
 
     <section class="panel today-collections-record-panel">

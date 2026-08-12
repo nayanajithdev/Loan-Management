@@ -2274,6 +2274,14 @@ function ensure_user_force_logout_schema(PDO $pdo): void
     }
 }
 
+function ensure_user_theme_schema(PDO $pdo): void
+{
+    $themeColStmt = $pdo->query("SHOW COLUMNS FROM users LIKE 'theme_preference'");
+    if (!$themeColStmt->fetch()) {
+        $pdo->exec("ALTER TABLE users ADD COLUMN theme_preference ENUM('dark','light') NOT NULL DEFAULT 'dark' AFTER avatar_path");
+    }
+}
+
 function ensure_password_reset_tokens_schema(PDO $pdo): void
 {
     $pdo->exec(
@@ -3144,6 +3152,11 @@ function authenticated_landing_path(?array $viewer = null): string
     return 'pages/about.php';
 }
 
+function normalize_theme_preference(string $theme): string
+{
+    return $theme === 'light' ? 'light' : 'dark';
+}
+
 function login_user(array $user): void
 {
     session_regenerate_id(true);
@@ -3156,6 +3169,7 @@ function login_user(array $user): void
         'role' => (string) $user['role'],
         'status' => isset($user['status']) ? (string) $user['status'] : 'active',
         'avatar_path' => isset($user['avatar_path']) ? (string) $user['avatar_path'] : '',
+        'theme_preference' => normalize_theme_preference((string) ($user['theme_preference'] ?? 'dark')),
     ];
 }
 
@@ -3275,7 +3289,7 @@ function remember_login_from_cookie(PDO $pdo): bool
     $pdo->prepare('DELETE FROM remember_tokens WHERE expires_at < NOW()')->execute();
 
     $stmt = $pdo->prepare(
-        "SELECT rt.id AS remember_id, u.id, u.full_name, u.username, u.email, u.role, u.status, u.avatar_path
+        "SELECT rt.id AS remember_id, u.id, u.full_name, u.username, u.email, u.role, u.status, u.avatar_path, u.theme_preference
          FROM remember_tokens rt
          JOIN users u ON u.id = rt.user_id
          WHERE rt.token_hash = :token_hash

@@ -55,6 +55,31 @@ $topbarBusinessName = system_setting($pdo, 'business_name', 'Loan Manager');
             </div>
         <?php endif; ?>
         <div class="date-chip"><?= e(display_date(today(), today())) ?></div>
+        <?php if ($authUser): ?>
+            <?php
+            $themePreference = normalize_theme_preference((string) ($authUser['theme_preference'] ?? 'dark'));
+            $nextThemePreference = $themePreference === 'light' ? 'dark' : 'light';
+            ?>
+            <form method="post" action="<?= e(url('actions/theme_update.php')) ?>" class="theme-toggle-form" data-theme-toggle-form>
+                <?= csrf_input() ?>
+                <input type="hidden" name="theme" value="<?= e($nextThemePreference) ?>" data-theme-toggle-input>
+                <button
+                    type="submit"
+                    class="theme-toggle-btn"
+                    data-theme-toggle
+                    data-current-theme="<?= e($themePreference) ?>"
+                    aria-label="<?= e($themePreference === 'light' ? 'Switch to dark mode' : 'Switch to light mode') ?>"
+                    title="<?= e($themePreference === 'light' ? 'Dark mode' : 'Light mode') ?>"
+                >
+                    <span class="theme-toggle-icon theme-toggle-icon-sun" aria-hidden="true">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>
+                    </span>
+                    <span class="theme-toggle-icon theme-toggle-icon-moon" aria-hidden="true">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401"/></svg>
+                    </span>
+                </button>
+            </form>
+        <?php endif; ?>
         <button
             type="button"
             class="sidebar-toggle-btn"

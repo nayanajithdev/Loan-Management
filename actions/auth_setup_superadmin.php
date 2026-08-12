@@ -70,7 +70,7 @@ $insertStmt->execute([
 
 $userId = (int) $pdo->lastInsertId();
 
-$userStmt = $pdo->prepare('SELECT id, full_name, username, email, role, status FROM users WHERE id = :id LIMIT 1');
+$userStmt = $pdo->prepare('SELECT id, full_name, username, email, role, status, theme_preference FROM users WHERE id = :id LIMIT 1');
 $userStmt->execute(['id' => $userId]);
 $newUser = $userStmt->fetch();
 

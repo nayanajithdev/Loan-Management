@@ -25,6 +25,7 @@ try {
     ensure_user_profile_schema($pdo);
     ensure_user_status_schema($pdo);
     ensure_user_force_logout_schema($pdo);
+    ensure_user_theme_schema($pdo);
     ensure_password_reset_tokens_schema($pdo);
     ensure_remember_tokens_schema($pdo);
     ensure_collection_user_schema($pdo);
@@ -75,7 +76,7 @@ if (!in_array($scriptBaseName, $publicScripts, true)) {
     }
 
     $current = current_user();
-    $refreshStmt = $pdo->prepare('SELECT id, full_name, username, email, role, status, avatar_path, force_logout_at FROM users WHERE id = :id LIMIT 1');
+    $refreshStmt = $pdo->prepare('SELECT id, full_name, username, email, role, status, avatar_path, theme_preference, force_logout_at FROM users WHERE id = :id LIMIT 1');
     $refreshStmt->execute(['id' => (int) $current['id']]);
     $latestUser = $refreshStmt->fetch();
 
@@ -110,5 +111,6 @@ if (!in_array($scriptBaseName, $publicScripts, true)) {
         'role' => (string) $latestUser['role'],
         'status' => (string) ($latestUser['status'] ?? 'active'),
         'avatar_path' => (string) ($latestUser['avatar_path'] ?? ''),
+        'theme_preference' => normalize_theme_preference((string) ($latestUser['theme_preference'] ?? 'dark')),
     ];
 }

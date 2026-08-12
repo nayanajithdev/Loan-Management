@@ -41,7 +41,7 @@ if ($username === '' || $password === '') {
     redirect('login.php');
 }
 
-$stmt = $pdo->prepare('SELECT id, full_name, username, email, password_hash, role, status, avatar_path FROM users WHERE username = :username LIMIT 1');
+$stmt = $pdo->prepare('SELECT id, full_name, username, email, password_hash, role, status, avatar_path, theme_preference FROM users WHERE username = :username LIMIT 1');
 $stmt->execute(['username' => $username]);
 $user = $stmt->fetch();
 

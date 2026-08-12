@@ -80,6 +80,26 @@ $collectionsStmt->execute([
     'closed_report_date' => $selectedDate,
 ]);
 $collections = $collectionsStmt->fetchAll();
+$allCollections = $collections;
+$collectionsPerPage = 50;
+$collectionTotalRows = count($allCollections);
+$collectionTotalPages = max(1, (int) ceil($collectionTotalRows / $collectionsPerPage));
+$collectionPage = max(1, (int) ($_GET['collection_page'] ?? 1));
+if ($collectionPage > $collectionTotalPages) {
+    $collectionPage = $collectionTotalPages;
+}
+$collectionOffset = ($collectionPage - 1) * $collectionsPerPage;
+$collections = array_slice($allCollections, $collectionOffset, $collectionsPerPage);
+$collectionShowingFrom = $collectionTotalRows > 0 ? $collectionOffset + 1 : 0;
+$collectionShowingTo = $collectionTotalRows > 0 ? min($collectionOffset + count($collections), $collectionTotalRows) : 0;
+$collectionPaginationUrl = static function (int $page) use ($selectedDate, $sort): string {
+    return url('pages/reports.php?' . http_build_query([
+        'report_tab' => 'collections',
+        'date' => $selectedDate,
+        'sort' => $sort,
+        'collection_page' => max(1, $page),
+    ]));
+};
 
 $collectedTotal = (float) ($collectionTotals['collected_total'] ?? 0);
 $paymentCount = (int) ($collectionTotals['payment_count'] ?? 0);
@@ -159,6 +179,34 @@ foreach ($profitRows as $profitRow) {
     $profitCollectedTotal += (float) ($profitRow['collected_amount'] ?? 0);
     $profitTotal += (float) ($profitRow['profit_amount'] ?? 0);
 }
+$allProfitRows = $profitRows;
+$profitRowsPerPage = 50;
+$profitTotalRows = count($allProfitRows);
+$profitTotalPages = max(1, (int) ceil($profitTotalRows / $profitRowsPerPage));
+$profitPage = max(1, (int) ($_GET['profit_page'] ?? 1));
+if ($profitPage > $profitTotalPages) {
+    $profitPage = $profitTotalPages;
+}
+$profitOffset = ($profitPage - 1) * $profitRowsPerPage;
+$profitRows = array_slice($allProfitRows, $profitOffset, $profitRowsPerPage);
+$profitShowingFrom = $profitTotalRows > 0 ? $profitOffset + 1 : 0;
+$profitShowingTo = $profitTotalRows > 0 ? min($profitOffset + count($profitRows), $profitTotalRows) : 0;
+$profitPaginationUrl = static function (int $page) use ($profitMode, $profitDate, $profitFrom, $profitTo): string {
+    $params = [
+        'report_tab' => 'profit',
+        'profit_mode' => $profitMode,
+        'profit_page' => max(1, $page),
+    ];
+
+    if ($profitMode === 'monthly') {
+        $params['profit_from'] = $profitFrom;
+        $params['profit_to'] = $profitTo;
+    } else {
+        $params['profit_date'] = $profitDate;
+    }
+
+    return url('pages/reports.php?' . http_build_query($params));
+};
 
 $businessSettings = system_settings_all($pdo);
 $businessName = trim((string) ($businessSettings['business_name'] ?? 'Loan Manager'));
@@ -259,6 +307,20 @@ require __DIR__ . '/../includes/layout_start.php';
                             </tbody>
                         </table>
                     </div>
+                    <?php if ($collectionTotalRows > 0): ?>
+                        <div class="pagination-bar">
+                            <p class="pagination-info">Showing <?= e((string) $collectionShowingFrom) ?>-<?= e((string) $collectionShowingTo) ?> of <?= e((string) $collectionTotalRows) ?> collection(s)</p>
+                            <?php if ($collectionTotalPages > 1): ?>
+                                <div class="pagination-links">
+                                    <a class="btn pagination-link <?= $collectionPage <= 1 ? 'is-disabled' : '' ?>" href="<?= e($collectionPaginationUrl(max(1, $collectionPage - 1))) ?>">Previous</a>
+                                    <?php for ($page = 1; $page <= $collectionTotalPages; $page++): ?>
+                                        <a class="btn pagination-link <?= $page === $collectionPage ? 'is-current' : '' ?>" href="<?= e($collectionPaginationUrl($page)) ?>"><?= e((string) $page) ?></a>
+                                    <?php endfor; ?>
+                                    <a class="btn pagination-link <?= $collectionPage >= $collectionTotalPages ? 'is-disabled' : '' ?>" href="<?= e($collectionPaginationUrl(min($collectionTotalPages, $collectionPage + 1))) ?>">Next</a>
+                                </div>
+                            <?php endif; ?>
+                        </div>
+                    <?php endif; ?>
                     <div class="reports-panel-footer">
                         <button type="button" class="btn btn-primary" data-print-daily-collections-report data-print-filename="<?= e($dailyCollectionFileName) ?>">Print</button>
                         <p class="reports-footer-total reports-footer-total-collected">Collected Total: <?= e(money_label($pdo, $collectedTotal)) ?></p>
@@ -351,6 +413,20 @@ require __DIR__ . '/../includes/layout_start.php';
                             </table>
                         <?php endif; ?>
                     </div>
+                    <?php if ($profitTotalRows > 0): ?>
+                        <div class="pagination-bar">
+                            <p class="pagination-info">Showing <?= e((string) $profitShowingFrom) ?>-<?= e((string) $profitShowingTo) ?> of <?= e((string) $profitTotalRows) ?> profit row(s)</p>
+                            <?php if ($profitTotalPages > 1): ?>
+                                <div class="pagination-links">
+                                    <a class="btn pagination-link <?= $profitPage <= 1 ? 'is-disabled' : '' ?>" href="<?= e($profitPaginationUrl(max(1, $profitPage - 1))) ?>">Previous</a>
+                                    <?php for ($page = 1; $page <= $profitTotalPages; $page++): ?>
+                                        <a class="btn pagination-link <?= $page === $profitPage ? 'is-current' : '' ?>" href="<?= e($profitPaginationUrl($page)) ?>"><?= e((string) $page) ?></a>
+                                    <?php endfor; ?>
+                                    <a class="btn pagination-link <?= $profitPage >= $profitTotalPages ? 'is-disabled' : '' ?>" href="<?= e($profitPaginationUrl(min($profitTotalPages, $profitPage + 1))) ?>">Next</a>
+                                </div>
+                            <?php endif; ?>
+                        </div>
+                    <?php endif; ?>
                     <div class="reports-panel-footer">
                         <button type="button" class="btn btn-primary" data-print-profit-report data-print-filename="<?= e($profitPrintFileName) ?>">Print</button>
                         <p class="reports-footer-total">
@@ -365,7 +441,9 @@ require __DIR__ . '/../includes/layout_start.php';
     </div>
 </div>
 
+<?php $dailyPrintCollections = $allCollections; ?>
 <?php require __DIR__ . '/../prints/daily_collections_report.php'; ?>
+<?php $profitPrintRows = $allProfitRows; ?>
 <?php if ($profitMode === 'monthly'): ?>
     <?php require __DIR__ . '/../prints/profit_monthly_report.php'; ?>
 <?php else: ?>

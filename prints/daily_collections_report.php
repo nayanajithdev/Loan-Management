@@ -1,5 +1,6 @@
 <?php
 defined('APP_NAME') || exit;
+$dailyPrintRows = $dailyPrintCollections ?? $collections;
 ?>
 <section class="daily-collections-print-report" id="daily-collections-print-report" aria-hidden="true">
     <?php require __DIR__ . '/a4_header.php'; ?>
@@ -31,12 +32,12 @@ defined('APP_NAME') || exit;
                 </tr>
             </thead>
             <tbody>
-                <?php if (!$collections): ?>
+                <?php if (!$dailyPrintRows): ?>
                     <tr>
                         <td colspan="4">No collections found for selected date.</td>
                     </tr>
                 <?php else: ?>
-                    <?php foreach ($collections as $row): ?>
+                    <?php foreach ($dailyPrintRows as $row): ?>
                         <?php
                         $amountLabel = money_label($pdo, (float) $row['amount']);
                         if ((int) ($row['closed_this_payment'] ?? 0) === 1) {

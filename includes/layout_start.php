@@ -2,6 +2,9 @@
 /** @var string $pageTitle */
 /** @var string $activePage */
 $faviconPath = business_icon_path($pdo);
+$layoutUser = current_user();
+$themePreference = normalize_theme_preference((string) ($layoutUser['theme_preference'] ?? 'dark'));
+$bodyClasses = $themePreference === 'light' ? 'theme-light' : 'theme-dark';
 ?>
 <!doctype html>
 <html lang="en">
@@ -17,7 +20,7 @@ $faviconPath = business_icon_path($pdo);
     <?php endif; ?>
     <link rel="stylesheet" href="<?= e(url('assets/css/style.css')) ?>">
 </head>
-<body>
+<body class="<?= e($bodyClasses) ?>" data-theme="<?= e($themePreference) ?>">
 <div class="app-shell">
     <?php require __DIR__ . '/sidebar.php'; ?>
     <div class="sidebar-overlay" data-sidebar-overlay aria-hidden="true"></div>

@@ -32,6 +32,65 @@
 })();
 
 (function () {
+    const form = document.querySelector('[data-theme-toggle-form]');
+    if (!(form instanceof HTMLFormElement)) {
+        return;
+    }
+
+    const button = form.querySelector('[data-theme-toggle]');
+    const input = form.querySelector('[data-theme-toggle-input]');
+    if (!(button instanceof HTMLButtonElement) || !(input instanceof HTMLInputElement)) {
+        return;
+    }
+
+    const normalizeTheme = (theme) => theme === 'light' ? 'light' : 'dark';
+
+    const applyTheme = (theme) => {
+        const normalized = normalizeTheme(theme);
+        const nextTheme = normalized === 'light' ? 'dark' : 'light';
+
+        document.body.classList.toggle('theme-light', normalized === 'light');
+        document.body.classList.toggle('theme-dark', normalized === 'dark');
+        document.body.dataset.theme = normalized;
+
+        input.value = nextTheme;
+        button.dataset.currentTheme = normalized;
+        button.setAttribute('aria-label', normalized === 'light' ? 'Switch to dark mode' : 'Switch to light mode');
+        button.setAttribute('title', normalized === 'light' ? 'Dark mode' : 'Light mode');
+    };
+
+    form.addEventListener('submit', async (event) => {
+        event.preventDefault();
+
+        const previousTheme = normalizeTheme(document.body.dataset.theme || button.dataset.currentTheme || 'dark');
+        const requestedTheme = normalizeTheme(input.value);
+        applyTheme(requestedTheme);
+
+        const formData = new FormData(form);
+        formData.set('theme', requestedTheme);
+
+        try {
+            const response = await fetch(form.action, {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    Accept: 'application/json',
+                    'X-Requested-With': 'fetch',
+                },
+                credentials: 'same-origin',
+            });
+            const payload = await response.json().catch(() => null);
+            if (!response.ok || !payload || payload.ok !== true) {
+                throw new Error('Theme update failed.');
+            }
+            applyTheme(payload.theme);
+        } catch (error) {
+            applyTheme(previousTheme);
+        }
+    });
+})();
+
+(function () {
     const applyMobileTableStack = () => {
         const tables = document.querySelectorAll('.table-wrap table');
         tables.forEach((table) => {

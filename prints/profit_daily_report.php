@@ -1,5 +1,6 @@
 <?php
 defined('APP_NAME') || exit;
+$profitDailyPrintRows = $profitPrintRows ?? $profitRows;
 ?>
 <section class="profit-print-report profit-daily-print-report" id="profit-print-report" aria-hidden="true">
     <?php require __DIR__ . '/a4_header.php'; ?>
@@ -29,12 +30,12 @@ defined('APP_NAME') || exit;
                 </tr>
             </thead>
             <tbody>
-                <?php if (!$profitRows): ?>
+                <?php if (!$profitDailyPrintRows): ?>
                     <tr>
                         <td colspan="3">No profit records found for selected date.</td>
                     </tr>
                 <?php else: ?>
-                    <?php foreach ($profitRows as $row): ?>
+                    <?php foreach ($profitDailyPrintRows as $row): ?>
                         <tr>
                             <td><?= e((string) $row['loan_number']) ?></td>
                             <td><?= e(money_label($pdo, (float) $row['collected_amount'])) ?></td>
