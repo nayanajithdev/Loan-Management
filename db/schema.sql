@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS users (
     status ENUM('active', 'inactive') NOT NULL DEFAULT 'active',
     force_logout_at DATETIME NULL,
     avatar_path VARCHAR(255) DEFAULT NULL,
+    theme_preference ENUM('dark', 'light') NOT NULL DEFAULT 'dark',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE KEY uq_users_email (email)
 );
@@ -86,6 +87,7 @@ CREATE TABLE IF NOT EXISTS loans (
     status ENUM('active', 'closed', 'defaulted') NOT NULL DEFAULT 'active',
     notes TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_loans_assigned_user (assigned_user_id),
     FOREIGN KEY (customer_id) REFERENCES customers(id),
     FOREIGN KEY (assigned_user_id) REFERENCES users(id)
 );

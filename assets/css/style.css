@@ -492,6 +492,10 @@ body.theme-light {
         table-layout: fixed;
     }
 
+    .daily-collections-print-report.is-print-active .daily-report-table thead {
+        display: table-row-group;
+    }
+
     .daily-collections-print-report.is-print-active .daily-report-table th,
     .daily-collections-print-report.is-print-active .daily-report-table td {
         box-sizing: border-box;
