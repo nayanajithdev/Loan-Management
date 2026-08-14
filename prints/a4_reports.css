@@ -1,0 +1,738 @@
+@media print {
+    @page {
+        size: A4;
+        margin: 9mm 10mm 14mm;
+    }
+
+    html,
+    body {
+        width: 210mm;
+        min-height: 297mm;
+        margin: 0 !important;
+        background: #ffffff !important;
+        color: #061f4b !important;
+    }
+
+    body * {
+        visibility: hidden !important;
+    }
+
+    .loan-collection-print-report.is-print-active,
+    .loan-collection-print-report.is-print-active *,
+    .daily-collections-print-report.is-print-active,
+    .daily-collections-print-report.is-print-active *,
+    .profit-print-report.is-print-active,
+    .profit-print-report.is-print-active * {
+        visibility: visible !important;
+    }
+
+    .loan-collection-print-report.is-print-active,
+    .daily-collections-print-report.is-print-active,
+    .profit-print-report.is-print-active {
+        display: block !important;
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 190mm;
+        min-height: auto;
+        padding: 0;
+        box-sizing: border-box;
+        background: #ffffff;
+        color: #061f4b;
+        font-family: Arial, Helvetica, sans-serif;
+        font-size: 10pt;
+        line-height: 1.3;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+
+    .print-report-header {
+        display: grid;
+        grid-template-columns: 52mm minmax(0, 1fr) 52mm;
+        gap: 8mm;
+        align-items: end;
+        min-height: 25mm;
+        color: #061f4b;
+    }
+
+    .print-report-title-block {
+        text-align: center;
+        min-width: 0;
+    }
+
+    .print-report-logo-slot {
+        display: flex;
+        align-items: center;
+        justify-content: flex-start;
+        width: 52mm;
+        height: 24mm;
+        overflow: hidden;
+        color: #061f4b;
+    }
+
+    .print-report-logo-slot img {
+        display: block;
+        max-width: 100%;
+        max-height: 100%;
+        object-fit: contain;
+    }
+
+    .print-report-logo-placeholder {
+        font-size: 20pt;
+        line-height: 1;
+        font-weight: 800;
+    }
+
+    .print-report-note {
+        color: #061f4b;
+        font-size: 10pt;
+        font-weight: 700;
+        line-height: 1.25;
+        text-align: right;
+        white-space: nowrap;
+        overflow-wrap: anywhere;
+    }
+
+    .print-report-header h1 {
+        margin: 0;
+        font-family: Arial, Helvetica, sans-serif;
+        font-size: 20pt;
+        line-height: 1.05;
+        font-weight: 800;
+    }
+
+    .print-report-header p {
+        margin: 1.4mm 0 0;
+        font-size: 10pt;
+        font-weight: 700;
+        color: #061f4b;
+    }
+
+    .print-report-contact {
+        font-family: Arial, Helvetica, sans-serif;
+        font-style: italic;
+        font-weight: 700;
+    }
+
+    .print-report-contact span {
+        margin: 0 2mm;
+    }
+
+    .print-report-rule,
+    .print-report-footer {
+        border-top: 1pt solid #202020;
+    }
+
+    .print-report-rule {
+        margin: 8mm 0 9mm;
+    }
+
+    .print-report-summary {
+        display: grid;
+        grid-template-columns: minmax(0, 98mm) minmax(0, 64mm);
+        gap: 16mm;
+        align-items: start;
+        margin: 0 0 9mm;
+    }
+
+    .print-customer-block {
+        min-width: 0;
+        color: #061f4b;
+    }
+
+    .print-info-row {
+        display: grid;
+        grid-template-columns: 34mm 5mm minmax(0, 1fr);
+        gap: 2mm;
+        align-items: start;
+        margin-bottom: 5mm;
+        font-size: 10pt;
+    }
+
+    .print-info-row strong {
+        font-weight: 800;
+    }
+
+    .print-info-row p {
+        margin: 0;
+        overflow-wrap: anywhere;
+    }
+
+    .print-customer-details .print-info-row:last-child {
+        margin-bottom: 0;
+    }
+
+    .print-amount-summary {
+        width: 100%;
+        box-sizing: border-box;
+        background: #ffffff;
+        color: #061f4b;
+    }
+
+    .print-amount-summary::after {
+        content: none;
+    }
+
+    .print-amount-summary .print-info-row {
+        grid-template-columns: 34mm 5mm minmax(0, 1fr);
+    }
+
+    .print-amount-summary strong {
+        font-weight: 800;
+    }
+
+    .print-amount-summary p {
+        min-width: 0;
+        font-weight: 400;
+        white-space: nowrap;
+        text-align: right;
+        font-size: 10pt;
+    }
+
+    .print-summary-rule {
+        margin: 1mm 0 5mm;
+        border-top: 1pt solid #202020;
+    }
+
+    .print-amount-summary .print-balance-row strong {
+        font-size: 10pt;
+        font-weight: 800;
+    }
+
+    .print-amount-summary .print-balance-row p {
+        font-size: 10pt;
+        font-weight: 400;
+    }
+
+    .print-collection-table {
+        width: 100%;
+        margin: 0;
+        border-collapse: collapse;
+        page-break-inside: auto;
+        table-layout: fixed;
+    }
+
+    .print-collection-table thead {
+        display: table-header-group;
+    }
+
+    .print-collection-table th {
+        padding: 3mm 3mm;
+        background: #08265f;
+        border: 1px solid #7484a7;
+        color: #ffffff;
+        font-size: 10pt;
+        font-weight: 800;
+        text-align: center;
+    }
+
+    .print-collection-table td {
+        padding: 2.7mm 3mm;
+        border-right: 1px solid #e5e7eb;
+        border-left: 1px solid #e5e7eb;
+        border-bottom: 1px dashed #d9dee8;
+        font-size: 10pt;
+        text-align: center;
+        vertical-align: top;
+    }
+
+    .print-collection-table .print-payment-col {
+        text-align: right;
+    }
+
+    .loan-collection-print-report.is-print-active .print-report-rule {
+        margin: 5.5mm 0 8mm;
+        border-top: 1.5pt solid #1a2f5c;
+    }
+
+    .loan-collection-print-report.is-print-active .print-report-summary {
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        gap: 12mm;
+        margin: 0 0 5mm;
+    }
+
+    .loan-collection-print-report.is-print-active .print-info-row {
+        grid-template-columns: 31mm 5mm minmax(0, 1fr);
+        gap: 0;
+        margin-bottom: 3.1mm;
+        line-height: 1.3;
+    }
+
+    .loan-collection-print-report.is-print-active .print-amount-summary {
+        width: 76mm;
+        justify-self: end;
+    }
+
+    .loan-collection-print-report.is-print-active .print-amount-summary .print-info-row {
+        grid-template-columns: 38mm 5mm minmax(0, 1fr);
+    }
+
+    .loan-collection-print-report.is-print-active .print-amount-summary p {
+        text-align: left;
+    }
+
+    .loan-collection-print-report.is-print-active .single-customer-collection-table {
+        width: 190mm;
+        max-width: 190mm;
+        margin: 0 0 8mm;
+        border-collapse: collapse;
+        table-layout: fixed;
+        color: #061f4b;
+        font-size: 10pt;
+        page-break-inside: auto;
+    }
+
+    .loan-collection-print-report.is-print-active .single-customer-collection-table thead {
+        display: table-header-group;
+    }
+
+    .loan-collection-print-report.is-print-active .single-customer-collection-table tr {
+        break-inside: avoid;
+        page-break-inside: avoid;
+    }
+
+    .loan-collection-print-report.is-print-active .single-customer-collection-table th,
+    .loan-collection-print-report.is-print-active .single-customer-collection-table td {
+        box-sizing: border-box;
+        min-width: 0;
+        max-width: 100%;
+        padding: 2.8mm 4mm;
+        border-right: 1px solid #d6dbe5;
+        border-left: 1px solid #d6dbe5;
+        border-bottom: 1px dotted #cccccc;
+        color: #061f4b;
+        font-size: 10pt;
+        text-align: center;
+        vertical-align: middle;
+        overflow: hidden;
+        overflow-wrap: anywhere;
+    }
+
+    .loan-collection-print-report.is-print-active .single-customer-collection-table th {
+        padding: 3mm 4mm;
+        background: #ffffff;
+        border: 1px solid #d6dbe5;
+        color: #1a2f5c;
+        font-weight: 800;
+        text-transform: uppercase;
+    }
+
+    .loan-collection-print-report.is-print-active .single-customer-collection-table th:last-child,
+    .loan-collection-print-report.is-print-active .single-customer-collection-table td:last-child {
+        text-align: center;
+    }
+
+    .loan-collection-print-report.is-print-active .single-customer-collection-time {
+        margin-left: 3mm;
+        white-space: nowrap;
+    }
+
+    .loan-collection-print-report.is-print-active .print-report-footer {
+        border-top: 0;
+        position: static;
+        margin-top: 6mm;
+        padding-top: 0;
+    }
+
+    .daily-print-meta {
+        display: flex;
+        justify-content: flex-end;
+        gap: 3mm;
+        margin: 0 0 5mm;
+        color: #061f4b;
+        font-size: 10pt;
+    }
+
+    .daily-print-meta span,
+    .daily-print-meta strong {
+        font-weight: 800;
+    }
+
+    .daily-print-meta p {
+        margin: 0;
+    }
+
+    .daily-collections-print-report.is-print-active {
+        width: 190mm !important;
+        max-width: 190mm !important;
+        padding: 0;
+        margin: 0 !important;
+        overflow: visible;
+    }
+
+    .daily-collections-print-report.is-print-active,
+    .daily-collections-print-report.is-print-active * {
+        box-sizing: border-box !important;
+    }
+
+    .daily-collections-print-report.is-print-active .print-report-rule {
+        margin: 5.5mm 0 8mm;
+        border-top: 1.5pt solid #1a2f5c;
+    }
+
+    .daily-collections-print-report.is-print-active .daily-print-meta {
+        display: grid;
+        grid-template-columns: 31mm 5mm minmax(0, 1fr);
+        gap: 0;
+        justify-content: initial;
+        width: 88mm;
+        margin: 0 0 5mm;
+        line-height: 1.3;
+    }
+
+    .daily-collections-print-report.is-print-active .daily-print-meta p {
+        font-weight: 400;
+    }
+
+    .daily-collections-print-report.is-print-active .daily-report-content {
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+
+    .daily-collections-print-report.is-print-active .daily-report-details {
+        width: 100% !important;
+        max-width: 100% !important;
+        margin: 0 0 5mm;
+    }
+
+    .daily-collections-print-report.is-print-active .daily-report-details table {
+        width: 100% !important;
+        max-width: 100% !important;
+        border-collapse: collapse;
+        border: 0;
+        table-layout: fixed;
+    }
+
+    .daily-collections-print-report.is-print-active .daily-report-details td {
+        padding: 1.5mm 2mm;
+        border: 0;
+        color: #061f4b;
+        font-size: 10pt;
+        line-height: 1.3;
+        vertical-align: top;
+    }
+
+    .daily-collections-print-report.is-print-active .daily-report-details .label {
+        width: 31mm;
+        font-weight: 800;
+        white-space: nowrap;
+    }
+
+    .daily-collections-print-report.is-print-active .daily-report-details .colon {
+        width: 5mm;
+    }
+
+    .daily-collections-print-report.is-print-active .daily-report-table {
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+        margin: 0 !important;
+        border-collapse: collapse;
+        table-layout: fixed;
+    }
+
+    .daily-collections-print-report.is-print-active .daily-report-table thead {
+        display: table-header-group;
+    }
+
+    .daily-collections-print-report.is-print-active .daily-report-table tr {
+        break-inside: avoid;
+        page-break-inside: avoid;
+    }
+
+    .daily-collections-print-report.is-print-active .daily-report-table th,
+    .daily-collections-print-report.is-print-active .daily-report-table td {
+        box-sizing: border-box;
+        min-width: 0;
+        max-width: 100%;
+        padding: 2.8mm 4mm;
+        border-right: 1px solid #d6dbe5;
+        border-left: 1px solid #d6dbe5;
+        color: #061f4b;
+        font-size: 10pt;
+        text-align: center;
+        vertical-align: middle;
+        overflow: hidden;
+        overflow-wrap: anywhere;
+    }
+
+    .daily-collections-print-report.is-print-active .daily-report-table th {
+        background: #ffffff;
+        border-top: 1px solid #d6dbe5;
+        border-bottom: 1px solid #d6dbe5;
+        font-weight: 800;
+    }
+
+    .daily-collections-print-report.is-print-active .daily-report-table td {
+        border-bottom: 1px dotted #cccccc;
+        font-weight: 400;
+    }
+
+    .daily-collections-print-report.is-print-active .daily-report-total-row {
+        display: grid;
+        grid-template-columns: 31mm 5mm 40mm;
+        width: 76mm;
+        margin: 5mm 0 0 auto;
+        color: #061f4b;
+        font-size: 10pt;
+        line-height: 1.3;
+        break-inside: avoid;
+        page-break-inside: avoid;
+    }
+
+    .daily-collections-print-report.is-print-active .daily-report-total-row .label,
+    .daily-collections-print-report.is-print-active .daily-report-total-row .colon {
+        font-weight: 400;
+        white-space: nowrap;
+    }
+
+    .daily-collections-print-report.is-print-active .daily-report-total-row .value {
+        font-weight: 800;
+        text-align: right;
+        white-space: nowrap;
+    }
+
+    .profit-daily-print-report.is-print-active,
+    .profit-monthly-print-report.is-print-active {
+        width: 190mm !important;
+        max-width: 190mm !important;
+        padding: 0;
+        margin: 0 !important;
+        overflow: visible;
+    }
+
+    .profit-daily-print-report.is-print-active,
+    .profit-daily-print-report.is-print-active *,
+    .profit-monthly-print-report.is-print-active,
+    .profit-monthly-print-report.is-print-active * {
+        box-sizing: border-box !important;
+    }
+
+    .profit-daily-print-report.is-print-active .print-report-rule,
+    .profit-monthly-print-report.is-print-active .print-report-rule {
+        margin: 5.5mm 0 8mm;
+        border-top: 1.5pt solid #1a2f5c;
+    }
+
+    .profit-daily-print-report.is-print-active .profit-daily-report-content,
+    .profit-monthly-print-report.is-print-active .profit-monthly-report-content {
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+
+    .profit-daily-print-report.is-print-active .profit-daily-report-details,
+    .profit-monthly-print-report.is-print-active .profit-monthly-report-details {
+        width: 100% !important;
+        max-width: 100% !important;
+        margin: 0 0 5mm;
+    }
+
+    .profit-daily-print-report.is-print-active .profit-daily-report-details table,
+    .profit-monthly-print-report.is-print-active .profit-monthly-report-details table {
+        width: 100% !important;
+        max-width: 100% !important;
+        border-collapse: collapse;
+        border: 0;
+        table-layout: fixed;
+    }
+
+    .profit-daily-print-report.is-print-active .profit-daily-report-details td,
+    .profit-monthly-print-report.is-print-active .profit-monthly-report-details td {
+        padding: 1.5mm 2mm;
+        border: 0;
+        color: #061f4b;
+        font-size: 10pt;
+        line-height: 1.3;
+        vertical-align: top;
+    }
+
+    .profit-daily-print-report.is-print-active .profit-daily-report-details .label,
+    .profit-monthly-print-report.is-print-active .profit-monthly-report-details .label {
+        width: 31mm;
+        font-weight: 800;
+        white-space: nowrap;
+    }
+
+    .profit-daily-print-report.is-print-active .profit-daily-report-details .colon,
+    .profit-monthly-print-report.is-print-active .profit-monthly-report-details .colon {
+        width: 5mm;
+    }
+
+    .profit-daily-print-report.is-print-active .profit-daily-report-table,
+    .profit-monthly-print-report.is-print-active .profit-monthly-report-table {
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+        margin: 0 !important;
+        border-collapse: collapse;
+        table-layout: fixed;
+    }
+
+    .profit-daily-print-report.is-print-active .profit-daily-report-table thead,
+    .profit-monthly-print-report.is-print-active .profit-monthly-report-table thead {
+        display: table-header-group;
+    }
+
+    .profit-daily-print-report.is-print-active .profit-daily-report-table tr,
+    .profit-monthly-print-report.is-print-active .profit-monthly-report-table tr {
+        break-inside: avoid;
+        page-break-inside: avoid;
+    }
+
+    .profit-daily-print-report.is-print-active .profit-daily-report-table th,
+    .profit-daily-print-report.is-print-active .profit-daily-report-table td,
+    .profit-monthly-print-report.is-print-active .profit-monthly-report-table th,
+    .profit-monthly-print-report.is-print-active .profit-monthly-report-table td {
+        box-sizing: border-box;
+        min-width: 0;
+        max-width: 100%;
+        padding: 2.8mm 4mm;
+        border-right: 1px solid #d6dbe5;
+        border-left: 1px solid #d6dbe5;
+        color: #061f4b;
+        font-size: 10pt;
+        text-align: center;
+        vertical-align: middle;
+        overflow: hidden;
+        overflow-wrap: anywhere;
+    }
+
+    .profit-daily-print-report.is-print-active .profit-daily-report-table th,
+    .profit-monthly-print-report.is-print-active .profit-monthly-report-table th {
+        background: #ffffff;
+        border-top: 1px solid #d6dbe5;
+        border-bottom: 1px solid #d6dbe5;
+        font-weight: 800;
+    }
+
+    .profit-daily-print-report.is-print-active .profit-daily-report-table td,
+    .profit-monthly-print-report.is-print-active .profit-monthly-report-table td {
+        border-bottom: 1px dotted #cccccc;
+        font-weight: 400;
+    }
+
+    .profit-daily-print-report.is-print-active .profit-daily-report-total-row,
+    .profit-monthly-print-report.is-print-active .profit-monthly-report-total-row {
+        display: grid;
+        grid-template-columns: 31mm 5mm 40mm;
+        width: 76mm;
+        margin: 5mm 0 0 auto;
+        color: #061f4b;
+        font-size: 10pt;
+        line-height: 1.3;
+        break-inside: avoid;
+        page-break-inside: avoid;
+    }
+
+    .profit-daily-print-report.is-print-active .profit-daily-report-total-row .label,
+    .profit-daily-print-report.is-print-active .profit-daily-report-total-row .colon,
+    .profit-monthly-print-report.is-print-active .profit-monthly-report-total-row .label,
+    .profit-monthly-print-report.is-print-active .profit-monthly-report-total-row .colon {
+        font-weight: 400;
+        white-space: nowrap;
+    }
+
+    .profit-daily-print-report.is-print-active .profit-daily-report-total-row .value,
+    .profit-monthly-print-report.is-print-active .profit-monthly-report-total-row .value {
+        font-weight: 800;
+        text-align: right;
+        white-space: nowrap;
+    }
+
+    .daily-collections-print-table {
+        width: 100%;
+        margin: 0 0 8mm;
+        border-collapse: collapse;
+        table-layout: fixed;
+    }
+
+    .daily-collections-print-table th:nth-child(1),
+    .daily-collections-print-table td:nth-child(1) {
+        width: 28%;
+    }
+
+    .daily-collections-print-table th:nth-child(2),
+    .daily-collections-print-table td:nth-child(2) {
+        width: 22%;
+    }
+
+    .daily-collections-print-table th:nth-child(3),
+    .daily-collections-print-table td:nth-child(3) {
+        width: 22%;
+    }
+
+    .daily-collections-print-table th:nth-child(4),
+    .daily-collections-print-table td:nth-child(4) {
+        width: 28%;
+    }
+
+    .daily-collections-print-table th {
+        padding: 3mm 4mm;
+        background: #08265f;
+        border: 1px solid #7484a7;
+        color: #ffffff;
+        font-size: 10pt;
+        font-weight: 800;
+        text-align: center;
+    }
+
+    .daily-collections-print-table td {
+        padding: 2.8mm 4mm;
+        border-right: 1px solid #e5e7eb;
+        border-left: 1px solid #e5e7eb;
+        border-bottom: 1px dashed #d9dee8;
+        font-size: 10pt;
+        text-align: center;
+        vertical-align: top;
+    }
+
+    .daily-collections-print-table td:last-child {
+        text-align: right;
+    }
+
+    .profit-print-table td:nth-child(2),
+    .profit-print-table td:nth-child(3) {
+        text-align: right;
+    }
+
+    .daily-print-total {
+        display: flex;
+        justify-content: flex-end;
+        gap: 8mm;
+        width: 100%;
+        margin: 0;
+        padding: 4mm 5mm;
+        border-top: 1pt solid #202020;
+        color: #061f4b;
+        font-size: 10pt;
+    }
+
+    .daily-print-total span,
+    .daily-print-total strong {
+        font-weight: 800;
+    }
+
+    .print-report-footer {
+        position: fixed;
+        right: 16mm;
+        bottom: 6mm;
+        left: 16mm;
+        display: flex;
+        justify-content: space-between;
+        padding-top: 3mm;
+        color: #292929;
+        font-family: Arial, Helvetica, sans-serif;
+        font-style: italic;
+        font-size: 10pt;
+    }
+
+    .print-page-number::after {
+        content: "Page " counter(page) " of " counter(pages);
+    }
+}

@@ -19,6 +19,7 @@ $bodyClasses = $themePreference === 'light' ? 'theme-light' : 'theme-dark';
         <link rel="icon" href="<?= e(url($faviconPath)) ?>">
     <?php endif; ?>
     <link rel="stylesheet" href="<?= e(url('assets/css/style.css')) ?>">
+    <link rel="stylesheet" href="<?= e(url('prints/a4_reports.css')) ?>" media="print">
 </head>
 <body class="<?= e($bodyClasses) ?>" data-theme="<?= e($themePreference) ?>">
 <div class="app-shell">

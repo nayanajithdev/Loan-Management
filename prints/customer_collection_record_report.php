@@ -73,35 +73,44 @@ if (empty($canViewLoanCollectionRecords)) {
         </div>
     </section>
 
-    <div class="single-customer-collection-grid" role="table" aria-label="Collection payments">
-        <div class="single-customer-collection-row single-customer-collection-head" role="row">
-            <div role="columnheader">Inst.</div>
-            <div role="columnheader">Date &amp; Time</div>
-            <div role="columnheader">Payment</div>
-        </div>
-        <?php if (!$loanCollectionReportHistory): ?>
-            <div class="single-customer-collection-empty" role="row">
-                No collection payments recorded.
-            </div>
-        <?php else: ?>
-            <?php foreach ($loanCollectionReportHistory as $index => $history): ?>
-                <?php
-                $historyCollectedAt = trim((string) ($history['collected_at'] ?? ''));
-                $historyTime = $historyCollectedAt !== '' ? display_time($historyCollectedAt) : '';
-                ?>
-                <div class="single-customer-collection-row" role="row">
-                    <div role="cell">#<?= e((string) ($index + 1)) ?></div>
-                    <div role="cell">
-                        <?= e(display_date((string) $history['collected_on'])) ?>
-                        <?php if ($historyTime !== ''): ?>
-                            <span class="single-customer-collection-time"><?= e($historyTime) ?></span>
-                        <?php endif; ?>
-                    </div>
-                    <div role="cell"><?= e(money_label($pdo, (float) $history['amount'])) ?></div>
-                </div>
-            <?php endforeach; ?>
-        <?php endif; ?>
-    </div>
+    <table class="single-customer-collection-table" aria-label="Collection payments">
+        <colgroup>
+            <col style="width:40mm;">
+            <col style="width:90mm;">
+            <col style="width:60mm;">
+        </colgroup>
+        <thead>
+            <tr>
+                <th>Inst.</th>
+                <th>Date &amp; Time</th>
+                <th>Payment</th>
+            </tr>
+        </thead>
+        <tbody>
+            <?php if (!$loanCollectionReportHistory): ?>
+                <tr>
+                    <td colspan="3">No collection payments recorded.</td>
+                </tr>
+            <?php else: ?>
+                <?php foreach ($loanCollectionReportHistory as $index => $history): ?>
+                    <?php
+                    $historyCollectedAt = trim((string) ($history['collected_at'] ?? ''));
+                    $historyTime = $historyCollectedAt !== '' ? display_time($historyCollectedAt) : '';
+                    ?>
+                    <tr>
+                        <td>#<?= e((string) ($index + 1)) ?></td>
+                        <td>
+                            <?= e(display_date((string) $history['collected_on'])) ?>
+                            <?php if ($historyTime !== ''): ?>
+                                <span class="single-customer-collection-time"><?= e($historyTime) ?></span>
+                            <?php endif; ?>
+                        </td>
+                        <td><?= e(money_label($pdo, (float) $history['amount'])) ?></td>
+                    </tr>
+                <?php endforeach; ?>
+            <?php endif; ?>
+        </tbody>
+    </table>
 
     <footer class="print-report-footer">
         <span><?= e($reportGeneratedDate) ?></span>
