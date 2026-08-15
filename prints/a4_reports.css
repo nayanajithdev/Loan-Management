@@ -1,13 +1,13 @@
 @media print {
     @page {
         size: A4;
-        margin: 9mm 10mm 14mm;
+        margin: 9mm 0 14mm;
     }
 
     html,
     body {
         width: 210mm;
-        min-height: 297mm;
+        min-height: 0;
         margin: 0 !important;
         background: #ffffff !important;
         color: #061f4b !important;
@@ -33,9 +33,9 @@
         position: absolute;
         top: 0;
         left: 0;
-        width: 190mm;
+        width: 210mm;
         min-height: auto;
-        padding: 0;
+        padding: 0 10mm;
         box-sizing: border-box;
         background: #ffffff;
         color: #061f4b;
@@ -44,6 +44,11 @@
         line-height: 1.3;
         -webkit-print-color-adjust: exact;
         print-color-adjust: exact;
+    }
+
+    .loan-collection-print-report.is-print-active,
+    .loan-collection-print-report.is-print-active * {
+        box-sizing: border-box !important;
     }
 
     .print-report-header {
@@ -249,6 +254,8 @@
         grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
         gap: 12mm;
         margin: 0 0 5mm;
+        width: 100%;
+        max-width: 100%;
     }
 
     .loan-collection-print-report.is-print-active .print-info-row {
@@ -272,8 +279,9 @@
     }
 
     .loan-collection-print-report.is-print-active .single-customer-collection-table {
-        width: 190mm;
-        max-width: 190mm;
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
         margin: 0 0 8mm;
         border-collapse: collapse;
         table-layout: fixed;
@@ -304,8 +312,9 @@
         font-size: 10pt;
         text-align: center;
         vertical-align: middle;
-        overflow: hidden;
+        overflow: visible;
         overflow-wrap: anywhere;
+        word-break: normal;
     }
 
     .loan-collection-print-report.is-print-active .single-customer-collection-table th {
@@ -353,9 +362,9 @@
     }
 
     .daily-collections-print-report.is-print-active {
-        width: 190mm !important;
-        max-width: 190mm !important;
-        padding: 0;
+        width: 210mm !important;
+        max-width: 210mm !important;
+        padding: 0 10mm;
         margin: 0 !important;
         overflow: visible;
     }
@@ -426,8 +435,8 @@
     }
 
     .daily-collections-print-report.is-print-active .daily-report-table {
-        width: 100% !important;
-        max-width: 100% !important;
+        width: 190mm !important;
+        max-width: 190mm !important;
         min-width: 0 !important;
         margin: 0 !important;
         border-collapse: collapse;
@@ -497,9 +506,9 @@
 
     .profit-daily-print-report.is-print-active,
     .profit-monthly-print-report.is-print-active {
-        width: 190mm !important;
-        max-width: 190mm !important;
-        padding: 0;
+        width: 210mm !important;
+        max-width: 210mm !important;
+        padding: 0 10mm;
         margin: 0 !important;
         overflow: visible;
     }
@@ -566,8 +575,8 @@
 
     .profit-daily-print-report.is-print-active .profit-daily-report-table,
     .profit-monthly-print-report.is-print-active .profit-monthly-report-table {
-        width: 100% !important;
-        max-width: 100% !important;
+        width: 190mm !important;
+        max-width: 190mm !important;
         min-width: 0 !important;
         margin: 0 !important;
         border-collapse: collapse;

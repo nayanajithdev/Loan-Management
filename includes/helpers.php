@@ -956,7 +956,7 @@ function status_badge_class(string $status): string
         'active', 'paid' => 'success',
         'closed' => 'info',
         'partial' => 'warning',
-        'defaulted', 'overdue', 'inactive' => 'danger',
+        'overdue', 'inactive' => 'danger',
         default => 'neutral',
     };
 }
@@ -1080,6 +1080,7 @@ function collection_due_installments_for_date(PDO $pdo, string $selectedDate, st
             JOIN loans l ON l.id = li.loan_id
             JOIN customers c ON c.id = l.customer_id
             WHERE li.status IN ('pending', 'partial', 'overdue')
+              AND l.status = 'active'
               AND li.due_amount > li.paid_amount";
 
     $params = [];
@@ -1981,7 +1982,7 @@ function undo_collection_payment(PDO $pdo, int $collectionId, int $actorUserId, 
         $closeLoan = $pdo->prepare("UPDATE loans SET status = 'closed' WHERE id = :id");
         $closeLoan->execute(['id' => $loanId]);
     } else {
-        $reopenLoan = $pdo->prepare("UPDATE loans SET status = 'active' WHERE id = :id AND status <> 'defaulted'");
+        $reopenLoan = $pdo->prepare("UPDATE loans SET status = 'active' WHERE id = :id");
         $reopenLoan->execute(['id' => $loanId]);
     }
 
@@ -2263,6 +2264,24 @@ function ensure_user_status_schema(PDO $pdo): void
     $statusType = strtolower((string) ($statusColumn['Type'] ?? ''));
     if (!str_contains($statusType, "'inactive'")) {
         $pdo->exec("ALTER TABLE users MODIFY COLUMN status ENUM('active','inactive') NOT NULL DEFAULT 'active'");
+    }
+}
+
+function ensure_loan_status_schema(PDO $pdo): void
+{
+    $statusColStmt = $pdo->query("SHOW COLUMNS FROM loans LIKE 'status'");
+    $statusColumn = $statusColStmt->fetch();
+
+    if (!$statusColumn) {
+        $pdo->exec("ALTER TABLE loans ADD COLUMN status ENUM('active','closed') NOT NULL DEFAULT 'active'");
+        return;
+    }
+
+    $pdo->exec("UPDATE loans SET status = 'active' WHERE status NOT IN ('active', 'closed')");
+
+    $statusType = strtolower((string) ($statusColumn['Type'] ?? ''));
+    if (str_contains($statusType, "'defaulted'") || !str_contains($statusType, "'closed'")) {
+        $pdo->exec("ALTER TABLE loans MODIFY COLUMN status ENUM('active','closed') NOT NULL DEFAULT 'active'");
     }
 }
 

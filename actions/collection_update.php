@@ -387,7 +387,7 @@ try {
     if ($pendingCount === 0) {
         $pdo->prepare("UPDATE loans SET status = 'closed' WHERE id = :id")->execute(['id' => $loanId]);
     } else {
-        $pdo->prepare("UPDATE loans SET status = 'active' WHERE id = :id AND status <> 'defaulted'")->execute(['id' => $loanId]);
+        $pdo->prepare("UPDATE loans SET status = 'active' WHERE id = :id")->execute(['id' => $loanId]);
     }
 
     $pdo->commit();

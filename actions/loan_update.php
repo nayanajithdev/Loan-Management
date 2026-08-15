@@ -136,7 +136,7 @@ if (!in_array($timeframeUnit, ['days', 'months'], true)) {
     redirect('pages/loan_edit.php?loan_id=' . $loanId);
 }
 
-if (!in_array($status, ['active', 'closed', 'defaulted'], true)) {
+if (!in_array($status, ['active', 'closed'], true)) {
     set_flash('error', 'Invalid loan status.');
     redirect('pages/loan_edit.php?loan_id=' . $loanId);
 }
@@ -209,7 +209,8 @@ function loan_update_rebuild_unpaid_schedule(
     int $requestedInstallmentCount,
     string $frequency,
     bool $useRoundedInstallment,
-    float $roundedInstallmentAmount
+    float $roundedInstallmentAmount,
+    bool $rescheduleFromTomorrow = false
 ): array {
     $collectionTotalStmt = $pdo->prepare('SELECT COALESCE(SUM(amount), 0) FROM collections WHERE loan_id = :loan_id');
     $collectionTotalStmt->execute(['loan_id' => $loanId]);
@@ -380,6 +381,21 @@ function loan_update_rebuild_unpaid_schedule(
         }
     }
 
+    if ($rescheduleFromTomorrow) {
+        $interval = frequency_interval($frequency);
+        $cursor = new DateTimeImmutable(next_collectible_date(
+            $pdo,
+            (new DateTimeImmutable(today()))->add(new DateInterval('P1D'))->format('Y-m-d')
+        ));
+        foreach ($slots as $index => $slot) {
+            $candidate = $index === 0
+                ? $cursor->format('Y-m-d')
+                : next_collectible_date($pdo, $cursor->add($interval)->format('Y-m-d'));
+            $slots[$index]['due_date'] = $candidate;
+            $cursor = new DateTimeImmutable($candidate);
+        }
+    }
+
     $updateStmt = $pdo->prepare(
         'UPDATE loan_installments
          SET due_amount = :due_amount,
@@ -539,6 +555,9 @@ try {
     }
 
     if ($repaymentLocked) {
+        $shouldRescheduleReopenedLoan = (string) ($loan['status'] ?? 'active') === 'closed'
+            && ($status === 'active' || $extendsCollectedLoan);
+
         $scheduleUpdate = loan_update_rebuild_unpaid_schedule(
             $pdo,
             $loanId,
@@ -547,8 +566,12 @@ try {
             $installmentCount,
             $frequency,
             $useRoundedInstallment,
-            $roundedInstallmentAmount
+            $roundedInstallmentAmount,
+            $shouldRescheduleReopenedLoan
         );
+        if ($shouldRescheduleReopenedLoan && (float) ($scheduleUpdate['new_outstanding'] ?? 0) > 0.009) {
+            $status = 'active';
+        }
 
         $updateLocked = $pdo->prepare(
             'UPDATE loans SET

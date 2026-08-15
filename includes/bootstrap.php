@@ -24,6 +24,7 @@ try {
     ensure_user_email_schema($pdo);
     ensure_user_profile_schema($pdo);
     ensure_user_status_schema($pdo);
+    ensure_loan_status_schema($pdo);
     ensure_user_force_logout_schema($pdo);
     ensure_user_theme_schema($pdo);
     ensure_password_reset_tokens_schema($pdo);

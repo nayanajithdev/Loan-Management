@@ -84,7 +84,7 @@ CREATE TABLE IF NOT EXISTS loans (
     start_date DATE NOT NULL,
     first_due_date DATE NOT NULL,
     end_date DATE DEFAULT NULL,
-    status ENUM('active', 'closed', 'defaulted') NOT NULL DEFAULT 'active',
+    status ENUM('active', 'closed') NOT NULL DEFAULT 'active',
     notes TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     INDEX idx_loans_assigned_user (assigned_user_id),

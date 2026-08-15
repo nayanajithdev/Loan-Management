@@ -103,7 +103,6 @@ $collectionPaginationUrl = static function (int $page) use ($selectedDate, $sort
 
 $collectedTotal = (float) ($collectionTotals['collected_total'] ?? 0);
 $paymentCount = (int) ($collectionTotals['payment_count'] ?? 0);
-$paymentMethodSelectionEnabled = payment_method_selection_enabled($pdo);
 
 $profitMode = (string) ($_GET['profit_mode'] ?? 'daily');
 if (!in_array($profitMode, ['daily', 'monthly'], true)) {
@@ -262,25 +261,22 @@ require __DIR__ . '/../includes/layout_start.php';
                         <h2 class="panel-title">Collections</h2>
                     </div>
                     <div class="table-wrap">
-                        <table class="collection-history-table <?= $paymentMethodSelectionEnabled ? '' : 'is-method-hidden' ?>">
+                        <table class="collection-history-table reports-collections-table">
                             <thead>
                             <tr>
-                                <th>Date</th>
-                                <th>Loan</th>
-                                <th>Customer</th>
-                                <th>Phone</th>
                                 <th>Inst.</th>
-                                <th>Collected By</th>
-                                <?php if ($paymentMethodSelectionEnabled): ?>
-                                    <th>Method</th>
-                                <?php endif; ?>
+                                <th>Loan no</th>
+                                <th>Customer</th>
+                                <th>Amount</th>
+                                <th>Phone</th>
+                                <th>Date &amp; Time</th>
+                                <th>Collected by</th>
                                 <th>Note</th>
-                                <th class="text-right">Amount</th>
                             </tr>
                             </thead>
                             <tbody>
                             <?php if (!$collections): ?>
-                                <tr><td colspan="<?= $paymentMethodSelectionEnabled ? '9' : '8' ?>">No collections found for selected date.</td></tr>
+                                <tr><td colspan="8">No collections found for selected date.</td></tr>
                             <?php else: ?>
                                 <?php foreach ($collections as $row): ?>
                                     <?php
@@ -290,17 +286,14 @@ require __DIR__ . '/../includes/layout_start.php';
                                     $isClosedPayment = (int) ($row['closed_this_payment'] ?? 0) === 1;
                                     ?>
                                     <tr class="<?= $isClosedPayment ? 'is-closed-loan-row' : '' ?>">
-                                        <td><?= e(display_datetime((string) $row['collected_at'])) ?></td>
+                                        <td><?= e($installments === '' ? '-' : $installments) ?></td>
                                         <td><?= e((string) $row['loan_number']) ?></td>
                                         <td><?= e((string) $row['customer_name']) ?></td>
+                                        <td><?= e(money_label($pdo, (float) $row['amount'])) ?></td>
                                         <td><?= e((string) $row['phone']) ?></td>
-                                        <td><?= e($installments === '' ? '-' : $installments) ?></td>
+                                        <td><?= e(display_datetime((string) $row['collected_at'])) ?></td>
                                         <td><?= e((string) $row['collected_by']) ?></td>
-                                        <?php if ($paymentMethodSelectionEnabled): ?>
-                                            <td><?= e(ucfirst((string) $row['method'])) ?></td>
-                                        <?php endif; ?>
                                         <td><?= e($noteText === '' ? '-' : $noteText) ?></td>
-                                        <td class="text-right"><?= e(money_label($pdo, (float) $row['amount'])) ?></td>
                                     </tr>
                                 <?php endforeach; ?>
                             <?php endif; ?>
@@ -361,18 +354,18 @@ require __DIR__ . '/../includes/layout_start.php';
                     </div>
                 </form>
 
-                <section class="panel reports-tabs-panel">
-                <section class="reports-table-section">
+                <section class="panel reports-tabs-panel reports-profit-panel reports-profit-panel-<?= e($profitMode) ?>">
+                <section class="reports-table-section reports-profit-table-section reports-profit-table-section-<?= e($profitMode) ?>">
                     <div class="panel-head reports-table-head">
                         <h2 class="panel-title"><?= $profitMode === 'monthly' ? 'Monthly Profit' : 'Daily Profit' ?></h2>
                     </div>
                     <div class="table-wrap">
                         <?php if ($profitMode === 'monthly'): ?>
-                            <table class="collection-history-table">
+                            <table class="collection-history-table reports-profit-table reports-profit-table-monthly">
                                 <thead>
                                 <tr>
                                     <th>Date</th>
-                                    <th class="text-right">Collected Amount</th>
+                                    <th>Collected Amount</th>
                                     <th class="text-right">Profit</th>
                                 </tr>
                                 </thead>
@@ -383,7 +376,7 @@ require __DIR__ . '/../includes/layout_start.php';
                                     <?php foreach ($profitRows as $row): ?>
                                         <tr>
                                             <td><?= e(display_date((string) $row['report_date'])) ?></td>
-                                            <td class="text-right"><?= e(money_label($pdo, (float) $row['collected_amount'])) ?></td>
+                                            <td><?= e(money_label($pdo, (float) $row['collected_amount'])) ?></td>
                                             <td class="text-right"><?= e(money_label($pdo, (float) $row['profit_amount'])) ?></td>
                                         </tr>
                                     <?php endforeach; ?>
@@ -391,7 +384,7 @@ require __DIR__ . '/../includes/layout_start.php';
                                 </tbody>
                             </table>
                         <?php else: ?>
-                            <table class="collection-history-table">
+                            <table class="collection-history-table reports-profit-table reports-profit-table-daily">
                                 <thead>
                                 <tr>
                                     <th>Loan No</th>

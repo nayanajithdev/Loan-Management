@@ -398,7 +398,6 @@ require __DIR__ . '/../includes/layout_start.php';
             <select name="status" required <?= $canEditLoan ? 'disabled data-loan-edit-controlled' : 'disabled' ?>>
                 <option value="active" <?= $loan['status'] === 'active' ? 'selected' : '' ?>>Active</option>
                 <option value="closed" <?= $loan['status'] === 'closed' ? 'selected' : '' ?>>Closed</option>
-                <option value="defaulted" <?= $loan['status'] === 'defaulted' ? 'selected' : '' ?>>Defaulted</option>
             </select>
         </div>
 

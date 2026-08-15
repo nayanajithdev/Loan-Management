@@ -254,7 +254,7 @@ try {
         $closeLoan = $pdo->prepare("UPDATE loans SET status = 'closed' WHERE id = :id");
         $closeLoan->execute(['id' => $loanId]);
     } else {
-        $reopenLoan = $pdo->prepare("UPDATE loans SET status = 'active' WHERE id = :id AND status <> 'defaulted'");
+        $reopenLoan = $pdo->prepare("UPDATE loans SET status = 'active' WHERE id = :id");
         $reopenLoan->execute(['id' => $loanId]);
     }
 

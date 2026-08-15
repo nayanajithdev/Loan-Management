@@ -97,7 +97,7 @@ try {
     }
 
     if ($e->getMessage() === 'Customer has non-closed loans and cannot be deleted.') {
-        set_flash('error', 'Cannot delete this customer because active/defaulted loans are linked.');
+        set_flash('error', 'Cannot delete this customer because active loans are linked.');
         redirect('pages/customer_edit.php?customer_id=' . $customerId);
     }
 

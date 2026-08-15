@@ -18,9 +18,9 @@ $profitDailyPrintRows = $profitPrintRows ?? $profitRows;
 
         <table class="profit-daily-report-table">
             <colgroup>
-                <col style="width:34%;">
-                <col style="width:33%;">
-                <col style="width:33%;">
+                <col style="width:65mm;">
+                <col style="width:63mm;">
+                <col style="width:62mm;">
             </colgroup>
             <thead>
                 <tr>

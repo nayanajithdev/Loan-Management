@@ -75,9 +75,9 @@ if (empty($canViewLoanCollectionRecords)) {
 
     <table class="single-customer-collection-table" aria-label="Collection payments">
         <colgroup>
-            <col style="width:40mm;">
-            <col style="width:90mm;">
-            <col style="width:60mm;">
+            <col style="width:22%;">
+            <col style="width:48%;">
+            <col style="width:30%;">
         </colgroup>
         <thead>
             <tr>

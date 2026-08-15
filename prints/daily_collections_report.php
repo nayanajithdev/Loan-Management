@@ -18,10 +18,10 @@ $dailyPrintRows = $dailyPrintCollections ?? $collections;
 
         <table class="daily-report-table">
             <colgroup>
-                <col style="width:28%;">
-                <col style="width:22%;">
-                <col style="width:22%;">
-                <col style="width:28%;">
+                <col style="width:53mm;">
+                <col style="width:42mm;">
+                <col style="width:42mm;">
+                <col style="width:53mm;">
             </colgroup>
             <thead>
                 <tr>
