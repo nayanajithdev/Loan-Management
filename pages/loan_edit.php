@@ -654,6 +654,7 @@ require __DIR__ . '/../includes/layout_start.php';
                                 class="btn btn-danger loan-collect-delete-button"
                                 type="submit"
                                 formaction="<?= e(url('actions/collection_delete.php')) ?>"
+                                formnovalidate
                                 data-loan-collect-delete-submit
                                 hidden
                                 disabled

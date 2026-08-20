@@ -748,6 +748,15 @@
                 confirmText.textContent = confirmLabel;
                 confirmButton.append(confirmProgress, confirmText);
                 confirmButton.setAttribute('data-inline-confirm-submit', '1');
+                if (submitter instanceof HTMLButtonElement || submitter instanceof HTMLInputElement) {
+                    confirmButton.formNoValidate = submitter.formNoValidate;
+                    ['formaction', 'formenctype', 'formmethod', 'formtarget'].forEach((attributeName) => {
+                        const attributeValue = submitter.getAttribute(attributeName);
+                        if (attributeValue !== null) {
+                            confirmButton.setAttribute(attributeName, attributeValue);
+                        }
+                    });
+                }
 
                 const cancelButton = document.createElement('button');
                 cancelButton.type = 'button';
