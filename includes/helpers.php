@@ -85,6 +85,7 @@ function permission_groups(): array
                 'loans.assign' => ['label' => 'Assign Loans', 'description' => 'Assign a loan to a collector.'],
                 'collections.loan_records' => ['label' => 'Loan Collection Records', 'description' => 'View the Collection Records tab inside loan details.'],
                 'collections.loan_records_edit' => ['label' => 'Edit Collection Records', 'description' => 'Edit saved collection records inside loan details.'],
+                'collections.loan_records_delete' => ['label' => 'Delete Collection Records', 'description' => 'Delete saved collection records inside loan details.'],
             ],
         ],
         'Management' => [
@@ -134,6 +135,7 @@ function permission_dependencies(): array
         'loans.delete' => ['loans.view'],
         'loans.assign' => ['loans.view'],
         'collections.loan_records_edit' => ['collections.loan_records'],
+        'collections.loan_records_delete' => ['collections.loan_records_edit'],
         'system_settings.manage' => ['system_settings.view'],
     ];
 }

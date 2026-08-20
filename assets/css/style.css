@@ -1880,6 +1880,13 @@ body.theme-light .btn[disabled] {
     min-width: 170px;
 }
 
+.loan-collect-form-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
 .loan-collect-empty {
     margin: 0;
     color: var(--muted);
@@ -4939,7 +4946,12 @@ body.theme-light .choice-check input[type="checkbox"]:disabled ~ .choice-check-l
         margin-bottom: 12px;
     }
 
+    .loan-collect-panel .loan-collect-form-actions {
+        width: 100%;
+    }
+
     .loan-collect-panel .loan-collect-save-button,
+    .loan-collect-panel .loan-collect-delete-button,
     .loan-collect-panel .inline-confirm-actions {
         margin-top: 0px;
         width: 100%;

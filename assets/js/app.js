@@ -756,6 +756,7 @@
 
                 let actions = null;
                 let modal = null;
+                const peerSubmitters = [];
                 if (confirmMode === 'modal') {
                     modal = document.createElement('div');
                     modal.className = 'inline-confirm-modal-backdrop';
@@ -789,6 +790,20 @@
                         }
                     });
                 } else {
+                    form.querySelectorAll('button, input[type="submit"], input[type="image"]').forEach((control) => {
+                        if (!(control instanceof HTMLElement) || control === submitter || control.hidden) {
+                            return;
+                        }
+                        if (control instanceof HTMLButtonElement && control.type !== 'submit') {
+                            return;
+                        }
+                        if (control instanceof HTMLInputElement && !['submit', 'image'].includes(control.type)) {
+                            return;
+                        }
+                        control.hidden = true;
+                        peerSubmitters.push(control);
+                    });
+
                     actions = document.createElement('div');
                     actions.className = 'inline-confirm-actions';
                     actions.setAttribute('data-inline-confirm-actions', '1');
@@ -811,6 +826,9 @@
                     if (actions) {
                         actions.remove();
                     }
+                    peerSubmitters.forEach((control) => {
+                        control.hidden = false;
+                    });
                     form.removeAttribute('data-confirmed');
                     if (form.getAttribute('data-inline-confirm-password') === '1') {
                         form.removeAttribute('data-password-confirmed');

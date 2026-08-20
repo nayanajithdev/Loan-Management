@@ -44,6 +44,7 @@ $canViewCustomer = can('customers.view');
 $canRecordCollection = can('collections.record');
 $canViewLoanCollectionRecords = can('collections.loan_records');
 $canEditCollection = can('collections.loan_records_edit');
+$canDeleteCollection = can('collections.loan_records_delete');
 $canEditCollectionDate = can('collections.backdate');
 $paymentMethodSelectionEnabled = payment_method_selection_enabled($pdo);
 
@@ -610,8 +611,10 @@ require __DIR__ . '/../includes/layout_start.php';
                     data-can-edit-collection="<?= $canEditCollection ? '1' : '0' ?>"
                     data-collect-action="<?= e(url('actions/collection_save.php')) ?>"
                     data-edit-action="<?= e(url('actions/collection_update.php')) ?>"
+                    data-delete-action="<?= e(url('actions/collection_delete.php')) ?>"
                     data-collect-confirm="Confirm this collection payment?"
                     data-edit-confirm="Update this collection? Later collections may be recalculated to keep the loan schedule consistent."
+                    data-delete-confirm="Delete this collection record? Later collections may be recalculated to keep the loan schedule consistent."
                     data-confirm="Confirm this collection payment?"
                     data-inline-confirm="1"
                     <?= $canCollectCurrent ? '' : 'hidden' ?>
@@ -644,7 +647,19 @@ require __DIR__ . '/../includes/layout_start.php';
                         <label>Note</label>
                         <textarea name="note" placeholder="Optional" data-loan-collect-note></textarea>
                     </div>
-                    <button class="btn btn-primary loan-collect-save-button" type="submit" data-loan-collect-submit><?= $canCollectCurrent ? 'Save Collection' : 'Save Collection' ?></button>
+                    <div class="loan-collect-form-actions">
+                        <button class="btn btn-primary loan-collect-save-button" type="submit" data-loan-collect-submit><?= $canCollectCurrent ? 'Save Collection' : 'Save Collection' ?></button>
+                        <?php if ($canDeleteCollection): ?>
+                            <button
+                                class="btn btn-danger loan-collect-delete-button"
+                                type="submit"
+                                formaction="<?= e(url('actions/collection_delete.php')) ?>"
+                                data-loan-collect-delete-submit
+                                hidden
+                                disabled
+                            >Delete Record</button>
+                        <?php endif; ?>
+                    </div>
                 </form>
             <?php endif; ?>
         </div>
@@ -957,6 +972,7 @@ require __DIR__ . '/../includes/layout_start.php';
     const methodInput = form.querySelector('[data-loan-collect-method]');
     const noteInput = form.querySelector('[data-loan-collect-note]');
     const submitButton = form.querySelector('[data-loan-collect-submit]');
+    const deleteButton = form.querySelector('[data-loan-collect-delete-submit]');
     const installmentLabel = panel.querySelector('[data-loan-collect-installment-label]');
     const installmentValue = panel.querySelector('[data-loan-collect-installment-value]');
     const amountBoxLabel = panel.querySelector('[data-loan-collect-amount-box-label]');
@@ -968,8 +984,10 @@ require __DIR__ . '/../includes/layout_start.php';
     const canEditCollection = form.getAttribute('data-can-edit-collection') === '1';
     const collectAction = form.getAttribute('data-collect-action') || form.action;
     const editAction = form.getAttribute('data-edit-action') || form.action;
+    const deleteAction = form.getAttribute('data-delete-action') || '';
     const collectConfirm = form.getAttribute('data-collect-confirm') || 'Confirm this collection payment?';
     const editConfirm = form.getAttribute('data-edit-confirm') || 'Update this collection?';
+    const deleteConfirm = form.getAttribute('data-delete-confirm') || 'Delete this collection record?';
     let collectionEditModeEnabled = editToggle instanceof HTMLInputElement && editToggle.checked;
     const defaults = {
         date: dateInput instanceof HTMLInputElement ? dateInput.value : '',
@@ -1008,6 +1026,8 @@ require __DIR__ . '/../includes/layout_start.php';
 
         form.action = collectAction;
         form.setAttribute('data-confirm', collectConfirm);
+        form.removeAttribute('data-inline-confirm-variant');
+        form.removeAttribute('data-inline-confirm-label');
         form.hidden = !canCollectCurrent;
 
         if (title instanceof HTMLElement) {
@@ -1055,6 +1075,10 @@ require __DIR__ . '/../includes/layout_start.php';
             submitButton.textContent = 'Save Collection';
             submitButton.disabled = !canCollectCurrent;
         }
+        if (deleteButton instanceof HTMLButtonElement) {
+            deleteButton.hidden = true;
+            deleteButton.disabled = true;
+        }
         panel.dispatchEvent(new CustomEvent('loan-collect-edit-close'));
     };
 
@@ -1089,6 +1113,8 @@ require __DIR__ . '/../includes/layout_start.php';
         form.hidden = false;
         form.action = editAction;
         form.setAttribute('data-confirm', editConfirm);
+        form.removeAttribute('data-inline-confirm-variant');
+        form.removeAttribute('data-inline-confirm-label');
 
         if (title instanceof HTMLElement) {
             title.textContent = 'Edit Collection';
@@ -1135,10 +1161,38 @@ require __DIR__ . '/../includes/layout_start.php';
             submitButton.textContent = 'Update Collection';
             submitButton.disabled = false;
         }
+        if (deleteButton instanceof HTMLButtonElement) {
+            if (deleteAction !== '') {
+                deleteButton.setAttribute('formaction', deleteAction);
+            }
+            deleteButton.hidden = false;
+            deleteButton.disabled = false;
+        }
 
         openMobilePanelIfNeeded();
         panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     };
+
+    if (submitButton instanceof HTMLButtonElement) {
+        submitButton.addEventListener('click', () => {
+            form.action = panel.classList.contains('is-editing') ? editAction : collectAction;
+            form.setAttribute('data-confirm', panel.classList.contains('is-editing') ? editConfirm : collectConfirm);
+            form.removeAttribute('data-inline-confirm-variant');
+            form.removeAttribute('data-inline-confirm-label');
+        });
+    }
+
+    if (deleteButton instanceof HTMLButtonElement) {
+        deleteButton.addEventListener('click', () => {
+            if (deleteAction !== '') {
+                form.action = deleteAction;
+                deleteButton.setAttribute('formaction', deleteAction);
+            }
+            form.setAttribute('data-confirm', deleteConfirm);
+            form.setAttribute('data-inline-confirm-variant', 'danger');
+            form.setAttribute('data-inline-confirm-label', 'Delete Record');
+        });
+    }
 
     rows.forEach((row) => {
         row.addEventListener('click', () => selectRow(row));
