@@ -51,7 +51,7 @@ if (can('users.manage')) {
 /** @var array<int, array{key:string,label:string,path:string}> $settingsChildren */
 $settingsChildren = [];
 if (can('backup.manage')) {
-    $settingsChildren[] = ['key' => 'backup', 'label' => 'Backup', 'path' => 'pages/backup.php'];
+    $settingsChildren[] = ['key' => 'backup', 'label' => 'Backup / Restore', 'path' => 'pages/backup.php'];
 }
 if (can('holidays.manage')) {
     $settingsChildren[] = ['key' => 'holiday_mode', 'label' => 'Holiday Mode', 'path' => 'pages/holiday_mode.php'];
