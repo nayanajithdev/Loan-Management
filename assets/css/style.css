@@ -8,6 +8,7 @@
     --max-boder: rgba(148, 163, 184, 0.34);
     --button-bg: #2c527d;
     --input-bg: #1a1b1e;
+    --input-border: #2d2d2d;
     --text: #f3f3f3;
     --muted: #9c9c9c;
     --accent: #ff7a1a;
@@ -302,7 +303,7 @@ body.sidebar-open {
 .menu-item-row:hover .menu-item-add,
 .menu-item-add.active,
 .menu-item-add:hover {
-    background: linear-gradient(135deg, #31506a 0%, #294866 52%, #213a55 100%);
+    background: var(--button-bg);
     color: #ffffff;
 }
 
@@ -313,7 +314,7 @@ body.sidebar-open {
 
 .menu-item:hover,
 .menu-item.active {
-    background: linear-gradient(135deg, #31506a 0%, #294866 52%, #213a55 100%);
+    background: var(--button-bg);
     color: #ffffff;
 }
 
@@ -618,6 +619,62 @@ body.sidebar-open {
     margin: 0;
 }
 
+.topbar .topbar-user-menu {
+    border-left: 1px solid var(--max-boder);
+    margin-left: 4px;
+    padding-left: 14px;
+}
+
+.topbar .user-menu-trigger {
+    min-width: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    gap: 9px;
+    padding: 0;
+}
+
+.topbar .user-menu-trigger:hover {
+    filter: none;
+}
+
+.topbar .user-menu-avatar {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: var(--surface-3);
+    color: var(--accent);
+    font-size: 12px;
+}
+
+.topbar .user-menu-meta strong {
+    font-size: 13px;
+    line-height: 1.15;
+}
+
+.topbar .user-menu-meta small {
+    margin-top: 2px;
+    font-size: 11px;
+    line-height: 1.15;
+}
+
+.topbar .user-menu-chevron {
+    display: inline-flex;
+    margin-left: 2px;
+    color: var(--max-boder);
+}
+
+.topbar .user-menu-chevron svg {
+    width: 16px;
+    height: 16px;
+}
+
+body.theme-light .topbar .user-menu-trigger {
+    background: transparent;
+    box-shadow: none;
+}
+
 .profile-split-layout {
     grid-template-columns: minmax(620px, 1.15fr) minmax(420px, 0.85fr);
 }
@@ -751,7 +808,7 @@ button {
     width: min(390px, 100%);
     overflow: hidden;
     border-radius: 6px;
-    box-shadow: inset 0 0 0 1px var(--edge);
+    box-shadow: inset 0 0 0 1px var(--input-border);
     background: var(--surface-2);
 }
 
@@ -840,6 +897,7 @@ button {
     margin-top: 0;
 }
 
+.customer-create-actionbar,
 .customer-edit-actionbar {
     display: flex;
     align-items: center;
@@ -1654,7 +1712,7 @@ body.theme-light .btn[disabled] {
 }
 
 .loan-tab-button.is-active {
-    background: linear-gradient(135deg, #31506a 0%, #294866 52%, #213a55 100%);
+    background: var(--button-bg);
     color: var(--text);
     border-color: rgba(148, 184, 213, 0.18);
     box-shadow: none;
@@ -2546,7 +2604,7 @@ input,
 select,
 textarea {
     background: var(--input-bg);
-    border: 1px solid var(--border);
+    border: 1px solid var(--input-border);
     color: #f1f1f1;
     border-radius: 6px;
     padding: 10px;
@@ -2554,7 +2612,7 @@ textarea {
 
 .readonly-value {
     background: var(--input-bg);
-    border: 1px solid var(--border);
+    border: 1px solid var(--input-border);
     color: #f1f1f1;
     border-radius: 6px;
     padding: 10px;
@@ -2598,7 +2656,7 @@ select::-ms-expand {
     overflow: hidden;
     border-radius: 6px;
     background: var(--input-bg);
-    box-shadow: inset 0 0 0 1px var(--edge);
+    box-shadow: inset 0 0 0 1px var(--input-border);
 }
 
 .combo-field input,
@@ -3492,7 +3550,7 @@ body.theme-light .choice-check input[type="checkbox"]:disabled ~ .choice-check-l
     width: min(100%, 368px);
     min-height: 40px;
     overflow: hidden;
-    border: 1px solid var(--border);
+    border: 1px solid var(--input-border);
     border-radius: 6px;
     background: var(--surface-2);
     transition: 0.2s ease;
@@ -4358,7 +4416,7 @@ body.theme-light .choice-check input[type="checkbox"]:disabled ~ .choice-check-l
 .chart-week-form input[type="week"] {
     min-height: 38px;
     min-width: 154px;
-    border: 1px solid var(--edge);
+    border: 1px solid var(--input-border);
     border-radius: 999px;
     background: var(--input-bg);
     color: var(--text);
@@ -5327,12 +5385,17 @@ body.theme-light .choice-check input[type="checkbox"]:disabled ~ .choice-check-l
         width: 100%;
     }
 
+    .customer-create-actionbar,
     .customer-edit-actionbar {
         display: grid;
         grid-template-columns: repeat(2, minmax(0, 1fr));
         align-items: stretch;
     }
 
+    .customer-create-actionbar {
+        grid-template-columns: 1fr;
+    }
+    .customer-create-actionbar .btn,
     .customer-edit-actionbar .edit-mode-switch,
     .customer-edit-actionbar .btn,
     .customer-edit-actionbar .inline-form,
