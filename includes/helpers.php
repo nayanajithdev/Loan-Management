@@ -4225,7 +4225,7 @@ function dashboard_week_input_value(DateTimeImmutable $weekStart): string
 
 function collections_total_chart(PDO $pdo, ?array $viewer = null, string $mode = 'monthly', ?DateTimeImmutable $selectedWeekStart = null): array
 {
-    $mode = $mode === 'weekly' ? 'weekly' : 'monthly';
+    $mode = in_array($mode, ['monthly', 'yearly', 'weekly'], true) ? $mode : 'monthly';
     $today = new DateTimeImmutable(today());
     $viewerRole = (string) ($viewer['role'] ?? '');
     $viewerId = (int) ($viewer['id'] ?? 0);
@@ -4249,15 +4249,30 @@ function collections_total_chart(PDO $pdo, ?array $viewer = null, string $mode =
         $title = 'Weekly Collections';
         $subtitle = display_date($startDate->format('Y-m-d')) . ' - ' . display_date($endDate->format('Y-m-d'));
         $pillSuffix = 'selected week';
-    } else {
+    } elseif ($mode === 'yearly') {
         $startDate = $today->setDate((int) $today->format('Y'), 1, 1);
         $endDate = $today->setDate((int) $today->format('Y'), 12, 31);
         $labels = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
         $keys = range(1, 12);
         $groupExpression = 'MONTH(c.collected_on)';
-        $title = $today->format('Y') . ' Collections';
-        $subtitle = 'Actual collection totals';
-        $pillSuffix = 'collected this year';
+        $title = 'This Year Collections';
+        $subtitle = $today->format('Y') . ' collection totals';
+        $pillSuffix = 'this year';
+    } else {
+        $startDate = $today->modify('first day of this month');
+        $endDate = $today->modify('last day of this month');
+        $labels = [];
+        $keys = [];
+
+        for ($date = $startDate; $date <= $endDate; $date = $date->modify('+1 day')) {
+            $keys[] = $date->format('Y-m-d');
+            $labels[] = $date->format('j');
+        }
+
+        $groupExpression = 'c.collected_on';
+        $title = 'This Month Collections';
+        $subtitle = $startDate->format('F Y') . ' daily collection totals';
+        $pillSuffix = 'this month';
     }
 
     $joins = '';
@@ -4285,7 +4300,7 @@ function collections_total_chart(PDO $pdo, ?array $viewer = null, string $mode =
 
     $totalsByKey = [];
     foreach ($stmt->fetchAll() as $row) {
-        $key = $mode === 'weekly' ? (string) $row['period_key'] : (int) $row['period_key'];
+        $key = $mode === 'yearly' ? (int) $row['period_key'] : (string) $row['period_key'];
         $totalsByKey[$key] = (float) $row['total'];
     }
 
@@ -4309,7 +4324,7 @@ function collections_total_chart(PDO $pdo, ?array $viewer = null, string $mode =
         'title' => $title,
         'subtitle' => $subtitle,
         'pill_suffix' => $pillSuffix,
-        'week_value' => dashboard_week_input_value($startDate),
+        'week_value' => dashboard_week_input_value($selectedWeekStart instanceof DateTimeImmutable ? $selectedWeekStart : $today->modify('monday this week')),
         'week_start' => $startDate->format('Y-m-d'),
         'bars' => $bars,
         'total' => array_sum($values),
@@ -4319,19 +4334,37 @@ function collections_total_chart(PDO $pdo, ?array $viewer = null, string $mode =
 
 function dashboard_collection_chart_html(PDO $pdo, array $chart, string $mode): string
 {
-    $mode = $mode === 'weekly' ? 'weekly' : 'monthly';
+    $mode = in_array($mode, ['monthly', 'yearly', 'weekly'], true) ? $mode : 'monthly';
     $monthlyClass = $mode === 'monthly' ? 'active' : '';
+    $yearlyClass = $mode === 'yearly' ? 'active' : '';
     $weeklyClass = $mode === 'weekly' ? 'active' : '';
     $weekValue = (string) ($chart['week_value'] ?? dashboard_week_input_value((new DateTimeImmutable(today()))->modify('monday this week')));
+    $bars = array_values(is_array($chart['bars'] ?? null) ? $chart['bars'] : []);
+    $barCount = max(1, count($bars));
+    $total = (float) ($chart['total'] ?? 0);
+    $maxValue = max(1.0, (float) ($chart['max_value'] ?? 1.0));
+    $average = count($bars) > 0 ? $total / count($bars) : 0.0;
+    $averagePosition = $maxValue > 0 ? min(100.0, max(0.0, ($average / $maxValue) * 100)) : 0.0;
+    $axisStep = $mode === 'monthly' ? 4 : 1;
+    $chartLabel = match ($mode) {
+        'weekly' => 'Weekly collections chart',
+        'yearly' => 'Yearly collections chart',
+        default => 'Current month collections chart',
+    };
 
     ob_start();
     ?>
     <div class="panel-head collections-chart-head">
         <div>
             <h2 class="panel-title"><?= e((string) $chart['title']) ?></h2>
+            <p class="chart-subtitle"><?= e((string) ($chart['subtitle'] ?? '')) ?></p>
         </div>
         <div class="collections-chart-actions">
-            <span class="chart-total-pill"><?= e(money_label($pdo, (float) $chart['total'])) ?> <?= e((string) $chart['pill_suffix']) ?></span>
+            <div class="chart-toggle" aria-label="Collection chart range">
+                <a class="<?= e($monthlyClass) ?>" href="<?= e(url('index.php?chart=monthly')) ?>">Monthly</a>
+                <a class="<?= e($yearlyClass) ?>" href="<?= e(url('index.php?chart=yearly')) ?>">Yearly</a>
+                <a class="<?= e($weeklyClass) ?>" href="<?= e(url('index.php?chart=weekly&week=' . rawurlencode($weekValue))) ?>">Weekly</a>
+            </div>
             <?php if ($mode === 'weekly'): ?>
                 <form class="chart-week-form" method="get" action="<?= e(url('index.php')) ?>">
                     <input type="hidden" name="chart" value="weekly">
@@ -4339,22 +4372,52 @@ function dashboard_collection_chart_html(PDO $pdo, array $chart, string $mode): 
                     <input type="week" id="dashboard-week-picker" name="week" value="<?= e($weekValue) ?>" aria-label="Select week" onchange="this.form.submit()">
                 </form>
             <?php endif; ?>
-            <div class="chart-toggle" aria-label="Collection chart range">
-                <a class="<?= e($monthlyClass) ?>" href="<?= e(url('index.php?chart=monthly')) ?>">Monthly</a>
-                <a class="<?= e($weeklyClass) ?>" href="<?= e(url('index.php?chart=weekly&week=' . rawurlencode($weekValue))) ?>">Weekly</a>
-            </div>
         </div>
     </div>
-    <div class="collection-bar-chart collection-bar-chart-<?= e($mode) ?>">
-        <?php foreach (($chart['bars'] ?? []) as $bar): ?>
-            <div class="collection-bar-item">
-                <div class="collection-bar-track" aria-hidden="true">
-                    <span style="height: <?= e(number_format((float) $bar['height'], 2, '.', '')) ?>%; --bar-size: <?= e(number_format((float) $bar['height'], 2, '.', '')) ?>%"></span>
+    <div class="collection-bar-chart collection-bar-chart-<?= e($mode) ?>" aria-label="<?= e($chartLabel) ?>">
+        <div class="collection-chart-plot" style="--chart-count: <?= e((string) $barCount) ?>;">
+            <?php if ($total > 0): ?>
+                <div
+                    class="collection-chart-average-line"
+                    style="bottom: <?= e(number_format($averagePosition, 2, '.', '')) ?>%"
+                    data-chart-label="Average"
+                    data-chart-value="<?= e(money_label($pdo, $average)) ?>"
+                    tabindex="0"
+                    aria-label="<?= e('Average: ' . money_label($pdo, $average)) ?>"
+                ></div>
+            <?php endif; ?>
+
+            <?php foreach ($bars as $bar): ?>
+                <?php
+                $value = (float) ($bar['value'] ?? 0);
+                $height = $value > 0 ? max(4.0, ($value / $maxValue) * 100) : 0.0;
+                $label = (string) ($bar['label'] ?? '');
+                ?>
+                <div
+                    class="collection-chart-bar"
+                    tabindex="0"
+                    aria-label="<?= e($label . ': ' . money_label($pdo, $value)) ?>"
+                >
+                    <span class="collection-chart-fill" style="height: <?= e(number_format($height, 2, '.', '')) ?>%">
+                        <span class="collection-chart-tooltip" role="tooltip">
+                            <strong class="collection-chart-tooltip-date"><?= e($label) ?></strong>
+                            <span><em>Collected</em><strong><?= e(money_label($pdo, $value)) ?></strong></span>
+                        </span>
+                    </span>
                 </div>
-                <strong><?= e((string) $bar['label']) ?></strong>
-                <small><?= e(money_label($pdo, (float) $bar['value'])) ?></small>
-            </div>
-        <?php endforeach; ?>
+            <?php endforeach; ?>
+        </div>
+
+        <div class="collection-chart-axis" style="--chart-count: <?= e((string) $barCount) ?>;">
+            <?php foreach ($bars as $index => $bar): ?>
+                <span><?= $index % $axisStep === 0 || $index === $barCount - 1 ? e((string) ($bar['label'] ?? '')) : '' ?></span>
+            <?php endforeach; ?>
+        </div>
+
+        <div class="collection-chart-footer">
+            <span class="chart-total-pill collection-chart-total"><?= e(money_label($pdo, $total)) ?> <?= e((string) $chart['pill_suffix']) ?></span>
+            <span class="chart-total-pill collection-chart-average">Avg <?= e(money_label($pdo, $average)) ?></span>
+        </div>
     </div>
     <?php
 

@@ -15,8 +15,8 @@ $canViewTodayCollections = can('today_collections.view', $viewer);
 $canViewLoans = can('loans.view', $viewer);
 $canViewReports = can('reports.view', $viewer);
 $canViewUserCollections = can_any(['reports.view', 'users.manage'], $viewer);
-$chartMode = (string) ($_GET['chart'] ?? 'weekly');
-$chartMode = $chartMode === 'weekly' ? 'weekly' : 'monthly';
+$chartMode = (string) ($_GET['chart'] ?? 'monthly');
+$chartMode = in_array($chartMode, ['monthly', 'yearly', 'weekly'], true) ? $chartMode : 'monthly';
 $selectedWeekStart = dashboard_week_start_from_input((string) ($_GET['week'] ?? ''));
 $stats = dashboard_stats($pdo);
 $todayGoal = $canViewTodayCollections
