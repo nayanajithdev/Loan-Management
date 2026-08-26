@@ -516,7 +516,8 @@ require __DIR__ . '/../includes/layout_start.php';
                             $noteText = trim((string) ($noteParts['public'] ?? ''));
                             $installments = '#' . max(1, $loanCollectionHistoryCount - (int) $historyIndex);
                             $collectedOn = (string) ($history['collected_on'] ?? '');
-                            $collectedDisplay = $collectedOn !== '' ? display_date($collectedOn) : '-';
+                            $collectedDateDisplay = $collectedOn !== '' ? display_date($collectedOn) : '-';
+                            $collectedTimeDisplay = display_time((string) ($history['collected_at'] ?? ''), '');
                             $collectorName = trim((string) ($history['collected_by_name'] ?? 'Unknown'));
                             $collectorNameParts = preg_split('/\s+/', $collectorName);
                             $collectorFirstName = (string) ($collectorNameParts[0] ?? $collectorName);
@@ -535,7 +536,7 @@ require __DIR__ . '/../includes/layout_start.php';
                                     data-collection-note="<?= e($noteText) ?>"
                                 <?php endif; ?>
                             >
-                                <td data-label="Date"><?= e($collectedDisplay) ?></td>
+                                <td data-label="Date"><span class="loan-history-date-value"><span><?= e($collectedDateDisplay) ?></span><?php if ($collectedTimeDisplay !== ''): ?><span><?= e($collectedTimeDisplay) ?></span><?php endif; ?></span></td>
                                 <td data-label="Inst."><?= e($installments) ?></td>
                                 <td data-label="By"><?= e($collectorFirstName !== '' ? $collectorFirstName : 'Unknown') ?></td>
                                 <?php if ($paymentMethodSelectionEnabled): ?>
@@ -567,7 +568,7 @@ require __DIR__ . '/../includes/layout_start.php';
                 <p class="loan-collect-empty">You do not have permission to record collections.</p>
             <?php else: ?>
                 <p class="loan-collect-empty" data-loan-collect-empty <?= $canCollectCurrent ? 'hidden' : '' ?>><?= e($collectUnavailableMessage) ?></p>
-                <div class="loan-collect-summary">
+                <div class="loan-collect-summary today-collection-summary">
                     <div class="loan-collect-item loan-collect-item-plain">
                         <span>Loan</span>
                         <strong><?= e($loanDisplayNumber) ?></strong>
@@ -580,14 +581,14 @@ require __DIR__ . '/../includes/layout_start.php';
                         <span data-loan-collect-installment-label>Installment</span>
                         <strong data-loan-collect-installment-value><?= e($currentCollectible ? ('#' . (string) $currentCollectible['installment_no'] . ' | ' . display_date((string) $currentCollectible['due_date'])) : '-') ?></strong>
                     </div>
-                    <div class="loan-collect-item">
+                    <div class="loan-collect-item is-amount">
                         <span data-loan-collect-amount-box-label>Due Amount</span>
                         <strong data-loan-collect-amount-box-value><?= e($currentCollectible ? money_label($pdo, $collectibleBalance) : '-') ?></strong>
                     </div>
                 </div>
 
                 <form
-                    class="loan-collect-form"
+                    class="loan-collect-form today-collection-save-form"
                     method="post"
                     action="<?= e(url('actions/collection_save.php')) ?>"
                     data-loan-collection-form
@@ -609,17 +610,16 @@ require __DIR__ . '/../includes/layout_start.php';
                     <input type="hidden" name="installment_id" value="<?= e($currentCollectible ? (string) $currentCollectible['id'] : '') ?>" data-loan-collect-installment-id <?= $canCollectCurrent ? '' : 'disabled' ?>>
                     <input type="hidden" name="collection_id" value="" data-loan-edit-collection-id disabled>
                     <input type="hidden" name="return_to" value="<?= e('pages/loan_edit.php?loan_id=' . $loanId . '#collections') ?>">
-
-                    <div class="field">
+                    <div class="field today-collection-amount-field">
+                        <label data-loan-collect-amount-label>Amount Received</label>
+                        <input type="number" step="0.01" min="0.01" name="amount" value="<?= e(($currentCollectible && $autoFillAmountReceived) ? number_format($collectibleBalance, 2, '.', '') : '') ?>" data-loan-collect-amount inputmode="decimal" autocomplete="off" required>
+                    </div>
+                    <div class="field today-collection-date-field <?= $paymentMethodSelectionEnabled ? '' : 'full' ?>">
                         <label>Collection Date</label>
                         <input type="date" name="collected_on" value="<?= e(today()) ?>" max="<?= e(today()) ?>" data-loan-collect-date required <?= $canEditCollectionDate ? '' : 'readonly' ?>>
                     </div>
-                    <div class="field">
-                        <label data-loan-collect-amount-label>Amount Received</label>
-                        <input type="number" step="0.01" min="0.01" name="amount" value="<?= e(($currentCollectible && $autoFillAmountReceived) ? number_format($collectibleBalance, 2, '.', '') : '') ?>" data-loan-collect-amount required>
-                    </div>
                     <?php if ($paymentMethodSelectionEnabled): ?>
-                        <div class="field">
+                        <div class="field today-collection-method-field">
                             <label>Method</label>
                             <select name="method" data-loan-collect-method>
                                 <option value="cash">Cash</option>
@@ -1301,3 +1301,7 @@ require __DIR__ . '/../includes/layout_start.php';
 </script>
 
 <?php require __DIR__ . '/../includes/layout_end.php';
+
+
+
+

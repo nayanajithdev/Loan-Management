@@ -243,7 +243,7 @@ body.sidebar-open {
 
 .menu-list {
     display: grid;
-    gap: 6px;
+    gap: 10px;
 }
 
 .menu-divider {
@@ -320,7 +320,7 @@ body.sidebar-open {
 
 .menu-dropdown {
     display: grid;
-    gap: 6px;
+    gap: 10px;
 }
 
 .menu-dropdown-toggle {
@@ -353,7 +353,7 @@ body.sidebar-open {
 
 .menu-sublist {
     display: grid;
-    gap: 6px;
+    gap: 10px;
     padding-left: 0;
 }
 
@@ -644,7 +644,7 @@ body.sidebar-open {
     width: 34px;
     height: 34px;
     border-radius: 50%;
-    background: var(--surface-3);
+    background: #ff7a1a1a;
     color: var(--accent);
     font-size: 12px;
 }
@@ -969,7 +969,7 @@ button {
 .table-header-filter-toggle {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
+    gap: 10px;
     padding: 0;
     border: 0;
     background: transparent;
@@ -1039,14 +1039,13 @@ button {
 
 .table-header-filter-menu button:hover,
 .table-header-filter-menu button.is-selected {
-    background: rgba(255, 122, 26, 0.12);
+    background: rgba(52, 211, 153, 0.22);
     color: var(--text);
 }
 
 .date-chip {
-    background: var(--surface-2);
-    border: none;
-    box-shadow: inset 0 0 0 1px var(--edge);
+    background: #2a2d32;
+    border: 1px solid var(--edge);
     border-radius: 10px;
     padding: 10px 12px;
     color: #dddddd;
@@ -1060,10 +1059,9 @@ button {
 .theme-toggle-btn {
     width: 38px;
     height: 38px;
-    border: none;
+    border: 1px solid var(--edge);
     border-radius: 10px;
-    box-shadow: inset 0 0 0 1px var(--edge);
-    background: var(--surface-2);
+    background: #2a2d32;
     color: var(--text);
     display: inline-flex;
     align-items: center;
@@ -1191,14 +1189,14 @@ body.theme-light .collection-history-table tbody tr:nth-child(odd),
 body.theme-light .due-installments-table tbody tr:nth-child(odd):not(.row-selected),
 body.theme-light .zebra-table tbody tr:nth-child(odd):not(.table-row-clickable:hover):not(.row-selected),
 body.theme-light .loan-history-panel tbody tr:nth-child(odd) {
-    background: rgba(0, 0, 0, 0.035);
+    background: #22252a;
 }
 
 body.theme-light .collection-history-table tbody tr:nth-child(even),
 body.theme-light .due-installments-table tbody tr:nth-child(even):not(.row-selected),
 body.theme-light .zebra-table tbody tr:nth-child(even):not(.table-row-clickable:hover):not(.row-selected),
 body.theme-light .loan-history-panel tbody tr:nth-child(even) {
-    background: rgba(255, 255, 255, 0.82);
+    background: #2a2d32;
 }
 
 body.theme-light .customer-mobile-card,
@@ -1272,7 +1270,7 @@ body.theme-light .loan-rounding-checkbox {
 }
 
 body.theme-light .row-selected {
-    background: #f7e6d9;
+    background: rgba(52, 211, 153, 0.14);
 }
 
 body.theme-light .row-disabled {
@@ -1684,7 +1682,7 @@ body.theme-light .btn[disabled] {
     display: inline-flex;
     align-items: center;
     margin: 0;
-    gap: 6px;
+    gap: 10px;
     width: fit-content;
     max-width: 100%;
     padding: 7px;
@@ -1931,7 +1929,7 @@ body.theme-light .btn[disabled] {
     margin: 0 0 16px;
     border: 1px solid var(--max-boder);
     border-radius: 6px;
-    background: var(--surface);
+    background: #2a2d32;
 }
 
 .today-collection-summary .loan-collect-item {
@@ -1953,6 +1951,73 @@ body.theme-light .btn[disabled] {
 .today-collection-summary .loan-collect-item.is-amount strong {
     color: var(--accent);
 }
+
+
+.loan-collect-form.today-collection-save-form {
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+}
+
+.loan-collect-form.today-collection-save-form > .field:not(.today-collection-date-field):not(.today-collection-method-field),
+.loan-collect-form.today-collection-save-form .loan-collect-form-actions {
+    grid-column: span 12;
+}
+
+.today-collection-save-form .today-collection-amount-field {
+    grid-column: span 12;
+}
+
+.today-collection-save-form .today-collection-amount-field input {
+    color: var(--success);
+    caret-color: var(--success);
+    font-size: 20px;
+    font-weight: 800;
+}
+
+.today-collection-save-form .today-collection-amount-field input:-webkit-autofill {
+    -webkit-text-fill-color: var(--success);
+    box-shadow: 0 0 0 1000px var(--input-bg) inset;
+}
+
+.today-collection-save-form .today-collection-method-field,
+.today-collection-save-form .today-collection-date-field {
+    grid-column: span 6;
+}
+
+.today-collection-save-form .today-collection-date-field.full {
+    grid-column: span 12;
+}
+.today-collection-save-form .today-collection-date-field input[type="date"],
+.today-collection-save-form .today-collection-method-field select {
+    height: 40px;
+    min-height: 40px;
+}
+
+.today-collection-schedule-field {
+    grid-column: span 12;
+}
+
+.today-collection-schedule-stack {
+    display: grid;
+    gap: 8px;
+    justify-items: start;
+}
+
+.today-collection-schedule-stack .choice-check {
+    min-height: 24px;
+    align-items: center;
+}
+
+.today-collection-schedule-date {
+    width: min(100%, 260px);
+    min-width: 0;
+}
+
+.today-collection-schedule-date input[type="date"] {
+    width: 100%;
+    height: 40px;
+    min-height: 40px;
+}
+
 
 .loan-collect-form {
     display: grid;
@@ -1984,6 +2049,13 @@ body.theme-light .btn[disabled] {
 .collection-edit-row.table-row-clickable:focus {
     outline: 2px solid rgba(255, 122, 26, 0.55);
     outline-offset: -2px;
+}
+
+.loan-history-date-value {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 10px;
+    white-space: nowrap;
 }
 
 .loan-history-print-actions {
@@ -2453,7 +2525,7 @@ body.theme-light .inline-customer-panel-head h3 {
     grid-column: span 4;
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 10px;
 }
 
 .field.full {
@@ -3325,9 +3397,9 @@ textarea {
 
 .backup-section {
     border: none;
-    box-shadow: inset 0 0 0 1px var(--edge);
-    border-radius: 14px;
-    background: rgba(20, 32, 42, 0.96);
+    box-shadow: inset 0 0 0 1px var(--border);
+    border-radius: 10px;
+    background: var(--surface);
     padding: 18px;
 }
 
@@ -3359,10 +3431,10 @@ textarea {
 
 .backup-note {
     border: none;
-    box-shadow: inset 0 0 0 1px var(--edge);
-    border-radius: 14px;
+    box-shadow: inset 0 0 0 1px var(--border);
+    border-radius: 10px;
     padding: 14px 16px;
-    background: rgba(27, 42, 54, 0.72);
+    background: #2a2d32;
     margin-bottom: 14px;
 }
 
@@ -3378,7 +3450,7 @@ textarea {
 
 .backup-table-list {
     margin-top: 8px !important;
-    color: #d6d6d6;
+    color: var(--muted);
 }
 
 .backup-warning {
@@ -3800,6 +3872,12 @@ body.theme-light .choice-check input[type="checkbox"]:disabled ~ .choice-check-l
     min-width: 0;
 }
 
+.today-collections-record-panel {
+    position: sticky;
+    top: 0px;
+    align-self: start;
+}
+
 .today-collections-list-column {
     display: grid;
     gap: 2px;
@@ -4009,7 +4087,7 @@ body.theme-light .choice-check input[type="checkbox"]:disabled ~ .choice-check-l
 }
 
 .row-selected {
-    background: rgba(255, 122, 26, 0.12);
+    background: rgba(52, 211, 153, 0.22);
 }
 
 .table-row-clickable {
@@ -4026,7 +4104,7 @@ body.theme-light .choice-check input[type="checkbox"]:disabled ~ .choice-check-l
 }
 
 .table-row-clickable:hover {
-    background: rgba(255, 122, 26, 0.08);
+    background: rgba(52, 211, 153, 0.14);
 }
 
 .zebra-table tbody td,
@@ -4219,12 +4297,12 @@ body.theme-light .choice-check input[type="checkbox"]:disabled ~ .choice-check-l
 
 .zebra-table tbody tr:nth-child(odd):not(.table-row-clickable:hover):not(.row-selected),
 .loan-history-panel tbody tr:nth-child(odd) {
-    background: rgba(255, 255, 255, 0.035);
+    background: #22252a;
 }
 
 .zebra-table tbody tr:nth-child(even):not(.table-row-clickable:hover):not(.row-selected),
 .loan-history-panel tbody tr:nth-child(even) {
-    background: transparent;
+    background: #2a2d32;
 }
 
 .collection-filter-grid {
@@ -4620,7 +4698,7 @@ body.theme-light .choice-check input[type="checkbox"]:disabled ~ .choice-check-l
 
 .collection-chart-tooltip {
     display: grid;
-    gap: 6px;
+    gap: 10px;
     position: absolute;
     left: 50%;
     bottom: calc(100% + 8px);
@@ -4708,7 +4786,7 @@ body.theme-light .choice-check input[type="checkbox"]:disabled ~ .choice-check-l
 }
 .user-goals-list {
     display: grid;
-    gap: 6px;
+    gap: 10px;
 }
 
 .user-goal-item {
@@ -4718,26 +4796,10 @@ body.theme-light .choice-check input[type="checkbox"]:disabled ~ .choice-check-l
     align-items: center;
     border: none;
     border-bottom: 0;
-    border-radius: 6px;
-    padding: 10px 8px;
+    border-radius: 0;
+    padding: 4px 0;
     background: transparent;
     box-shadow: none;
-}
-
-.user-goal-item:nth-child(odd) {
-    background: rgba(255, 255, 255, 0.035);
-}
-
-.user-goal-item:nth-child(even) {
-    background: transparent;
-}
-
-body.theme-light .user-goal-item:nth-child(odd) {
-    background: rgba(0, 0, 0, 0.035);
-}
-
-body.theme-light .user-goal-item:nth-child(even) {
-    background: rgba(255, 255, 255, 0.82);
 }
 
 .user-goal-avatar {
@@ -4824,7 +4886,7 @@ body.theme-light .user-goal-item:nth-child(even) {
     margin: 0;
     padding-left: 18px;
     display: grid;
-    gap: 6px;
+    gap: 10px;
     color: #d7d7d7;
 }
 
@@ -5039,6 +5101,8 @@ body.theme-light .user-goal-item:nth-child(even) {
 
     .today-collections-layout.mobile-record-mode .today-collections-record-panel {
         display: block;
+        position: static;
+        top: auto;
         margin-bottom: calc(96px + env(safe-area-inset-bottom));
     }
 
@@ -5105,7 +5169,7 @@ body.theme-light .user-goal-item:nth-child(even) {
     }
 
     .today-mobile-pagination .pagination-links {
-        gap: 6px;
+        gap: 10px;
     }
 
     .today-mobile-pagination .pagination-link {
@@ -5175,7 +5239,7 @@ body.theme-light .user-goal-item:nth-child(even) {
         margin: 0;
         padding: 16px;
         border-radius: 0;
-        background: rgba(2, 6, 23, 0.68);
+        background: rgba(0, 0, 0, 0.72);
         box-shadow: none;
         overflow-x: hidden;
         overflow-y: auto;
@@ -5198,16 +5262,16 @@ body.theme-light .user-goal-item:nth-child(even) {
 
     .loan-collect-dialog {
         width: 100%;
-        max-width: min(430px, calc(100vw - 32px));
-        max-height: calc(100vh - 32px);
-        max-height: calc(100dvh - 32px);
+        max-width: min(500px, calc(100vw - 20px));
+        max-height: calc(100vh - 24px);
+        max-height: calc(100dvh - 24px);
         margin-right: auto;
         margin-left: auto;
         overflow-x: hidden;
         overflow-y: auto;
-        border-radius: 12px;
-        background: rgba(20, 32, 42, 0.98);
-        box-shadow: inset 0 0 0 1px var(--edge);
+        border-radius: 10px;
+        background: #22252a;
+        box-shadow: inset 0 0 0 1px var(--border), 0 24px 70px rgba(0, 0, 0, 0.42);
     }
 
     .loan-collect-panel .panel-head {
@@ -5217,8 +5281,7 @@ body.theme-light .user-goal-item:nth-child(even) {
     }
 
     .loan-collect-panel .panel-head::after {
-        right: 0;
-        left: 0;
+        display: none;
     }
 
     .loan-collect-panel .loan-collect-empty {
@@ -5228,15 +5291,21 @@ body.theme-light .user-goal-item:nth-child(even) {
 
     .loan-collect-panel .loan-collect-summary {
         grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 10px;
-        margin-top: 0;
-        margin-bottom: 0;
-        padding: 14px 16px 12px;
+        gap: 0;
+        overflow: hidden;
+        margin: 0 12px 12px;
+        padding: 0;
+    }
+
+
+    .loan-collect-panel .today-collection-summary .loan-collect-item {
+        min-height: 68px;
+        padding: 14px 14px;
     }
 
     .loan-collect-panel .loan-collect-form {
         display: block;
-        padding: 0 16px 16px;
+        padding: 0 12px 12px;
     }
 
     .loan-collect-panel .loan-collect-form .field {
@@ -6167,19 +6236,19 @@ body.theme-light .user-goal-item:nth-child(even) {
     }
 
     .loan-history-panel tbody tr:nth-child(odd) {
-        background: rgba(255, 255, 255, 0.035);
+        background: #22252a;
     }
 
     .loan-history-panel tbody tr:nth-child(even) {
-        background: transparent;
+        background: #2a2d32;
     }
 
     body.theme-light .loan-history-panel tbody tr:nth-child(odd) {
-        background: rgba(0, 0, 0, 0.035);
+        background: #22252a;
     }
 
     body.theme-light .loan-history-panel tbody tr:nth-child(even) {
-        background: rgba(255, 255, 255, 0.82);
+        background: #2a2d32;
     }
 
     .loan-history-panel tbody td {
@@ -6276,6 +6345,13 @@ body.theme-light .user-goal-item:nth-child(even) {
     .loan-history-panel tbody td[data-label="By"],
     .loan-history-panel tbody td[data-label="Amount"] {
         font-weight: 700;
+    }
+
+    .loan-history-date-value {
+        display: inline-flex;
+        align-items: baseline;
+        gap: 5px;
+        white-space: nowrap;
     }
 
     .loan-history-print-actions {
@@ -6516,5 +6592,19 @@ body.theme-light .user-goal-item:nth-child(even) {
 
 }
 
+body.theme-light .date-chip,
+body.theme-light .theme-toggle-btn {
+    background: #ffffff;
+    border: 1px solid rgba(36, 65, 93, 0.16);
+    box-shadow: none;
+    color: #102033;
+}
 
+body.theme-light .theme-toggle-btn {
+    color: #17314c;
+}
 
+body.theme-light .user-goal-avatar {
+    background: #dcebf8;
+    color: #17314c;
+}

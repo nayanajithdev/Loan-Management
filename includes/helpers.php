@@ -4343,8 +4343,6 @@ function dashboard_collection_chart_html(PDO $pdo, array $chart, string $mode): 
     $barCount = max(1, count($bars));
     $total = (float) ($chart['total'] ?? 0);
     $maxValue = max(1.0, (float) ($chart['max_value'] ?? 1.0));
-    $average = count($bars) > 0 ? $total / count($bars) : 0.0;
-    $averagePosition = $maxValue > 0 ? min(100.0, max(0.0, ($average / $maxValue) * 100)) : 0.0;
     $axisStep = $mode === 'monthly' ? 4 : 1;
     $chartLabel = match ($mode) {
         'weekly' => 'Weekly collections chart',
@@ -4361,8 +4359,8 @@ function dashboard_collection_chart_html(PDO $pdo, array $chart, string $mode): 
         </div>
         <div class="collections-chart-actions">
             <div class="chart-toggle" aria-label="Collection chart range">
-                <a class="<?= e($monthlyClass) ?>" href="<?= e(url('index.php?chart=monthly')) ?>">Monthly</a>
-                <a class="<?= e($yearlyClass) ?>" href="<?= e(url('index.php?chart=yearly')) ?>">Yearly</a>
+                <a class="<?= e($monthlyClass) ?>" href="<?= e(url('index.php?chart=monthly')) ?>">Daily</a>
+                <a class="<?= e($yearlyClass) ?>" href="<?= e(url('index.php?chart=yearly')) ?>">Monthly</a>
                 <a class="<?= e($weeklyClass) ?>" href="<?= e(url('index.php?chart=weekly&week=' . rawurlencode($weekValue))) ?>">Weekly</a>
             </div>
             <?php if ($mode === 'weekly'): ?>
@@ -4376,17 +4374,6 @@ function dashboard_collection_chart_html(PDO $pdo, array $chart, string $mode): 
     </div>
     <div class="collection-bar-chart collection-bar-chart-<?= e($mode) ?>" aria-label="<?= e($chartLabel) ?>">
         <div class="collection-chart-plot" style="--chart-count: <?= e((string) $barCount) ?>;">
-            <?php if ($total > 0): ?>
-                <div
-                    class="collection-chart-average-line"
-                    style="bottom: <?= e(number_format($averagePosition, 2, '.', '')) ?>%"
-                    data-chart-label="Average"
-                    data-chart-value="<?= e(money_label($pdo, $average)) ?>"
-                    tabindex="0"
-                    aria-label="<?= e('Average: ' . money_label($pdo, $average)) ?>"
-                ></div>
-            <?php endif; ?>
-
             <?php foreach ($bars as $bar): ?>
                 <?php
                 $value = (float) ($bar['value'] ?? 0);
@@ -4416,7 +4403,6 @@ function dashboard_collection_chart_html(PDO $pdo, array $chart, string $mode): 
 
         <div class="collection-chart-footer">
             <span class="chart-total-pill collection-chart-total"><?= e(money_label($pdo, $total)) ?> <?= e((string) $chart['pill_suffix']) ?></span>
-            <span class="chart-total-pill collection-chart-average">Avg <?= e(money_label($pdo, $average)) ?></span>
         </div>
     </div>
     <?php
