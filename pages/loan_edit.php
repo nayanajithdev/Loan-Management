@@ -417,37 +417,22 @@ require __DIR__ . '/../includes/layout_start.php';
             <?php endif; ?>
         </div>
 
-        <?php if ($canScheduleNextPayment || $canEditLoan): ?>
+        <?php if (($canScheduleNextPayment && $canEditLoan) || $canEditLoan): ?>
             <div class="loan-form-divider">Installment Options</div>
         <?php endif; ?>
-        <?php if ($canScheduleNextPayment): ?>
+        <?php if ($canScheduleNextPayment && $canEditLoan): ?>
             <div class="field loan-schedule-field" data-loan-schedule-options>
                 <label>Schedule Next Payment</label>
+                <input type="hidden" name="schedule_next_payment" value="1" data-schedule-next-payment-flag disabled>
                 <div class="loan-schedule-row">
-                    <label class="checkline loan-schedule-toggle" for="schedule-next-payment-toggle">
-                        <input type="checkbox" name="schedule_next_payment" id="schedule-next-payment-toggle" value="1" class="loan-schedule-checkbox-input">
-                        <span class="loan-schedule-checkbox" aria-hidden="true">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
-                        </span>
-                    </label>
                     <input type="date" name="next_payment_date" id="next-payment-date-input" value="<?= e($tomorrowDate) ?>" min="<?= e($tomorrowDate) ?>" disabled>
                 </div>
-                <small>When enabled, the next unpaid installment date will be moved.</small>
             </div>
         <?php endif; ?>
         <?php if ($canEditLoan): ?>
-            <div class="field full" data-loan-rounding-options hidden>
+            <div class="field loan-installment-amount-field" data-loan-rounding-options>
                 <label>Change Installment Amount</label>
-                <div class="loan-rounding-row">
-                    <label class="checkline loan-rounding-toggle">
-                        <input type="checkbox" name="use_rounded_installment" value="1" id="use-rounded-installment" disabled>
-                        <span class="loan-rounding-checkbox" aria-hidden="true">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
-                        </span>
-                    </label>
-                    <input type="number" step="0.01" min="0.01" name="rounded_installment_amount" id="rounded-installment-amount" placeholder="Installment amount" disabled>
-                </div>
-                <small id="rounded-installment-hint">When enabled, the last unpaid installment will carry the remaining balance.</small>
+                <input type="number" step="0.01" min="0.01" name="rounded_installment_amount" id="rounded-installment-amount" disabled>
             </div>
         <?php endif; ?>
 
@@ -479,8 +464,8 @@ require __DIR__ . '/../includes/layout_start.php';
                     <h3><span id="preview-end-date"><?= e($loanEndDate !== '' ? display_date($loanEndDate) : '-') ?></span></h3>
                 </div>
             </div>
-            <?php if ($canEditLoan || $canScheduleNextPayment): ?>
-                <button type="submit" class="btn btn-primary create-loan-submit-btn" data-loan-submit-button hidden><?= $canEditLoan ? 'Update Loan' : 'Schedule Next Payment' ?></button>
+            <?php if ($canEditLoan): ?>
+                <button type="submit" class="btn btn-primary create-loan-submit-btn" data-loan-submit-button hidden>Update Loan</button>
             <?php endif; ?>
         </aside>
         </div>
@@ -506,7 +491,7 @@ require __DIR__ . '/../includes/layout_start.php';
             </div>
         </div>
         <div class="table-wrap">
-            <table>
+            <table class="zebra-table loan-history-table">
                 <thead>
                     <tr>
                         <th>Date</th>
@@ -722,22 +707,6 @@ require __DIR__ . '/../includes/layout_start.php';
     }
 })();
 
-(() => {
-    const scheduleToggle = document.getElementById('schedule-next-payment-toggle');
-    const scheduleInput = document.getElementById('next-payment-date-input');
-    if (!scheduleToggle || !scheduleInput) {
-        return;
-    }
-
-    const syncSchedule = () => {
-        const enabled = scheduleToggle.checked;
-        scheduleInput.disabled = !enabled;
-        scheduleInput.required = enabled;
-    };
-
-    scheduleToggle.addEventListener('change', syncSchedule);
-    syncSchedule();
-})();
 
 (() => {
     const form = document.querySelector('[data-loan-details-edit-form]');
@@ -846,16 +815,19 @@ require __DIR__ . '/../includes/layout_start.php';
 
             return isEditableControl ? controlChanged(control) : false;
         });
-        const roundingChanged = roundedToggle instanceof HTMLInputElement
-            && roundedToggle.checked
-            && (!(roundedAmount instanceof HTMLInputElement) || roundedAmount.value.trim() !== '');
+        const roundingChanged = roundedAmount instanceof HTMLInputElement
+            && roundedAmount.value.trim() !== '';
 
         return controlledChanged || roundingChanged;
     };
 
     const scheduleChanged = () => {
-        return scheduleToggle instanceof HTMLInputElement
-            && scheduleToggle.checked
+        const editing = editToggle instanceof HTMLInputElement && editToggle.checked;
+        return editing
+            && scheduleToggle instanceof HTMLInputElement
+            && !scheduleToggle.disabled
+            && scheduleInput instanceof HTMLInputElement
+            && scheduleInput.value.trim() !== ''
             && !(scheduleOptions instanceof HTMLElement && scheduleOptions.hidden);
     };
 
@@ -880,22 +852,18 @@ require __DIR__ . '/../includes/layout_start.php';
         }
 
         if (scheduleOptions instanceof HTMLElement) {
-            scheduleOptions.hidden = editing;
-            if (editing) {
-                const scheduleToggle = scheduleOptions.querySelector('[name="schedule_next_payment"]');
-                const scheduleInput = scheduleOptions.querySelector('[name="next_payment_date"]');
-                if (scheduleToggle instanceof HTMLInputElement) {
-                    scheduleToggle.checked = false;
-                }
-                if (scheduleInput instanceof HTMLInputElement) {
-                    scheduleInput.disabled = true;
-                    scheduleInput.required = false;
-                }
-            }
+            scheduleOptions.hidden = false;
+        }
+        if (scheduleInput instanceof HTMLInputElement) {
+            scheduleInput.disabled = !editing;
+            scheduleInput.required = false;
+        }
+        if (scheduleToggle instanceof HTMLInputElement) {
+            scheduleToggle.disabled = true;
         }
 
         if (roundingOptions instanceof HTMLElement) {
-            roundingOptions.hidden = !editing;
+            roundingOptions.hidden = false;
         }
         if (roundedToggle instanceof HTMLInputElement) {
             roundedToggle.disabled = !editing;
@@ -904,10 +872,12 @@ require __DIR__ . '/../includes/layout_start.php';
             }
             roundedToggle.dispatchEvent(new Event('change', { bubbles: true }));
         }
-        if (roundedAmount instanceof HTMLInputElement && !editing) {
-            roundedAmount.value = '';
-            roundedAmount.disabled = true;
+        if (roundedAmount instanceof HTMLInputElement) {
+            roundedAmount.disabled = !editing;
             roundedAmount.required = false;
+            if (!editing) {
+                roundedAmount.value = '';
+            }
         }
 
         syncSubmitButton();
@@ -930,12 +900,32 @@ require __DIR__ . '/../includes/layout_start.php';
             control.addEventListener('change', syncSubmitButton);
         }
     });
-    [roundedToggle, roundedAmount, scheduleToggle, scheduleInput].forEach((control) => {
+    [roundedToggle, roundedAmount].forEach((control) => {
         if (control instanceof HTMLInputElement) {
             control.addEventListener('input', syncSubmitButton);
             control.addEventListener('change', syncSubmitButton);
         }
     });
+    if (scheduleInput instanceof HTMLInputElement) {
+        const markScheduleChanged = () => {
+            if (scheduleToggle instanceof HTMLInputElement && editToggle instanceof HTMLInputElement && editToggle.checked) {
+                scheduleToggle.disabled = false;
+                scheduleInput.required = true;
+            }
+            syncSubmitButton();
+        };
+        scheduleInput.addEventListener('input', markScheduleChanged);
+        scheduleInput.addEventListener('change', markScheduleChanged);
+        scheduleInput.addEventListener('click', () => {
+            if (!scheduleInput.disabled && typeof scheduleInput.showPicker === 'function') {
+                try {
+                    scheduleInput.showPicker();
+                } catch (_error) {
+                    // Browser will fall back to its normal date input behavior.
+                }
+            }
+        });
+    }
     syncSubmitButton();
 
     form.addEventListener('submit', () => {
@@ -949,6 +939,9 @@ require __DIR__ . '/../includes/layout_start.php';
         });
         if (roundedToggle instanceof HTMLInputElement && !(editToggle instanceof HTMLInputElement && editToggle.checked)) {
             roundedToggle.disabled = true;
+        }
+        if (scheduleInput instanceof HTMLInputElement && !(editToggle instanceof HTMLInputElement && editToggle.checked)) {
+            scheduleInput.disabled = true;
         }
     });
 })();

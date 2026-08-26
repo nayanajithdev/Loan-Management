@@ -225,7 +225,7 @@ require __DIR__ . '/../includes/layout_start.php';
         <?php endif; ?>
     <section class="panel today-collections-list-panel">
         <div class="table-wrap">
-            <table class="due-installments-table">
+            <table class="zebra-table due-installments-table">
                 <thead>
                 <tr>
                     <th>Loan</th>
@@ -416,31 +416,29 @@ require __DIR__ . '/../includes/layout_start.php';
         $selectedCollectionNote = trim((string) ($selectedCollectionNoteParts['public'] ?? ''));
         ?>
 
-        <div class="metric-row" style="margin-bottom: 12px;">
-            <div class="metric-box">
-                <p>Loan</p>
-                <h3><?= e($hasSelectedCollection ? (string) $selectedCollection['loan_number'] : ($hasSelectedInstallment ? (string) $selectedInstallment['loan_number'] : '-')) ?></h3>
+        <div class="loan-collect-summary today-collection-summary">
+            <div class="loan-collect-item">
+                <span>Loan</span>
+                <strong><?= e($hasSelectedCollection ? (string) $selectedCollection['loan_number'] : ($hasSelectedInstallment ? (string) $selectedInstallment['loan_number'] : '-')) ?></strong>
             </div>
-            <div class="metric-box">
-                <p>Customer</p>
-                <h3><?= e($hasSelectedCollection ? (string) $selectedCollection['full_name'] : ($hasSelectedInstallment ? (string) $selectedInstallment['full_name'] : '-')) ?></h3>
+            <div class="loan-collect-item">
+                <span>Customer</span>
+                <strong><?= e($hasSelectedCollection ? (string) $selectedCollection['full_name'] : ($hasSelectedInstallment ? (string) $selectedInstallment['full_name'] : '-')) ?></strong>
+            </div>
+            <div class="loan-collect-item">
+                <span>Installment</span>
+                <strong><?= e($hasSelectedCollection ? ('#' . (string) $selectedCollection['installment_no'] . ' | ' . display_date((string) $selectedCollection['due_date'])) : ($hasSelectedInstallment ? ('#' . (string) $selectedInstallment['installment_no'] . ' | ' . display_date((string) $selectedInstallment['due_date'])) : '-')) ?></strong>
+            </div>
+            <div class="loan-collect-item is-amount">
+                <span>Due Amount</span>
+                <strong><?= e($hasSelectedCollection ? money_label($pdo, (float) $selectedCollection['due_amount']) : ($hasSelectedInstallment ? money_label($pdo, $selectedBalance) : money_label($pdo, 0.0))) ?></strong>
             </div>
         </div>
-
         <?php if ($selectedCollectionStatus === 'collected'): ?>
             <form method="post" action="<?= e(url('actions/collection_undo.php')) ?>" class="form-grid" data-confirm="Undo this collection? This will restore the previous installment state." data-inline-confirm="1" data-inline-confirm-variant="danger">
                 <?= csrf_input() ?>
                 <input type="hidden" name="collection_id" value="<?= e($hasSelectedCollection ? (string) $selectedCollection['collection_id'] : '') ?>">
                 <input type="hidden" name="return_to" value="<?= e($returnTo) ?>">
-
-                <div class="field full">
-                    <label>Installment</label>
-                    <div class="readonly-value"><?= e($hasSelectedCollection ? ('#' . (string) $selectedCollection['installment_no'] . ' | ' . display_date((string) $selectedCollection['due_date'])) : 'Not selected') ?></div>
-                </div>
-                <div class="field">
-                    <label>Due Amount</label>
-                    <div class="readonly-value"><?= e($hasSelectedCollection ? money_label($pdo, (float) $selectedCollection['due_amount']) : money_label($pdo, 0.0)) ?></div>
-                </div>
                 <div class="field">
                     <label>Amount Received</label>
                     <div class="readonly-value"><?= e(money_label($pdo, $selectedCollectionAmount)) ?></div>
@@ -494,14 +492,6 @@ require __DIR__ . '/../includes/layout_start.php';
                 <input type="hidden" name="collected_on" value="<?= e($effectiveCollectedOn) ?>">
                 <input type="hidden" name="return_to" value="<?= e($returnTo) ?>">
 
-                <div class="field full">
-                    <label>Installment</label>
-                    <div class="readonly-value"><?= e($hasSelectedInstallment ? ('#' . (string) $selectedInstallment['installment_no'] . ' | ' . display_date((string) $selectedInstallment['due_date'])) : 'Not selected') ?></div>
-                </div>
-                <div class="field">
-                    <label>Due Amount</label>
-                    <div class="readonly-value"><?= e($hasSelectedInstallment ? money_label($pdo, $selectedBalance) : money_label($pdo, 0.0)) ?></div>
-                </div>
                 <div class="field">
                     <label>Amount Received</label>
                     <input type="number" name="amount" step="0.01" min="0.01" value="<?= e(($hasSelectedInstallment && $autoFillAmountReceived) ? (string) $selectedBalance : '') ?>" <?= $canCollectSelectedInstallment ? 'required' : 'disabled' ?>>
@@ -516,21 +506,18 @@ require __DIR__ . '/../includes/layout_start.php';
                         </select>
                     </div>
                 <?php endif; ?>
-                <?php if ($canBackdatePaid): ?>
-                    <div class="field full">
-                        <label class="choice-check">
-                            <input type="checkbox" name="backdated_entry" id="backdated-entry-toggle" value="1" <?= ($canCollectSelectedInstallment && $canUseBackdatedEntryForSelection) ? '' : 'disabled' ?>>
-                            <span class="choice-check-box" aria-hidden="true">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-check-icon lucide-check"><path d="M20 6 9 17l-5-5"/></svg>
-                            </span>
-                            <span class="choice-check-label">Backdated Entry (paid on an earlier date)</span>
-                        </label>
-                    </div>
-                    <div class="field" id="paid-date-field" style="display:none;">
-                        <label>Paid Date (Actual)</label>
-                        <input type="date" name="paid_on_date" id="paid-on-date-input" value="<?= e($hasSelectedInstallment ? (string) $selectedInstallment['due_date'] : $effectiveCollectedOn) ?>" max="<?= e($effectiveCollectedOn) ?>" <?= ($canCollectSelectedInstallment && $canUseBackdatedEntryForSelection) ? '' : 'disabled' ?>>
-                    </div>
-                <?php endif; ?>
+                <div class="field full">
+                    <label>Collection Date</label>
+                    <input type="hidden" name="backdated_entry" id="backdated-entry-flag" value="0" data-entry-date="<?= e($effectiveCollectedOn) ?>">
+                    <input
+                        type="date"
+                        name="paid_on_date"
+                        id="paid-on-date-input"
+                        value="<?= e($effectiveCollectedOn) ?>"
+                        max="<?= e($effectiveCollectedOn) ?>"
+                        <?= ($canBackdatePaid && $canCollectSelectedInstallment && $canUseBackdatedEntryForSelection) ? 'required' : 'disabled' ?>
+                    >
+                </div>
                 <?php if ($canScheduleNextPayment): ?>
                     <div class="field full">
                         <label class="choice-check">
@@ -564,27 +551,33 @@ require __DIR__ . '/../includes/layout_start.php';
         <?php endif; ?>
     </section>
 </div>
-<?php if ($canBackdatePaid): ?>
 <script>
 (() => {
-    const toggle = document.getElementById('backdated-entry-toggle');
-    const field = document.getElementById('paid-date-field');
     const input = document.getElementById('paid-on-date-input');
-    if (!toggle || !field || !input) {
+    const flag = document.getElementById('backdated-entry-flag');
+    if (!(input instanceof HTMLInputElement) || !(flag instanceof HTMLInputElement)) {
         return;
     }
 
+    const entryDate = flag.dataset.entryDate || input.max || input.value;
     const sync = () => {
-        const enabled = toggle.checked && !toggle.disabled;
-        field.style.display = enabled ? '' : 'none';
-        input.required = enabled;
+        flag.value = !input.disabled && input.value !== '' && input.value !== entryDate ? '1' : '0';
     };
 
-    toggle.addEventListener('change', sync);
+    input.addEventListener('input', sync);
+    input.addEventListener('change', sync);
+    input.addEventListener('click', () => {
+        if (!input.disabled && typeof input.showPicker === 'function') {
+            try {
+                input.showPicker();
+            } catch (_error) {
+                // Browser will fall back to its normal date input behavior.
+            }
+        }
+    });
     sync();
 })();
 </script>
-<?php endif; ?>
 <script>
 (() => {
     const scheduleToggle = document.getElementById('schedule-next-payment-toggle');
@@ -611,3 +604,4 @@ require __DIR__ . '/../includes/layout_start.php';
      data-poll-include-query="1"></div>
 
 <?php require __DIR__ . '/../includes/layout_end.php';
+

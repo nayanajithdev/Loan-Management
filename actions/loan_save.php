@@ -14,6 +14,7 @@ $loanNumberInput = trim((string) ($_POST['loan_number'] ?? ''));
 $loanNumber = normalize_loan_number_input($loanNumberInput);
 $customerId = (int) ($_POST['customer_id'] ?? 0);
 $issuedDate = trim((string) ($_POST['issued_date'] ?? today()));
+$firstPaymentDateInput = trim((string) ($_POST['first_payment_date'] ?? ''));
 $principal = (float) ($_POST['principal_amount'] ?? 0);
 $interestRate = (float) ($_POST['interest_rate'] ?? 0);
 $interestRateType = normalize_interest_rate_type(trim((string) ($_POST['interest_rate_type'] ?? 'amount_based')));
@@ -21,8 +22,8 @@ $interestRateMonths = normalize_interest_rate_months((int) ($_POST['interest_rat
 $frequency = trim((string) ($_POST['installment_frequency'] ?? 'daily'));
 $timeframeValue = (int) ($_POST['timeframe_value'] ?? 0);
 $timeframeUnit = trim((string) ($_POST['timeframe_unit'] ?? 'days'));
-$useRoundedInstallment = (int) ($_POST['use_rounded_installment'] ?? 0) === 1;
 $roundedInstallmentAmount = round((float) ($_POST['rounded_installment_amount'] ?? 0), 2);
+$useRoundedInstallment = ((int) ($_POST['use_rounded_installment'] ?? 0) === 1) || $roundedInstallmentAmount > 0;
 $canAssignLoan = can('loans.assign');
 $canCreateCustomer = can('customers.create');
 $postedAssignedUserId = (int) ($_POST['assigned_user_id'] ?? 0);
@@ -80,6 +81,23 @@ if (!$issuedDateObj || $issuedDateObj->format('Y-m-d') !== $issuedDate) {
     redirect('pages/loan_create.php');
 }
 $issuedDate = $issuedDateObj->format('Y-m-d');
+$defaultFirstDueDate = next_collectible_date($pdo, $issuedDateObj->add(new DateInterval('P1D'))->format('Y-m-d'));
+if ($firstPaymentDateInput === '') {
+    $firstDueDate = $defaultFirstDueDate;
+} else {
+    $firstPaymentDateObj = DateTimeImmutable::createFromFormat('Y-m-d', $firstPaymentDateInput);
+    if (!$firstPaymentDateObj || $firstPaymentDateObj->format('Y-m-d') !== $firstPaymentDateInput) {
+        set_flash('error', 'Invalid schedule first payment date.');
+        redirect('pages/loan_create.php');
+    }
+
+    if ($firstPaymentDateObj <= $issuedDateObj) {
+        set_flash('error', 'Schedule First Payment must be after the loan issued date.');
+        redirect('pages/loan_create.php');
+    }
+
+    $firstDueDate = next_collectible_date($pdo, $firstPaymentDateObj->format('Y-m-d'));
+}
 
 if (!in_array($frequency, ['daily', 'weekly', 'monthly'], true)) {
     set_flash('error', 'Invalid installment frequency.');
@@ -126,7 +144,6 @@ if ($useRoundedInstallment) {
 }
 
 $startDate = $issuedDate;
-$firstDueDate = next_collectible_date($pdo, $issuedDateObj->add(new DateInterval('P1D'))->format('Y-m-d'));
 
 try {
     $pdo->beginTransaction();

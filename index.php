@@ -89,10 +89,21 @@ require __DIR__ . '/includes/layout_start.php';
                         <p class="muted-block">No collections today.</p>
                     <?php else: ?>
                         <?php foreach ($userGoals['users'] as $user): ?>
+                            <?php
+                            $userNameParts = preg_split('/\s+/', trim((string) $user['full_name'])) ?: [];
+                            $userInitial = strtoupper(substr((string) ($userNameParts[0] ?? ''), 0, 1));
+                            if ($userInitial === '') {
+                                $userInitial = 'U';
+                            }
+                            ?>
                             <div class="user-goal-item">
-                                <div class="user-goal-top">
-                                    <strong><?= e($user['full_name']) ?></strong>
-                                    <div class="user-goal-money"><?= e(money_label($pdo, (float) $user['collected'])) ?></div>
+                                <span class="user-goal-avatar" aria-hidden="true"><?= e($userInitial) ?></span>
+                                <div class="user-goal-main">
+                                    <div class="user-goal-top">
+                                        <strong><?= e($user['full_name']) ?></strong>
+                                        <div class="user-goal-money"><?= e(money_label($pdo, (float) $user['collected'])) ?></div>
+                                    </div>
+                                    <div class="user-goal-role"><?= e((string) $user['role_label']) ?></div>
                                 </div>
                             </div>
                         <?php endforeach; ?>

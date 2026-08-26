@@ -132,7 +132,7 @@ require __DIR__ . '/../includes/layout_start.php';
             <p>No documents uploaded for this customer.</p>
         <?php else: ?>
             <div class="table-wrap">
-                <table>
+                <table class="zebra-table customer-documents-table">
                     <thead>
                     <tr>
                         <th>File</th>

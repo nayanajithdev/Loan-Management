@@ -156,7 +156,7 @@ body.sidebar-open {
     background: var(--surface);
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
-    border-right: 1px solid var(--edge);
+    border-right: 1px solid var(--max-boder);
     padding: 22px 16px;
     display: flex;
     flex-direction: column;
@@ -395,7 +395,8 @@ body.sidebar-open {
 
 .topbar {
     border: none;
-    box-shadow: inset 0 0 0 1px var(--edge);
+    border-bottom: 1px solid var(--max-boder);
+    box-shadow: none;
     border-radius: 0;
     background: var(--surface);
     padding: 18px 20px;
@@ -1187,22 +1188,23 @@ body.theme-light .menu-item.active {
 }
 
 body.theme-light .collection-history-table tbody tr:nth-child(odd),
-body.theme-light .due-installments-table tbody tr.table-row-clickable:nth-child(odd):not(.row-selected),
-body.theme-light .zebra-table tbody tr:nth-child(odd):not(.table-row-clickable:hover):not(.row-selected) {
-    background: rgba(226, 237, 247, 0.62);
+body.theme-light .due-installments-table tbody tr:nth-child(odd):not(.row-selected),
+body.theme-light .zebra-table tbody tr:nth-child(odd):not(.table-row-clickable:hover):not(.row-selected),
+body.theme-light .loan-history-panel tbody tr:nth-child(odd) {
+    background: rgba(0, 0, 0, 0.035);
 }
 
 body.theme-light .collection-history-table tbody tr:nth-child(even),
-body.theme-light .due-installments-table tbody tr.table-row-clickable:nth-child(even):not(.row-selected),
-body.theme-light .zebra-table tbody tr:nth-child(even):not(.table-row-clickable:hover):not(.row-selected) {
-    background: rgba(255, 255, 255, 0.72);
+body.theme-light .due-installments-table tbody tr:nth-child(even):not(.row-selected),
+body.theme-light .zebra-table tbody tr:nth-child(even):not(.table-row-clickable:hover):not(.row-selected),
+body.theme-light .loan-history-panel tbody tr:nth-child(even) {
+    background: rgba(255, 255, 255, 0.82);
 }
 
 body.theme-light .customer-mobile-card,
 body.theme-light .loan-mobile-card,
 body.theme-light .loans-table tbody tr.table-row-clickable,
-body.theme-light .collections-history-table tbody tr,
-body.theme-light .loan-history-panel tbody tr {
+body.theme-light .collections-history-table tbody tr {
     background:
         radial-gradient(circle at 0 0, rgba(56, 189, 248, 0.08), transparent 34%),
         linear-gradient(135deg, rgba(255, 122, 26, 0.04), rgba(255, 255, 255, 0.76)),
@@ -1679,15 +1681,16 @@ body.theme-light .btn[disabled] {
 }
 
 .loan-tab-nav {
-    display: flex;
+    display: inline-flex;
     align-items: center;
     margin: 0;
     gap: 6px;
-    width: 100%;
+    width: fit-content;
+    max-width: 100%;
     padding: 7px;
     border: 1px solid var(--edge);
     border-radius: 8px;
-    background: rgba(11, 18, 24, 0.96);
+    background: var(--surface);
 }
 
 .loan-tab-button {
@@ -1921,6 +1924,34 @@ body.theme-light .btn[disabled] {
     font-size: 16px;
     line-height: 1.35;
     overflow-wrap: anywhere;
+}
+.today-collection-summary {
+    gap: 0;
+    overflow: hidden;
+    margin: 0 0 16px;
+    border: 1px solid var(--max-boder);
+    border-radius: 6px;
+    background: var(--surface);
+}
+
+.today-collection-summary .loan-collect-item {
+    min-height: 78px;
+    padding: 16px 18px;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+}
+
+.today-collection-summary .loan-collect-item:nth-child(odd) {
+    border-right: 1px solid var(--edge);
+}
+
+.today-collection-summary .loan-collect-item:nth-child(-n + 2) {
+    border-bottom: 1px solid var(--edge);
+}
+
+.today-collection-summary .loan-collect-item.is-amount strong {
+    color: var(--accent);
 }
 
 .loan-collect-form {
@@ -3178,10 +3209,10 @@ textarea {
 
 .settings-col {
     border: none;
-    box-shadow: inset 0 0 0 1px var(--edge);
-    border-radius: 12px;
+    box-shadow: inset 0 0 0 1px var(--border);
+    border-radius: 10px;
     padding: 12px;
-    background: rgba(27, 42, 54, 0.72);
+    background: var(--surface);
 }
 
 .settings-col + .settings-col {
@@ -3541,6 +3572,11 @@ body.theme-light .choice-check input[type="checkbox"]:disabled ~ .choice-check-l
     gap: 8px;
 }
 
+.loan-installment-amount-field input {
+    width: min(100%, 368px);
+}
+
+
 .loan-schedule-row,
 .loan-rounding-row {
     display: grid;
@@ -3552,8 +3588,12 @@ body.theme-light .choice-check input[type="checkbox"]:disabled ~ .choice-check-l
     overflow: hidden;
     border: 1px solid var(--input-border);
     border-radius: 6px;
-    background: var(--surface-2);
+    background: var(--input-bg);
     transition: 0.2s ease;
+}
+
+.loan-schedule-field .loan-schedule-row {
+    grid-template-columns: minmax(0, 1fr);
 }
 
 .checkline {
@@ -3617,7 +3657,7 @@ body.theme-light .choice-check input[type="checkbox"]:disabled ~ .choice-check-l
 .loan-rounding-row.is-checked,
 .loan-rounding-row:has(input[type="checkbox"]:checked) {
     border-color: rgba(126, 224, 162, 0.55);
-    background: var(--surface-2);
+    background: var(--input-bg);
 }
 
 .loan-schedule-toggle.is-checked .loan-schedule-checkbox,
@@ -3645,6 +3685,10 @@ body.theme-light .choice-check input[type="checkbox"]:disabled ~ .choice-check-l
     background: transparent;
     box-shadow: none;
     padding: 0 12px 0 0;
+}
+
+.loan-schedule-field .loan-schedule-row input[type="date"] {
+    padding-left: 12px;
 }
 
 .loan-schedule-row input[type="date"]:focus,
@@ -3985,16 +4029,23 @@ body.theme-light .choice-check input[type="checkbox"]:disabled ~ .choice-check-l
     background: rgba(255, 122, 26, 0.08);
 }
 
-.due-installments-table tbody tr.table-row-clickable:nth-child(odd):not(.row-selected) {
-    background: rgba(27, 42, 54, 0.36);
+.zebra-table tbody td,
+.collection-history-table tbody td,
+.due-installments-table tbody td,
+.loan-history-panel tbody td {
+    border-bottom: 0;
 }
 
-.due-installments-table tbody tr.table-row-clickable:nth-child(even):not(.row-selected) {
+.due-installments-table tbody tr:nth-child(odd):not(.row-selected) {
+    background: rgba(255, 255, 255, 0.035);
+}
+
+.due-installments-table tbody tr:nth-child(even):not(.row-selected) {
     background: transparent;
 }
 
 .collection-history-table tbody tr:nth-child(odd) {
-    background: rgba(27, 42, 54, 0.36);
+    background: rgba(255, 255, 255, 0.035);
 }
 
 .collection-history-table tbody tr:nth-child(even) {
@@ -4166,11 +4217,13 @@ body.theme-light .choice-check input[type="checkbox"]:disabled ~ .choice-check-l
     white-space: nowrap;
 }
 
-.zebra-table tbody tr:nth-child(odd):not(.table-row-clickable:hover):not(.row-selected) {
-    background: rgba(27, 42, 54, 0.36);
+.zebra-table tbody tr:nth-child(odd):not(.table-row-clickable:hover):not(.row-selected),
+.loan-history-panel tbody tr:nth-child(odd) {
+    background: rgba(255, 255, 255, 0.035);
 }
 
-.zebra-table tbody tr:nth-child(even):not(.table-row-clickable:hover):not(.row-selected) {
+.zebra-table tbody tr:nth-child(even):not(.table-row-clickable:hover):not(.row-selected),
+.loan-history-panel tbody tr:nth-child(even) {
     background: transparent;
 }
 
@@ -4655,20 +4708,54 @@ body.theme-light .choice-check input[type="checkbox"]:disabled ~ .choice-check-l
 }
 .user-goals-list {
     display: grid;
-    gap: 0;
+    gap: 6px;
 }
 
 .user-goal-item {
+    display: grid;
+    grid-template-columns: 38px minmax(0, 1fr);
+    gap: 10px;
+    align-items: center;
     border: none;
-    border-bottom: 1px dashed rgba(148, 163, 184, 0.22);
-    border-radius: 0;
-    padding: 12px 0;
+    border-bottom: 0;
+    border-radius: 6px;
+    padding: 10px 8px;
     background: transparent;
     box-shadow: none;
 }
 
-.user-goal-item:last-child {
-    border-bottom: none;
+.user-goal-item:nth-child(odd) {
+    background: rgba(255, 255, 255, 0.035);
+}
+
+.user-goal-item:nth-child(even) {
+    background: transparent;
+}
+
+body.theme-light .user-goal-item:nth-child(odd) {
+    background: rgba(0, 0, 0, 0.035);
+}
+
+body.theme-light .user-goal-item:nth-child(even) {
+    background: rgba(255, 255, 255, 0.82);
+}
+
+.user-goal-avatar {
+    display: inline-grid;
+    place-items: center;
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    background: var(--button-bg);
+    color: var(--text);
+    font-size: 15px;
+    font-weight: 800;
+}
+
+.user-goal-main {
+    display: grid;
+    gap: 4px;
+    min-width: 0;
 }
 
 .user-goal-top {
@@ -4677,17 +4764,33 @@ body.theme-light .choice-check input[type="checkbox"]:disabled ~ .choice-check-l
     justify-content: space-between;
     gap: 10px;
     margin-bottom: 0;
+    min-width: 0;
 }
 
 .user-goal-top strong {
     display: block;
+    min-width: 0;
     margin-right: 0;
+    overflow: hidden;
+    color: var(--text);
     font-size: 14px;
+    font-weight: 800;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .user-goal-money {
+    flex: 0 0 auto;
+    color: var(--text);
     font-size: 14px;
-    font-weight: 700;
+    font-weight: 800;
+}
+
+.user-goal-role {
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.2;
 }
 
 .muted-block {
@@ -4949,17 +5052,17 @@ body.theme-light .choice-check input[type="checkbox"]:disabled ~ .choice-check-l
         width: 100%;
     }
 
-    .today-collections-layout.mobile-record-mode .today-collections-record-panel > .metric-row {
+    .today-collections-layout.mobile-record-mode .today-collection-summary {
         grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 12px;
     }
 
-    .today-collections-layout.mobile-record-mode .today-collections-record-panel > .metric-row .metric-box {
+    .today-collections-layout.mobile-record-mode .today-collection-summary .loan-collect-item {
         min-width: 0;
-        padding: 8px 10px;
+        min-height: 66px;
+        padding: 12px 14px;
     }
 
-    .today-collections-layout.mobile-record-mode .today-collections-record-panel > .metric-row .metric-box h3 {
+    .today-collections-layout.mobile-record-mode .today-collection-summary .loan-collect-item strong {
         overflow-wrap: anywhere;
         word-break: break-word;
     }
@@ -6059,8 +6162,24 @@ body.theme-light .choice-check input[type="checkbox"]:disabled ~ .choice-check-l
         min-width: 0;
         border: 1px solid var(--edge);
         border-radius: 10px;
-        background: rgba(10, 19, 27, 0.62);
+        background: transparent;
         padding: 10px 12px;
+    }
+
+    .loan-history-panel tbody tr:nth-child(odd) {
+        background: rgba(255, 255, 255, 0.035);
+    }
+
+    .loan-history-panel tbody tr:nth-child(even) {
+        background: transparent;
+    }
+
+    body.theme-light .loan-history-panel tbody tr:nth-child(odd) {
+        background: rgba(0, 0, 0, 0.035);
+    }
+
+    body.theme-light .loan-history-panel tbody tr:nth-child(even) {
+        background: rgba(255, 255, 255, 0.82);
     }
 
     .loan-history-panel tbody td {
@@ -6396,3 +6515,6 @@ body.theme-light .choice-check input[type="checkbox"]:disabled ~ .choice-check-l
     }
 
 }
+
+
+

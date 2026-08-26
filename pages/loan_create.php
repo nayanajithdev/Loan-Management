@@ -23,6 +23,7 @@ $defaultTimeframeValue = (int) system_setting($pdo, 'default_timeframe_value', '
 $defaultTimeframeUnit = system_setting($pdo, 'default_timeframe_unit', 'days');
 $suggestedLoanNumber = next_loan_number($pdo);
 $defaultIssuedDate = today();
+$defaultFirstPaymentDate = next_collectible_date($pdo, (new DateTimeImmutable($defaultIssuedDate))->add(new DateInterval('P1D'))->format('Y-m-d'));
 $scheduleStartDate = $defaultIssuedDate;
 $holidayDates = holiday_date_list($pdo);
 
@@ -192,18 +193,13 @@ require __DIR__ . '/../includes/layout_start.php';
                         </div>
                     <?php endif; ?>
                     <div class="loan-form-divider">Installment Options</div>
-                    <div class="field full">
+                    <div class="field loan-schedule-field">
+                        <label>Schedule First Payment</label>
+                        <input type="date" name="first_payment_date" value="<?= e($defaultFirstPaymentDate) ?>" min="<?= e($defaultFirstPaymentDate) ?>" required>
+                    </div>
+                    <div class="field loan-installment-amount-field">
                         <label>Change Installment Amount</label>
-                        <div class="loan-rounding-row">
-                            <label class="checkline loan-rounding-toggle">
-                                <input type="checkbox" name="use_rounded_installment" value="1" id="use-rounded-installment">
-                                <span class="loan-rounding-checkbox" aria-hidden="true">
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
-                                </span>
-                            </label>
-                            <input type="number" step="0.01" min="0.01" name="rounded_installment_amount" id="rounded-installment-amount" placeholder="Installment amount" disabled>
-                        </div>
-                        <small id="rounded-installment-hint">When enabled, the last installment will carry the remaining balance.</small>
+                        <input type="number" step="0.01" min="0.01" name="rounded_installment_amount" id="rounded-installment-amount">
                     </div>
                     <div class="loan-form-divider">Notes</div>
                     <div class="field full">

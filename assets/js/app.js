@@ -962,6 +962,7 @@
     const interestMonthsInput = form.querySelector('[name="interest_rate_months"]');
     const interestMonthsField = form.querySelector('[data-interest-months-field]');
     const issuedDateInput = form.querySelector('[name="issued_date"]');
+    const firstPaymentDateInput = form.querySelector('[name="first_payment_date"]');
     const frequencyInput = form.querySelector('[name="installment_frequency"]');
     const timeframeValueInput = form.querySelector('[name="timeframe_value"]');
     const timeframeUnitInput = form.querySelector('[name="timeframe_unit"]');
@@ -1155,11 +1156,14 @@
 
     const calculateEndDate = (installmentCount, frequency) => {
         const firstDueDate = form.getAttribute('data-first-due-date') || '';
+        const firstPaymentDate = firstPaymentDateInput instanceof HTMLInputElement ? firstPaymentDateInput.value : '';
         const issuedDate = issuedDateInput ? issuedDateInput.value : '';
         const startDate = issuedDate || form.getAttribute('data-start-date') || '';
-        let dueDate = form.getAttribute('data-preserve-first-due-date') === '1' && validIsoDate(firstDueDate)
-            ? firstDueDate
-            : addToIsoDate(startDate, 1, 'days');
+        let dueDate = !isEditLoanForm && validIsoDate(firstPaymentDate)
+            ? firstPaymentDate
+            : (form.getAttribute('data-preserve-first-due-date') === '1' && validIsoDate(firstDueDate)
+                ? firstDueDate
+                : addToIsoDate(startDate, 1, 'days'));
 
         if (!validIsoDate(dueDate) || installmentCount <= 0) {
             return '';
@@ -1172,6 +1176,21 @@
         }
 
         return endDate;
+    };
+
+    const syncFirstPaymentDate = () => {
+        if (isEditLoanForm || !(firstPaymentDateInput instanceof HTMLInputElement) || !(issuedDateInput instanceof HTMLInputElement)) {
+            return;
+        }
+
+        const issuedDate = issuedDateInput.value || form.getAttribute('data-start-date') || '';
+        const suggestedDate = nextCollectibleDate(addToIsoDate(issuedDate, 1, 'days'));
+        if (validIsoDate(suggestedDate)) {
+            firstPaymentDateInput.min = suggestedDate;
+            if (!validIsoDate(firstPaymentDateInput.value) || firstPaymentDateInput.value < suggestedDate) {
+                firstPaymentDateInput.value = suggestedDate;
+            }
+        }
     };
 
     const calculateCollectedLoanEndDate = (unpaidCount, frequency) => {
@@ -1278,8 +1297,8 @@
         const monthlyFactor = interestType === 'monthly' ? interestMonths : 1;
         const total = principal + ((principal * interestRate / 100) * monthlyFactor);
         const profit = total - principal;
-        const roundedEnabled = Boolean(roundedToggle && roundedToggle.checked);
         const roundedAmount = roundedAmountInput ? toNumber(roundedAmountInput.value) : 0;
+        const roundedEnabled = roundedToggle ? roundedToggle.checked : roundedAmount > 0;
         const previewChanged = loanEditPreviewChanged() || (roundedEnabled && roundedAmount > 0);
         if (isEditLoanForm && !previewChanged) {
             return;
@@ -1287,6 +1306,7 @@
 
         let count = baseCount;
         let installment = count > 0 ? total / count : 0;
+
         let lastAmountBasis = total;
         let collectedLoanUnpaidCount = 0;
 
@@ -1330,7 +1350,7 @@
             } else {
                 roundedHint.textContent = isEditLoanForm && collectedTotal > 0
                     ? 'Preview uses the unpaid balance after already collected amount.'
-                    : 'When enabled, the last installment will carry the remaining balance.';
+                    : 'Type a per installment amount to customize the schedule.';
             }
         }
         if (profitEl) {
@@ -1367,6 +1387,29 @@
         interestMonthsInput.addEventListener('input', updatePreview);
         interestMonthsInput.addEventListener('change', updatePreview);
     }
+    if (firstPaymentDateInput instanceof HTMLInputElement) {
+        firstPaymentDateInput.addEventListener('input', updatePreview);
+        firstPaymentDateInput.addEventListener('change', updatePreview);
+        firstPaymentDateInput.addEventListener('click', () => {
+            if (typeof firstPaymentDateInput.showPicker === 'function') {
+                try {
+                    firstPaymentDateInput.showPicker();
+                } catch (_error) {
+                    // Browser will fall back to its normal date input behavior.
+                }
+            }
+        });
+    }
+    if (!isEditLoanForm && issuedDateInput instanceof HTMLInputElement) {
+        issuedDateInput.addEventListener('input', () => {
+            syncFirstPaymentDate();
+            updatePreview();
+        });
+        issuedDateInput.addEventListener('change', () => {
+            syncFirstPaymentDate();
+            updatePreview();
+        });
+    }
     if (interestTypeInput) {
         interestTypeInput.addEventListener('change', toggleInterestMonthsField);
         interestTypeInput.addEventListener('input', toggleInterestMonthsField);
@@ -1380,6 +1423,7 @@
     }
 
     toggleInterestMonthsField();
+    syncFirstPaymentDate();
     if (roundedToggle) {
         syncRoundedInstallment();
     } else if (!isEditLoanForm) {
