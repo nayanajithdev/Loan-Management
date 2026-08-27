@@ -4237,12 +4237,14 @@ function collections_total_chart(PDO $pdo, ?array $viewer = null, string $mode =
             : $today->modify('monday this week');
         $endDate = $startDate->modify('+6 days');
         $labels = [];
+        $tooltipLabels = [];
         $keys = [];
 
         for ($i = 0; $i < 7; $i++) {
             $date = $startDate->modify('+' . $i . ' days');
             $keys[] = $date->format('Y-m-d');
             $labels[] = $date->format('D');
+            $tooltipLabels[] = $date->format('D M j');
         }
 
         $groupExpression = 'c.collected_on';
@@ -4253,6 +4255,7 @@ function collections_total_chart(PDO $pdo, ?array $viewer = null, string $mode =
         $startDate = $today->setDate((int) $today->format('Y'), 1, 1);
         $endDate = $today->setDate((int) $today->format('Y'), 12, 31);
         $labels = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        $tooltipLabels = $labels;
         $keys = range(1, 12);
         $groupExpression = 'MONTH(c.collected_on)';
         $title = 'This Year Collections';
@@ -4262,11 +4265,13 @@ function collections_total_chart(PDO $pdo, ?array $viewer = null, string $mode =
         $startDate = $today->modify('first day of this month');
         $endDate = $today->modify('last day of this month');
         $labels = [];
+        $tooltipLabels = [];
         $keys = [];
 
         for ($date = $startDate; $date <= $endDate; $date = $date->modify('+1 day')) {
             $keys[] = $date->format('Y-m-d');
             $labels[] = $date->format('j');
+            $tooltipLabels[] = $date->format('M j');
         }
 
         $groupExpression = 'c.collected_on';
@@ -4314,6 +4319,7 @@ function collections_total_chart(PDO $pdo, ?array $viewer = null, string $mode =
     foreach ($values as $index => $value) {
         $bars[] = [
             'label' => $labels[$index],
+            'tooltip_label' => $tooltipLabels[$index] ?? $labels[$index],
             'value' => $value,
             'height' => $value > 0 ? max(8.0, ($value / $maxValue) * 100) : 2.0,
         ];
@@ -4379,15 +4385,16 @@ function dashboard_collection_chart_html(PDO $pdo, array $chart, string $mode): 
                 $value = (float) ($bar['value'] ?? 0);
                 $height = $value > 0 ? max(4.0, ($value / $maxValue) * 100) : 0.0;
                 $label = (string) ($bar['label'] ?? '');
+                $tooltipLabel = (string) ($bar['tooltip_label'] ?? $label);
                 ?>
                 <div
                     class="collection-chart-bar"
                     tabindex="0"
-                    aria-label="<?= e($label . ': ' . money_label($pdo, $value)) ?>"
+                    aria-label="<?= e($tooltipLabel . ': ' . money_label($pdo, $value)) ?>"
                 >
                     <span class="collection-chart-fill" style="height: <?= e(number_format($height, 2, '.', '')) ?>%">
                         <span class="collection-chart-tooltip" role="tooltip">
-                            <strong class="collection-chart-tooltip-date"><?= e($label) ?></strong>
+                            <strong class="collection-chart-tooltip-date"><?= e($tooltipLabel) ?></strong>
                             <span><em>Collected</em><strong><?= e(money_label($pdo, $value)) ?></strong></span>
                         </span>
                     </span>
