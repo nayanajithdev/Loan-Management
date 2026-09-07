@@ -1349,6 +1349,24 @@ function installment_snapshot(array $row, bool $existsBefore = true): array
     ];
 }
 
+function loan_remaining_balance_by_collections(PDO $pdo, int $loanId): float
+{
+    if ($loanId <= 0) {
+        return 0.0;
+    }
+
+    $stmt = $pdo->prepare(
+        'SELECT GREATEST(l.total_amount - COALESCE(SUM(c.amount), 0), 0)
+         FROM loans l
+         LEFT JOIN collections c ON c.loan_id = l.id
+         WHERE l.id = :loan_id
+         GROUP BY l.id'
+    );
+    $stmt->execute(['loan_id' => $loanId]);
+
+    return round((float) ($stmt->fetchColumn() ?: 0), 2);
+}
+
 function record_loan_collection_payment(
     PDO $pdo,
     array $loan,

@@ -473,6 +473,7 @@ function loan_update_public_error_message(Throwable $e): string
         'Change installment amount is too high for the remaining protected schedule.',
         'Cannot shorten the schedule because a removed installment already has payment history.',
         'Edited schedule created an invalid installment amount.',
+        'Loan cannot be closed while it has an unpaid balance.',
         'Loan not found.',
         'You do not have permission to extend collected loans.',
         'Invalid loan for scheduling.',
@@ -569,6 +570,9 @@ try {
             $roundedInstallmentAmount,
             $shouldRescheduleReopenedLoan
         );
+        if ($status === 'closed' && (float) ($scheduleUpdate['new_outstanding'] ?? 0) > 0.009) {
+            throw new RuntimeException('Loan cannot be closed while it has an unpaid balance.');
+        }
         if ($shouldRescheduleReopenedLoan && (float) ($scheduleUpdate['new_outstanding'] ?? 0) > 0.009) {
             $status = 'active';
         }
@@ -604,6 +608,10 @@ try {
         $updateLocked->bindValue(':id', $loanId, PDO::PARAM_INT);
         $updateLocked->execute();
     } else {
+        if ($status === 'closed' && $totalAmount > 0.009) {
+            throw new RuntimeException('Loan cannot be closed while it has an unpaid balance.');
+        }
+
         $firstDueDate = next_collectible_date($pdo, $issuedDateObj->add(new DateInterval('P1D'))->format('Y-m-d'));
 
         $updateLoan = $pdo->prepare(

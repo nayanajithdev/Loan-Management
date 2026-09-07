@@ -1200,8 +1200,7 @@ body.theme-light .loan-history-panel tbody tr:nth-child(even) {
 
 body.theme-light .customer-mobile-card,
 body.theme-light .loan-mobile-card,
-body.theme-light .loans-table tbody tr.table-row-clickable,
-body.theme-light .collections-history-table tbody tr {
+body.theme-light .loans-table tbody tr.table-row-clickable {
     background:
         radial-gradient(circle at 0 0, rgba(56, 189, 248, 0.08), transparent 34%),
         linear-gradient(135deg, rgba(255, 122, 26, 0.04), rgba(255, 255, 255, 0.76)),
@@ -1374,11 +1373,15 @@ body.theme-light .chart-toggle a.active {
         0 2px 7px rgba(36, 65, 93, 0.18);
 }
 
-body.theme-light .today-collections-filter-toolbar select,
 body.theme-light .today-collections-filter-toolbar input,
 body.theme-light .today-collections-filter-toolbar .search-control,
 body.theme-light .collection-search-field .search-control {
     background: #f7fafc;
+    color: var(--text);
+}
+
+body.theme-light .today-collections-filter-toolbar select {
+    background-color: var(--surface);
     color: var(--text);
 }
 
@@ -1389,10 +1392,7 @@ body.theme-light .today-collections-filter-toolbar .search-submit {
 }
 
 body.theme-light .daily-progress-card {
-    background:
-        radial-gradient(circle at 0 0, rgba(56, 189, 248, 0.08), transparent 34%),
-        linear-gradient(135deg, rgba(255, 255, 255, 0.88), rgba(226, 237, 247, 0.78)),
-        #eef4f9;
+    background: var(--surface);
     box-shadow: none;
 }
 
@@ -2856,12 +2856,16 @@ textarea {
 .inline-customer-toggle {
     display: inline-flex;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
     min-height: 40px;
     padding: 0 13px;
     border-color: var(--border);
     background: var(--surface-2);
     color: var(--text);
+}
+
+.inline-customer-toggle .btn-icon-inline {
+    margin-right: 0;
 }
 
 .inline-customer-checkbox {
@@ -3917,9 +3921,7 @@ body.theme-light .choice-check input[type="checkbox"]:disabled ~ .choice-check-l
 .due-installment-card {
     border-radius: 10px;
     padding: 14px;
-    background:
-        radial-gradient(circle at top right, rgba(40, 104, 165, 0.18), transparent 38%),
-        rgba(12, 23, 33, 0.66);
+    background: var(--surface);
     box-shadow: inset 0 0 0 1px var(--edge);
 }
 
@@ -4326,6 +4328,10 @@ body.theme-light .choice-check input[type="checkbox"]:disabled ~ .choice-check-l
     width: min(890px, 100%);
 }
 
+.today-collections-filter-toolbar select {
+    background-color: var(--surface);
+}
+
 .collection-date-field,
 .collection-status-field {
     grid-column: span 1;
@@ -4343,10 +4349,7 @@ body.theme-light .choice-check input[type="checkbox"]:disabled ~ .choice-check-l
     margin: 0 0 14px;
     padding: 16px 18px;
     border-radius: 8px;
-    background:
-        radial-gradient(circle at 0 0, rgba(56, 189, 248, 0.1), transparent 34%),
-        linear-gradient(135deg, rgba(255, 122, 26, 0.05), rgba(12, 28, 39, 0.35)),
-        var(--surface-2);
+    background: var(--surface);
     box-shadow: inset 0 0 0 1px var(--edge);
 }
 
@@ -5153,10 +5156,7 @@ body.theme-light .choice-check input[type="checkbox"]:disabled ~ .choice-check-l
 
     .today-collections-list-panel .metric-box,
     .due-installment-card {
-        background:
-            radial-gradient(circle at 0 0, rgba(56, 189, 248, 0.1), transparent 34%),
-            linear-gradient(135deg, rgba(255, 122, 26, 0.05), rgba(12, 28, 39, 0.35)),
-            var(--surface-2);
+        background: var(--surface);
     }
 
     section.panel.today-collections-list-panel {
@@ -5728,13 +5728,24 @@ body.theme-light .choice-check input[type="checkbox"]:disabled ~ .choice-check-l
         padding: 14px 12px;
         border: 1px solid var(--edge);
         border-radius: 10px;
-        background: rgba(10, 19, 27, 0.62);
+        background: var(--surface);
         overflow: hidden;
     }
 
-    .collection-history-table tbody tr:nth-child(odd),
-    .collection-history-table tbody tr:nth-child(even) {
-        background: rgba(10, 19, 27, 0.62);
+    .collections-history-table tbody tr:nth-child(odd) {
+        background: var(--surface);
+    }
+
+    .collections-history-table tbody tr:nth-child(even) {
+        background: #2a2d32;
+    }
+
+    body.theme-light .collections-history-table tbody tr:nth-child(odd) {
+        background: var(--surface);
+    }
+
+    body.theme-light .collections-history-table tbody tr:nth-child(even) {
+        background: #f3f4f6;
     }
 
     .collections-history-table tbody td {
