@@ -1426,7 +1426,12 @@ body.theme-light .profile-avatar-upload label {
     color: var(--text);
 }
 
-body.theme-light .loan-progress-panel,
+body.theme-light .loan-progress-panel {
+    background: var(--surface);
+    color: var(--text);
+    box-shadow: none;
+}
+
 body.theme-light .settings-col,
 body.theme-light .create-loan-main,
 body.theme-light .inline-customer-panel,
@@ -1756,10 +1761,7 @@ body.theme-light .btn[disabled] {
 .loan-progress-panel {
     padding: 18px;
     border-radius: 10px;
-    background:
-        radial-gradient(circle at 0 0, rgba(56, 189, 248, 0.1), transparent 34%),
-        linear-gradient(135deg, rgba(255, 122, 26, 0.05), rgba(12, 28, 39, 0.35)),
-        var(--surface-2);
+    background: var(--surface);
     box-shadow: inset 0 0 0 1px var(--edge);
     margin-bottom: 20px;
 }
@@ -3835,6 +3837,44 @@ body.theme-light .choice-check input[type="checkbox"]:disabled ~ .choice-check-l
     background: rgba(27, 42, 54, 0.72);
 }
 
+.calculator-preview-grid .calc-preview-item {
+    background: var(--surface);
+}
+
+.calculator-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(320px, 420px);
+    gap: 18px;
+    align-items: start;
+}
+
+.calculator-input-panel,
+.calculator-preview-panel {
+    margin-bottom: 0;
+}
+
+
+.calculator-input-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.calculator-input-grid .field {
+    grid-column: auto;
+}
+
+.calculator-preview-column {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-width: 0;
+}
+
+.calculator-preview-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 .calc-preview-item p {
     margin: 0;
     color: var(--muted);
@@ -4927,6 +4967,10 @@ body.theme-light .choice-check input[type="checkbox"]:disabled ~ .choice-check-l
 }
 
 @media (max-width: 1024px) {
+    .calculator-layout {
+        grid-template-columns: 1fr;
+    }
+
     .app-shell {
         grid-template-columns: 1fr;
         height: 100vh;
@@ -5432,6 +5476,10 @@ body.theme-light .choice-check input[type="checkbox"]:disabled ~ .choice-check-l
 }
 
 @media (max-width: 700px) {
+    .calculator-input-grid {
+        grid-template-columns: 1fr;
+    }
+
     .main-content {
         padding: 12px;
     }
@@ -5536,7 +5584,16 @@ body.theme-light .choice-check input[type="checkbox"]:disabled ~ .choice-check-l
 
     .loan-mobile-toolbar .loan-create-action {
         margin-left: 0;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        line-height: 1;
     }
+    .loan-mobile-toolbar .loan-create-action .btn-icon-inline {
+        margin-right: 0;
+    }
+
 
     .loan-mobile-status-field select,
     .loan-mobile-search-field input,
@@ -5872,10 +5929,7 @@ body.theme-light .choice-check input[type="checkbox"]:disabled ~ .choice-check-l
         overflow: hidden;
         border: 1px solid var(--edge);
         border-radius: 12px;
-        background:
-            radial-gradient(circle at 0 0, rgba(56, 189, 248, 0.1), transparent 34%),
-            linear-gradient(135deg, rgba(255, 122, 26, 0.05), rgba(12, 28, 39, 0.35)),
-            var(--surface-2);
+        background: var(--surface);
         box-shadow: 0 14px 30px rgba(0, 0, 0, 0.16);
     }
 
@@ -6192,6 +6246,7 @@ body.theme-light .choice-check input[type="checkbox"]:disabled ~ .choice-check-l
         margin: 0;
         padding: 14px 0;
         border-radius: 0;
+        border: 0;
         background: transparent;
         box-shadow: inset 0 1px 0 var(--edge);
         overflow: hidden;

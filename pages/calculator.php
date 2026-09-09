@@ -25,13 +25,15 @@ $defaultInstallmentCount = installment_count_from_timeframe($defaultFrequency, $
 require __DIR__ . '/../includes/layout_start.php';
 ?>
 
-<section class="panel">
+<form id="loan-form" class="calculator-layout" data-money-decimals="<?= e((string) money_display_decimals($pdo)) ?>" onsubmit="return false;">
+    <section class="panel calculator-input-panel">
     <div class="panel-head">
         <h2 class="panel-title">Loan Calculator</h2>
     </div>
 
-    <form id="loan-form" class="form-grid" data-money-decimals="<?= e((string) money_display_decimals($pdo)) ?>" onsubmit="return false;">
+        <div class="calculator-input-grid">
         <div class="field">
+        <input type="hidden" name="issued_date" value="<?= e(today()) ?>">
             <label>Principal Amount</label>
             <input type="number" step="0.01" name="principal_amount" required>
         </div>
@@ -67,9 +69,11 @@ require __DIR__ . '/../includes/layout_start.php';
                 </select>
             </div>
         </div>
-        <div class="field full">
-            <label>Repayment Preview</label>
-            <div class="calc-preview-grid calc-preview-grid-three">
+        </div>
+    </section>
+    <aside class="create-loan-preview-panel calculator-preview-panel">
+            <h3 class="create-loan-preview-title">Repayment Preview</h3>
+            <div class="calc-preview-grid calc-preview-grid-four create-loan-preview-grid">
                 <div class="calc-preview-item">
                     <p>Total Repayable</p>
                     <h3><?= e(currency_label($pdo)) ?> <span id="preview-total"><?= e(money(0, money_display_decimals($pdo))) ?></span></h3>
@@ -79,16 +83,15 @@ require __DIR__ . '/../includes/layout_start.php';
                     <h3><?= e(currency_label($pdo)) ?> <span id="preview-installment"><?= e(money(0, money_display_decimals($pdo))) ?></span></h3>
                 </div>
                 <div class="calc-preview-item">
-                    <p>Profit</p>
-                    <h3><?= e(currency_label($pdo)) ?> <span id="preview-profit"><?= e(money(0, money_display_decimals($pdo))) ?></span></h3>
-                </div>
-                <div class="calc-preview-item">
                     <p>No. of Installments</p>
                     <h3><span id="preview-installment-count"><?= e((string) $defaultInstallmentCount) ?></span></h3>
                 </div>
+                <div class="calc-preview-item">
+                    <p>Loan End Date</p>
+                    <h3><span id="preview-end-date">-</span></h3>
+                </div>
             </div>
-        </div>
-    </form>
-</section>
+    </aside>
+</form>
 
 <?php require __DIR__ . '/../includes/layout_end.php';
