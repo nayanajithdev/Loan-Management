@@ -73,7 +73,7 @@ if ($issuedDate === '') {
 if ($issuedDate === '') {
     $issuedDate = substr((string) ($loan['created_at'] ?? today()), 0, 10);
 }
-$tomorrowDate = (new DateTimeImmutable(today()))->add(new DateInterval('P1D'))->format('Y-m-d');
+$todayDate = today();
 $loanDisplayNumber = (string) ($loan['loan_number'] ?? ('#' . $loanId));
 $loanEndDate = (string) ($loan['end_date'] ?? '');
 if ($loanEndDate === '') {
@@ -425,7 +425,7 @@ require __DIR__ . '/../includes/layout_start.php';
                 <label>Schedule Next Payment</label>
                 <input type="hidden" name="schedule_next_payment" value="1" data-schedule-next-payment-flag disabled>
                 <div class="loan-schedule-row">
-                    <input type="date" name="next_payment_date" id="next-payment-date-input" value="<?= e($tomorrowDate) ?>" min="<?= e($tomorrowDate) ?>" disabled>
+                    <input type="date" name="next_payment_date" id="next-payment-date-input" value="" min="<?= e($todayDate) ?>" disabled>
                 </div>
             </div>
         <?php endif; ?>
@@ -857,6 +857,9 @@ require __DIR__ . '/../includes/layout_start.php';
         if (scheduleInput instanceof HTMLInputElement) {
             scheduleInput.disabled = !editing;
             scheduleInput.required = false;
+            if (!editing) {
+                scheduleInput.value = '';
+            }
         }
         if (scheduleToggle instanceof HTMLInputElement) {
             scheduleToggle.disabled = true;
@@ -909,8 +912,9 @@ require __DIR__ . '/../includes/layout_start.php';
     if (scheduleInput instanceof HTMLInputElement) {
         const markScheduleChanged = () => {
             if (scheduleToggle instanceof HTMLInputElement && editToggle instanceof HTMLInputElement && editToggle.checked) {
-                scheduleToggle.disabled = false;
-                scheduleInput.required = true;
+                const hasDate = scheduleInput.value.trim() !== '';
+                scheduleToggle.disabled = !hasDate;
+                scheduleInput.required = hasDate;
             }
             syncSubmitButton();
         };

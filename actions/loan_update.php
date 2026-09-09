@@ -51,8 +51,8 @@ if (!$canEditLoan) {
         redirect('pages/loan_edit.php?loan_id=' . $loanId);
     }
 
-    if ($nextPaymentDateInput <= today()) {
-        set_flash('error', 'Next payment date must be after today.');
+    if ($nextPaymentDateInput < today()) {
+        set_flash('error', 'Next payment date cannot be before today.');
         redirect('pages/loan_edit.php?loan_id=' . $loanId);
     }
 
@@ -153,8 +153,8 @@ if ($scheduleNextPayment) {
         redirect('pages/loan_edit.php?loan_id=' . $loanId);
     }
 
-    if ($nextPaymentDateInput <= today()) {
-        set_flash('error', 'Next payment date must be after today.');
+    if ($nextPaymentDateInput < today()) {
+        set_flash('error', 'Next payment date cannot be before today.');
         redirect('pages/loan_edit.php?loan_id=' . $loanId);
     }
 }
@@ -478,7 +478,7 @@ function loan_update_public_error_message(Throwable $e): string
         'You do not have permission to extend collected loans.',
         'Invalid loan for scheduling.',
         'Invalid next payment date.',
-        'Next payment date must be after today.',
+        'Next payment date cannot be before today.',
         'No pending installment available to schedule.',
         'Invalid installment due date.',
         'Could not find the next available collection date.',

@@ -1239,8 +1239,8 @@ function schedule_next_installment_date(PDO $pdo, int $loanId, string $scheduled
         throw new RuntimeException('Invalid next payment date.');
     }
 
-    if ($scheduledDate <= today()) {
-        throw new RuntimeException('Next payment date must be after today.');
+    if ($scheduledDate < today()) {
+        throw new RuntimeException('Next payment date cannot be before today.');
     }
 
     $scheduledDate = next_collectible_date($pdo, $scheduledDate);
