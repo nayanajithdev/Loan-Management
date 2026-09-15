@@ -87,12 +87,12 @@ if ($firstPaymentDateInput === '') {
 } else {
     $firstPaymentDateObj = DateTimeImmutable::createFromFormat('Y-m-d', $firstPaymentDateInput);
     if (!$firstPaymentDateObj || $firstPaymentDateObj->format('Y-m-d') !== $firstPaymentDateInput) {
-        set_flash('error', 'Invalid schedule first payment date.');
+        set_flash('error', 'Invalid first payment override date.');
         redirect('pages/loan_create.php');
     }
 
     if ($firstPaymentDateObj <= $issuedDateObj) {
-        set_flash('error', 'Schedule First Payment must be after the loan issued date.');
+        set_flash('error', 'Override First Payment must be after the loan issued date.');
         redirect('pages/loan_create.php');
     }
 

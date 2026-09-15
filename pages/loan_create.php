@@ -23,7 +23,7 @@ $defaultTimeframeValue = (int) system_setting($pdo, 'default_timeframe_value', '
 $defaultTimeframeUnit = system_setting($pdo, 'default_timeframe_unit', 'days');
 $suggestedLoanNumber = next_loan_number($pdo);
 $defaultIssuedDate = today();
-$defaultFirstPaymentDate = next_collectible_date($pdo, (new DateTimeImmutable($defaultIssuedDate))->add(new DateInterval('P1D'))->format('Y-m-d'));
+$minimumFirstPaymentDate = next_collectible_date($pdo, (new DateTimeImmutable($defaultIssuedDate))->add(new DateInterval('P1D'))->format('Y-m-d'));
 $scheduleStartDate = $defaultIssuedDate;
 $holidayDates = holiday_date_list($pdo);
 
@@ -194,8 +194,8 @@ require __DIR__ . '/../includes/layout_start.php';
                     <?php endif; ?>
                     <div class="loan-form-divider">Installment Options</div>
                     <div class="field loan-schedule-field">
-                        <label>Schedule First Payment</label>
-                        <input type="date" name="first_payment_date" value="<?= e($defaultFirstPaymentDate) ?>" min="<?= e($defaultFirstPaymentDate) ?>" required>
+                        <label>Override First Payment</label>
+                        <input type="date" name="first_payment_date" value="" min="<?= e($minimumFirstPaymentDate) ?>">
                     </div>
                     <div class="field loan-installment-amount-field">
                         <label>Change Installment Amount</label>

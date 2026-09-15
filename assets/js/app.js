@@ -1187,8 +1187,8 @@
         const suggestedDate = nextCollectibleDate(addToIsoDate(issuedDate, 1, 'days'));
         if (validIsoDate(suggestedDate)) {
             firstPaymentDateInput.min = suggestedDate;
-            if (!validIsoDate(firstPaymentDateInput.value) || firstPaymentDateInput.value < suggestedDate) {
-                firstPaymentDateInput.value = suggestedDate;
+            if (validIsoDate(firstPaymentDateInput.value) && firstPaymentDateInput.value < suggestedDate) {
+                firstPaymentDateInput.value = '';
             }
         }
     };
