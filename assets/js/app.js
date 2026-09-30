@@ -240,6 +240,13 @@
             return;
         }
 
+        // A customer chosen from the View Customer "Issue Loan" action is fixed
+        // for that loan creation flow.
+        if (search.readOnly) {
+            search.setAttribute('aria-expanded', 'false');
+            return;
+        }
+
         const options = Array.from(menu.querySelectorAll('[data-select-option]'))
             .filter((option) => option instanceof HTMLButtonElement)
             .map((option) => ({

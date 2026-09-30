@@ -9,8 +9,24 @@ $pageTitle = 'Create Loan';
 $activePage = 'loans';
 $canCreateCustomer = can('customers.create');
 $canAssignLoan = can('loans.assign');
+$selectedCustomerId = max(0, (int) ($_GET['customer_id'] ?? 0));
+
+if ($selectedCustomerId > 0) {
+    require_customer_access($pdo, $selectedCustomerId);
+}
 
 $customers = $pdo->query("SELECT id, customer_code, full_name, nic FROM customers WHERE status = 'active' ORDER BY full_name ASC")->fetchAll();
+$selectedCustomer = null;
+foreach ($customers as $customer) {
+    if ((int) $customer['id'] === $selectedCustomerId) {
+        $selectedCustomer = $customer;
+        break;
+    }
+}
+if ($selectedCustomerId > 0 && $selectedCustomer === null) {
+    set_flash('error', 'The selected customer is inactive or unavailable for a new loan.');
+    redirect('pages/customers.php');
+}
 $collectors = $canAssignLoan
     ? assignable_collector_rows($pdo)
     : [];
@@ -124,9 +140,9 @@ require __DIR__ . '/../includes/layout_start.php';
                     </div>
                     <div class="field">
                         <label>Customer</label>
-                        <div class="searchable-select" data-searchable-select>
-                            <input type="hidden" name="customer_id" data-select-value required>
-                            <input type="search" data-select-search placeholder="Select customer" autocomplete="off" role="combobox" aria-expanded="false">
+                        <div class="searchable-select <?= $selectedCustomer ? 'is-locked' : '' ?>" data-searchable-select>
+                            <input type="hidden" name="customer_id" value="<?= e((string) ($selectedCustomer['id'] ?? '')) ?>" data-select-value required>
+                            <input type="search" value="<?= e($selectedCustomer ? customer_display_label($selectedCustomer) : '') ?>" data-select-search placeholder="Select customer" autocomplete="off" role="combobox" aria-expanded="false" <?= $selectedCustomer ? 'readonly aria-readonly="true" title="Customer selected from View Customer"' : '' ?>>
                             <div class="searchable-select-menu" data-select-menu hidden>
                                 <?php foreach ($customers as $customer): ?>
                                     <button type="button" data-select-option value="<?= e((string) $customer['id']) ?>">

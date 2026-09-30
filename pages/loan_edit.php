@@ -160,6 +160,7 @@ if ($loanScheduleLastDueDate === '') {
     $loanScheduleLastDueDate = next_collectible_date($pdo, (new DateTimeImmutable($issuedDate))->add(new DateInterval('P1D'))->format('Y-m-d'));
 }
 $loanBalance = max(0.0, $loanTotalRepayable - $loanTotalCollected);
+$loanExtraCollected = max(0.0, $loanTotalCollected - $loanTotalRepayable);
 $loanProgressPercent = $loanTotalRepayable > 0
     ? min(100.0, ($loanTotalCollected / $loanTotalRepayable) * 100)
     : 0.0;
@@ -282,7 +283,13 @@ require __DIR__ . '/../includes/layout_start.php';
             </div>
             <div class="loan-progress-stat is-balance">
                 <span>Balance</span>
-                <strong><?= e(money_label($pdo, $loanBalance)) ?></strong>
+                <?php if ($loanExtraCollected > 0.009): ?>
+                    <div class="loan-progress-extra-collected">
+                        Extra Collected: <strong><?= e(money_label($pdo, $loanExtraCollected)) ?></strong>
+                    </div>
+                <?php else: ?>
+                    <strong><?= e(money_label($pdo, $loanBalance)) ?></strong>
+                <?php endif; ?>
             </div>
             <div class="loan-progress-stat is-arrears <?= $loanArrearsCount > 0 ? 'has-arrears' : '' ?>">
                 <span>Arrears</span>

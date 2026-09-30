@@ -907,6 +907,15 @@ button {
     flex-wrap: wrap;
 }
 
+.customer-edit-actionbar .customer-issue-loan {
+    order: -1;
+    margin-right: auto;
+}
+
+.searchable-select.is-locked [data-select-search] {
+    cursor: not-allowed;
+}
+
 .customer-mobile-card-list {
     display: none;
 }
@@ -1847,6 +1856,17 @@ body.theme-light .btn[disabled] {
 
 .loan-progress-stat.is-balance strong {
     color: var(--accent);
+}
+
+.loan-progress-extra-collected {
+    color: var(--accent);
+    font-size: 15px;
+    font-weight: 700;
+    overflow-wrap: anywhere;
+}
+
+.loan-progress-extra-collected strong {
+    display: inline;
 }
 
 .loan-progress-stat.is-arrears strong {
@@ -5638,6 +5658,23 @@ body.theme-light .choice-check input[type="checkbox"]:disabled ~ .choice-check-l
     .customer-edit-actionbar .inline-form .btn {
         width: 100%;
         min-width: 0;
+    }
+
+    .customer-edit-actionbar .customer-issue-loan {
+        order: initial;
+        grid-column: 1;
+        grid-row: 3;
+        margin-right: 0;
+    }
+
+    .customer-edit-actionbar .customer-back-to-list {
+        grid-column: 1 / -1;
+        grid-row: 2;
+    }
+
+    .customer-edit-actionbar .customer-delete-form {
+        grid-column: 2;
+        grid-row: 3;
     }
 
     .customers-list-panel {

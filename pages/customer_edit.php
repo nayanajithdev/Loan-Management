@@ -11,6 +11,7 @@ $customerId = (int) ($_GET['customer_id'] ?? 0);
 $canEditCustomer = can('customers.edit');
 $canManageCustomerDocuments = can('customers.documents');
 $canViewLoans = can('loans.view');
+$canCreateLoan = can('loans.create');
 
 if ($customerId <= 0) {
     set_flash('error', 'Invalid customer selected.');
@@ -28,6 +29,7 @@ if (!$customer) {
 }
 
 $viewLoanUrl = url('pages/loans.php?status=active&q=' . rawurlencode((string) $customer['nic']));
+$issueLoanUrl = url('pages/loan_create.php?customer_id=' . $customerId);
 
 $documents = [];
 if ($canManageCustomerDocuments) {
@@ -55,14 +57,22 @@ require __DIR__ . '/../includes/layout_start.php';
     <?php if ($canViewLoans): ?>
         <a class="btn" href="<?= e($viewLoanUrl) ?>">View Loan</a>
     <?php endif; ?>
-    <a class="btn" href="<?= e(url('pages/customers.php')) ?>">
+    <?php if ($canCreateLoan && (string) $customer['status'] === 'active'): ?>
+        <a class="btn btn-primary customer-issue-loan" href="<?= e($issueLoanUrl) ?>">
+            <span class="btn-icon-inline" aria-hidden="true">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 12h8"/><path d="M12 8v8"/></svg>
+            </span>
+            Issue Loan
+        </a>
+    <?php endif; ?>
+    <a class="btn customer-back-to-list" href="<?= e(url('pages/customers.php')) ?>">
         <span class="btn-icon-inline" aria-hidden="true">
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-arrow-left-icon lucide-arrow-left"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>
         </span>
         Back to Customers
     </a>
     <?php if (can('customers.delete')): ?>
-        <form method="post" action="<?= e(url('actions/customer_delete.php')) ?>" class="inline-form" onsubmit="return confirm('Delete this customer permanently? This action cannot be undone.');">
+        <form method="post" action="<?= e(url('actions/customer_delete.php')) ?>" class="inline-form customer-delete-form" onsubmit="return confirm('Delete this customer permanently? This action cannot be undone.');">
             <?= csrf_input() ?>
             <input type="hidden" name="customer_id" value="<?= e((string) $customerId) ?>">
             <button type="submit" class="btn btn-danger">
