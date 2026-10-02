@@ -229,6 +229,15 @@
 })();
 
 (function () {
+    document.querySelectorAll('input[type="number"][data-prevent-number-wheel]').forEach((input) => {
+        input.addEventListener('wheel', () => {
+            // Release focus so scrolling never changes a payment amount.
+            input.blur();
+        }, { passive: true });
+    });
+})();
+
+(function () {
     const widgets = document.querySelectorAll('[data-searchable-select]');
     widgets.forEach((widget) => {
         const search = widget.querySelector('[data-select-search]');

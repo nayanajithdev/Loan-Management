@@ -494,7 +494,7 @@ require __DIR__ . '/../includes/layout_start.php';
 
                 <div class="field today-collection-amount-field">
                     <label>Amount Received</label>
-                    <input type="number" name="amount" step="0.01" min="0.01" inputmode="decimal" autocomplete="off" value="<?= e(($hasSelectedInstallment && $autoFillAmountReceived) ? (string) $selectedBalance : '') ?>" <?= $canCollectSelectedInstallment ? 'required' : 'disabled' ?>>
+                    <input type="number" name="amount" step="0.01" min="0.01" data-prevent-number-wheel inputmode="decimal" autocomplete="off" value="<?= e(($hasSelectedInstallment && $autoFillAmountReceived) ? (string) $selectedBalance : '') ?>" <?= $canCollectSelectedInstallment ? 'required' : 'disabled' ?>>
                 </div>
                 <div class="field today-collection-date-field <?= $paymentMethodSelectionEnabled ? '' : 'full' ?>">
                     <label>Collection Date</label>

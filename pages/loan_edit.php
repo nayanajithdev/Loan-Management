@@ -619,7 +619,7 @@ require __DIR__ . '/../includes/layout_start.php';
                     <input type="hidden" name="return_to" value="<?= e('pages/loan_edit.php?loan_id=' . $loanId . '#collections') ?>">
                     <div class="field today-collection-amount-field">
                         <label data-loan-collect-amount-label>Amount Received</label>
-                        <input type="number" step="0.01" min="0.01" name="amount" value="<?= e(($currentCollectible && $autoFillAmountReceived) ? number_format($collectibleBalance, 2, '.', '') : '') ?>" data-loan-collect-amount inputmode="decimal" autocomplete="off" required>
+                        <input type="number" step="0.01" min="0.01" name="amount" value="<?= e(($currentCollectible && $autoFillAmountReceived) ? number_format($collectibleBalance, 2, '.', '') : '') ?>" data-loan-collect-amount data-prevent-number-wheel inputmode="decimal" autocomplete="off" required>
                     </div>
                     <div class="field today-collection-date-field <?= $paymentMethodSelectionEnabled ? '' : 'full' ?>">
                         <label>Collection Date</label>

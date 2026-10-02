@@ -2306,35 +2306,34 @@ function ensure_loan_status_schema(PDO $pdo): void
 }
 
 /**
- * Keep the loan list status aligned with the authoritative payment records.
- * A loan is closed only when no unpaid installment remains and its recorded
- * collections cover the full repayable amount.
+ * Keep the loan list status aligned with the authoritative installment records.
+ * A loan is closed when every generated installment has been fully paid.
  */
 function reconcile_loan_statuses(PDO $pdo): void
 {
     $pdo->exec(
         "UPDATE loans l
          LEFT JOIN (
-             SELECT loan_id, COUNT(*) AS unpaid_installment_count
+             SELECT
+                 loan_id,
+                 COUNT(*) AS installment_count,
+                 SUM(CASE
+                     WHEN status IN ('pending', 'partial', 'overdue')
+                      AND due_amount > paid_amount THEN 1
+                     ELSE 0
+                 END) AS unpaid_installment_count
              FROM loan_installments
-             WHERE status IN ('pending', 'partial', 'overdue')
-               AND due_amount > paid_amount
              GROUP BY loan_id
          ) li ON li.loan_id = l.id
-         LEFT JOIN (
-             SELECT loan_id, SUM(amount) AS collected_amount
-             FROM collections
-             GROUP BY loan_id
-         ) c ON c.loan_id = l.id
          SET l.status = CASE
-             WHEN COALESCE(li.unpaid_installment_count, 0) = 0
-              AND GREATEST(l.total_amount - COALESCE(c.collected_amount, 0), 0) <= 0.009
+             WHEN COALESCE(li.installment_count, 0) > 0
+              AND COALESCE(li.unpaid_installment_count, 0) = 0
                  THEN 'closed'
              ELSE 'active'
          END
          WHERE l.status <> CASE
-             WHEN COALESCE(li.unpaid_installment_count, 0) = 0
-              AND GREATEST(l.total_amount - COALESCE(c.collected_amount, 0), 0) <= 0.009
+             WHEN COALESCE(li.installment_count, 0) > 0
+              AND COALESCE(li.unpaid_installment_count, 0) = 0
                  THEN 'closed'
              ELSE 'active'
          END"

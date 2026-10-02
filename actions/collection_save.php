@@ -250,8 +250,7 @@ try {
         }
     }
 
-    $remainingBalance = loan_remaining_balance_by_collections($pdo, $loanId);
-    if ($pendingCount === 0 && $remainingBalance <= 0.009) {
+    if ($pendingCount === 0) {
         $closeLoan = $pdo->prepare("UPDATE loans SET status = 'closed' WHERE id = :id");
         $closeLoan->execute(['id' => $loanId]);
     } else {
