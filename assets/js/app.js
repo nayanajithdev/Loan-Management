@@ -32,6 +32,284 @@
 })();
 
 (function () {
+    // Date fields intentionally use the browser/operating-system native calendar.
+    return;
+
+    let nativePickerId = 0;
+    document.querySelectorAll('input[type="date"]').forEach((isoInput) => {
+        if (!(isoInput instanceof HTMLInputElement) || isoInput.closest('[data-calendar-picker]')) {
+            return;
+        }
+
+        nativePickerId += 1;
+        const dateFormat = document.documentElement.getAttribute('data-date-format') || 'd/m/Y';
+        const wrapper = document.createElement('div');
+        wrapper.className = 'app-date-picker';
+        wrapper.setAttribute('data-calendar-picker', '');
+        wrapper.setAttribute('data-date-format', dateFormat);
+        wrapper.setAttribute('data-date-min', isoInput.min || '');
+        wrapper.setAttribute('data-date-max', isoInput.max || '');
+
+        const displayInput = document.createElement('input');
+        displayInput.type = 'text';
+        displayInput.className = isoInput.className;
+        displayInput.placeholder = dateFormat;
+        displayInput.inputMode = 'numeric';
+        displayInput.autocomplete = 'off';
+        displayInput.required = isoInput.required;
+        displayInput.readOnly = isoInput.readOnly;
+        displayInput.disabled = isoInput.disabled;
+        displayInput.setAttribute('data-calendar-input', '');
+        if (isoInput.id) {
+            displayInput.id = isoInput.id;
+            isoInput.removeAttribute('id');
+        }
+        if (isoInput.getAttribute('aria-describedby')) {
+            displayInput.setAttribute('aria-describedby', isoInput.getAttribute('aria-describedby'));
+        }
+
+        const calendarId = `app-calendar-${nativePickerId}`;
+        const toggle = document.createElement('button');
+        toggle.type = 'button';
+        toggle.className = 'app-date-picker-toggle';
+        toggle.setAttribute('aria-label', 'Open calendar');
+        toggle.setAttribute('aria-expanded', 'false');
+        toggle.setAttribute('aria-controls', calendarId);
+        toggle.setAttribute('data-calendar-toggle', '');
+        toggle.innerHTML = '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>';
+        toggle.disabled = isoInput.disabled;
+
+        const popover = document.createElement('div');
+        popover.id = calendarId;
+        popover.className = 'app-date-picker-popover';
+        popover.setAttribute('role', 'dialog');
+        popover.setAttribute('aria-label', 'Date calendar');
+        popover.setAttribute('data-calendar-popover', '');
+        popover.hidden = true;
+
+        const observer = new MutationObserver(() => {
+            displayInput.disabled = isoInput.disabled;
+            displayInput.readOnly = isoInput.readOnly;
+            toggle.disabled = isoInput.disabled;
+            wrapper.setAttribute('data-date-min', isoInput.min || '');
+            wrapper.setAttribute('data-date-max', isoInput.max || '');
+        });
+        observer.observe(isoInput, { attributes: true, attributeFilter: ['disabled', 'readonly', 'min', 'max'] });
+
+        isoInput.type = 'hidden';
+        const valueDescriptor = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value');
+        const updateDisplayValue = (value) => {
+            const match = String(value || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+            if (!match) {
+                displayInput.value = '';
+                return;
+            }
+            displayInput.value = dateFormat
+                .replace(/d/g, match[3])
+                .replace(/m/g, match[2])
+                .replace(/Y/g, match[1]);
+        };
+        if (valueDescriptor?.get && valueDescriptor?.set) {
+            Object.defineProperty(isoInput, 'value', {
+                configurable: true,
+                enumerable: valueDescriptor.enumerable,
+                get() {
+                    return valueDescriptor.get.call(this);
+                },
+                set(value) {
+                    valueDescriptor.set.call(this, value);
+                    updateDisplayValue(value);
+                },
+            });
+        }
+        isoInput.setAttribute('data-calendar-iso', '');
+        isoInput.parentNode?.insertBefore(wrapper, isoInput);
+        wrapper.append(displayInput, toggle, popover, isoInput);
+    });
+
+    const pickers = Array.from(document.querySelectorAll('[data-calendar-picker]'));
+    if (pickers.length === 0) {
+        return;
+    }
+
+    const pad = (value) => String(value).padStart(2, '0');
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const formatDate = (date, format) => format
+        .replace(/d/g, pad(date.getDate()))
+        .replace(/m/g, pad(date.getMonth() + 1))
+        .replace(/Y/g, String(date.getFullYear()));
+
+    const parseDate = (value, format) => {
+        const parts = String(value || '').trim().split(/\D+/).filter(Boolean);
+        const tokens = format.match(/[dmY]/g) || [];
+        if (parts.length !== 3 || tokens.length !== 3) {
+            return null;
+        }
+
+        const values = {};
+        tokens.forEach((token, index) => {
+            values[token] = Number(parts[index]);
+        });
+        const year = values.Y;
+        const month = values.m;
+        const day = values.d;
+        const parsed = new Date(year, month - 1, day);
+        if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day)
+            || parsed.getFullYear() !== year || parsed.getMonth() !== month - 1 || parsed.getDate() !== day) {
+            return null;
+        }
+        parsed.setHours(0, 0, 0, 0);
+        return parsed;
+    };
+
+    const sameDate = (first, second) => first.getFullYear() === second.getFullYear()
+        && first.getMonth() === second.getMonth()
+        && first.getDate() === second.getDate();
+
+    pickers.forEach((picker) => {
+        const input = picker.querySelector('[data-calendar-input]');
+        const isoInput = picker.querySelector('[data-calendar-iso]');
+        const toggle = picker.querySelector('[data-calendar-toggle]');
+        const popover = picker.querySelector('[data-calendar-popover]');
+        const format = picker.getAttribute('data-date-format') || 'd/m/Y';
+        if (!(input instanceof HTMLInputElement) || !(toggle instanceof HTMLButtonElement) || !(popover instanceof HTMLElement)) {
+            return;
+        }
+
+        const isoToDate = (value) => {
+            const parts = String(value || '').split('-').map(Number);
+            if (parts.length !== 3 || parts.some((part) => !Number.isInteger(part))) {
+                return null;
+            }
+            const parsed = new Date(parts[0], parts[1] - 1, parts[2]);
+            return parsed.getFullYear() === parts[0] && parsed.getMonth() === parts[1] - 1 && parsed.getDate() === parts[2] ? parsed : null;
+        };
+        const toIsoDate = (date) => `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+        const selectedDate = () => isoInput instanceof HTMLInputElement
+            ? isoToDate(isoInput.value)
+            : parseDate(input.value, format);
+        const setSelectedDate = (date) => {
+            input.value = formatDate(date, format);
+            input.setCustomValidity('');
+            if (isoInput instanceof HTMLInputElement) {
+                isoInput.value = toIsoDate(date);
+                isoInput.dispatchEvent(new Event('input', { bubbles: true }));
+                isoInput.dispatchEvent(new Event('change', { bubbles: true }));
+                return;
+            }
+            input.dispatchEvent(new Event('change', { bubbles: true }));
+        };
+        const initialSelectedDate = selectedDate();
+        if (initialSelectedDate && isoInput instanceof HTMLInputElement) {
+            input.value = formatDate(initialSelectedDate, format);
+        }
+        let visibleMonth = initialSelectedDate || new Date(today.getFullYear(), today.getMonth(), 1);
+        visibleMonth = new Date(visibleMonth.getFullYear(), visibleMonth.getMonth(), 1);
+
+        const close = () => {
+            popover.hidden = true;
+            toggle.setAttribute('aria-expanded', 'false');
+        };
+
+        const render = () => {
+            const selected = selectedDate();
+            const minDate = isoToDate(picker.getAttribute('data-date-min') || '');
+            const maxDate = isoToDate(picker.getAttribute('data-date-max') || '');
+            const monthLabel = visibleMonth.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+            const firstWeekday = (visibleMonth.getDay() + 6) % 7;
+            const daysInMonth = new Date(visibleMonth.getFullYear(), visibleMonth.getMonth() + 1, 0).getDate();
+            popover.innerHTML = `<div class="app-calendar-head"><button type="button" class="app-calendar-nav" aria-label="Previous month" data-calendar-previous>&lsaquo;</button><p class="app-calendar-title">${monthLabel}</p><button type="button" class="app-calendar-nav" aria-label="Next month" data-calendar-next>&rsaquo;</button></div><div class="app-calendar-weekdays" aria-hidden="true"><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span><span>S</span></div><div class="app-calendar-grid" data-calendar-days></div>`;
+            const days = popover.querySelector('[data-calendar-days]');
+            if (!(days instanceof HTMLElement)) {
+                return;
+            }
+            for (let blank = 0; blank < firstWeekday; blank += 1) {
+                days.append(document.createElement('span'));
+            }
+            for (let day = 1; day <= daysInMonth; day += 1) {
+                const date = new Date(visibleMonth.getFullYear(), visibleMonth.getMonth(), day);
+                const dayButton = document.createElement('button');
+                dayButton.type = 'button';
+                dayButton.className = 'app-calendar-day';
+                dayButton.textContent = String(day);
+                dayButton.setAttribute('aria-label', formatDate(date, format));
+                const isOutOfRange = (minDate && date < minDate) || (maxDate && date > maxDate);
+                dayButton.disabled = Boolean(isOutOfRange);
+                if (selected && sameDate(date, selected)) {
+                    dayButton.classList.add('is-selected');
+                    dayButton.setAttribute('aria-pressed', 'true');
+                }
+                if (sameDate(date, today)) {
+                    dayButton.classList.add('is-today');
+                }
+                dayButton.addEventListener('click', () => {
+                    setSelectedDate(date);
+                    close();
+                    input.focus();
+                });
+                days.append(dayButton);
+            }
+            popover.querySelector('[data-calendar-previous]')?.addEventListener('click', () => {
+                visibleMonth = new Date(visibleMonth.getFullYear(), visibleMonth.getMonth() - 1, 1);
+                render();
+            });
+            popover.querySelector('[data-calendar-next]')?.addEventListener('click', () => {
+                visibleMonth = new Date(visibleMonth.getFullYear(), visibleMonth.getMonth() + 1, 1);
+                render();
+            });
+        };
+
+        toggle.addEventListener('click', () => {
+            if (!popover.hidden) {
+                close();
+                return;
+            }
+            visibleMonth = selectedDate() || new Date(today.getFullYear(), today.getMonth(), 1);
+            visibleMonth = new Date(visibleMonth.getFullYear(), visibleMonth.getMonth(), 1);
+            render();
+            popover.hidden = false;
+            toggle.setAttribute('aria-expanded', 'true');
+        });
+        const syncTypedDate = () => {
+            const parsed = parseDate(input.value, format);
+            if (parsed) {
+                if (isoInput instanceof HTMLInputElement) {
+                    isoInput.value = toIsoDate(parsed);
+                    isoInput.dispatchEvent(new Event('input', { bubbles: true }));
+                    isoInput.dispatchEvent(new Event('change', { bubbles: true }));
+                }
+                visibleMonth = new Date(parsed.getFullYear(), parsed.getMonth(), 1);
+                input.setCustomValidity('');
+                return true;
+            } else if (input.value.trim() !== '') {
+                input.setCustomValidity(`Enter a valid date using ${format}.`);
+            }
+            return input.value.trim() === '';
+        };
+        input.addEventListener('change', syncTypedDate);
+        input.addEventListener('input', () => input.setCustomValidity(''));
+        input.closest('form')?.addEventListener('submit', (event) => {
+            if (!syncTypedDate()) {
+                event.preventDefault();
+                input.reportValidity();
+            }
+        });
+        document.addEventListener('pointerdown', (event) => {
+            if (!picker.contains(event.target)) {
+                close();
+            }
+        });
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape') {
+                close();
+            }
+        });
+    });
+})();
+
+(function () {
     const form = document.querySelector('[data-theme-toggle-form]');
     if (!(form instanceof HTMLFormElement)) {
         return;
@@ -1144,8 +1422,12 @@
         }
 
         const [year, month, day] = isoDate.split('-');
+        const configuredFormat = document.documentElement.getAttribute('data-date-format') || 'd/m/Y';
 
-        return `${day}/${month}/${year}`;
+        return configuredFormat
+            .replace(/d/g, day)
+            .replace(/m/g, month)
+            .replace(/Y/g, year);
     };
 
     const nextCollectibleDate = (isoDate) => {
@@ -1171,6 +1453,17 @@
     };
 
     const calculateEndDate = (installmentCount, frequency) => {
+        if (!isEditLoanForm) {
+            const issuedDate = issuedDateInput instanceof HTMLInputElement ? issuedDateInput.value : '';
+            const timeframeValue = Math.max(toNumber(timeframeValueInput instanceof HTMLInputElement ? timeframeValueInput.value : 0), 1);
+            const timeframeUnit = timeframeUnitInput instanceof HTMLSelectElement && timeframeUnitInput.value === 'months'
+                ? 'months'
+                : 'days';
+            const totalDays = timeframeUnit === 'months' ? timeframeValue * 30 : timeframeValue;
+
+            return addToIsoDate(issuedDate, totalDays, 'days');
+        }
+
         const firstDueDate = form.getAttribute('data-first-due-date') || '';
         const firstPaymentDate = firstPaymentDateInput instanceof HTMLInputElement ? firstPaymentDateInput.value : '';
         const issuedDate = issuedDateInput ? issuedDateInput.value : '';

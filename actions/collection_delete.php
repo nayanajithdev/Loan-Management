@@ -349,20 +349,7 @@ try {
         }
     }
 
-    $pendingCountStmt = $pdo->prepare(
-        "SELECT COUNT(*)
-         FROM loan_installments
-         WHERE loan_id = :loan_id
-           AND status IN ('pending', 'partial', 'overdue')
-           AND due_amount > paid_amount"
-    );
-    $pendingCountStmt->execute(['loan_id' => $loanId]);
-    $pendingCount = (int) $pendingCountStmt->fetchColumn();
-    if ($pendingCount === 0) {
-        $pdo->prepare("UPDATE loans SET status = 'closed' WHERE id = :id")->execute(['id' => $loanId]);
-    } else {
-        $pdo->prepare("UPDATE loans SET status = 'active' WHERE id = :id")->execute(['id' => $loanId]);
-    }
+    sync_loan_status_from_collections($pdo, $loanId);
 
     $pdo->commit();
 

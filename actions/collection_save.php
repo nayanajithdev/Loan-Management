@@ -250,13 +250,7 @@ try {
         }
     }
 
-    if ($pendingCount === 0) {
-        $closeLoan = $pdo->prepare("UPDATE loans SET status = 'closed' WHERE id = :id");
-        $closeLoan->execute(['id' => $loanId]);
-    } else {
-        $reopenLoan = $pdo->prepare("UPDATE loans SET status = 'active' WHERE id = :id");
-        $reopenLoan->execute(['id' => $loanId]);
-    }
+    sync_loan_status_from_collections($pdo, $loanId);
 
     $pdo->commit();
 

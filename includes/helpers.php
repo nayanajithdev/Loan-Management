@@ -314,6 +314,28 @@ function display_date(string $dateValue, ?string $fallback = null): string
     return $date->format($format);
 }
 
+/**
+ * Convert a user-entered date using the configured display format to the
+ * ISO format stored by MySQL date columns.
+ */
+function date_from_display_input(PDO $pdo, string $dateValue): ?string
+{
+    $dateValue = trim($dateValue);
+    $format = trim(system_setting($pdo, 'date_format', 'd/m/Y'));
+    $format = $format !== '' ? $format : 'd/m/Y';
+    $date = DateTimeImmutable::createFromFormat('!' . $format, $dateValue);
+    $errors = DateTimeImmutable::getLastErrors();
+
+    if (
+        !$date
+        || ($errors !== false && ((int) ($errors['warning_count'] ?? 0) > 0 || (int) ($errors['error_count'] ?? 0) > 0))
+    ) {
+        return null;
+    }
+
+    return $date->format('Y-m-d');
+}
+
 function display_datetime(string $dateTimeValue, ?string $fallback = null): string
 {
     static $dateTimeFormat = null;
@@ -813,6 +835,24 @@ function installment_count_from_timeframe(string $frequency, int $timeframeValue
     };
 
     return max($count, 1);
+}
+
+/**
+ * The contractual end date is the issued date plus the selected timeframe.
+ * Timeframes expressed in months use the application's existing 30-day-month
+ * convention for repayment calculations.
+ */
+function loan_end_date_from_timeframe(string $issuedDate, int $timeframeValue, string $timeframeUnit): string
+{
+    $issuedDateObj = DateTimeImmutable::createFromFormat('Y-m-d', $issuedDate);
+    if (!$issuedDateObj || $issuedDateObj->format('Y-m-d') !== $issuedDate) {
+        throw new InvalidArgumentException('Invalid loan issued date.');
+    }
+
+    $timeframeValue = max($timeframeValue, 1);
+    $totalDays = $timeframeUnit === 'months' ? $timeframeValue * 30 : $timeframeValue;
+
+    return $issuedDateObj->add(new DateInterval('P' . $totalDays . 'D'))->format('Y-m-d');
 }
 
 function normalize_interest_rate_type(string $value): string
@@ -1988,23 +2028,7 @@ function undo_collection_payment(PDO $pdo, int $collectionId, int $actorUserId, 
         }
     }
 
-    $pendingCountStmt = $pdo->prepare(
-        "SELECT COUNT(*)
-         FROM loan_installments
-         WHERE loan_id = :loan_id
-           AND status IN ('pending', 'partial', 'overdue')
-           AND due_amount > paid_amount"
-    );
-    $pendingCountStmt->execute(['loan_id' => $loanId]);
-    $pendingCount = (int) $pendingCountStmt->fetchColumn();
-
-    if ($pendingCount === 0) {
-        $closeLoan = $pdo->prepare("UPDATE loans SET status = 'closed' WHERE id = :id");
-        $closeLoan->execute(['id' => $loanId]);
-    } else {
-        $reopenLoan = $pdo->prepare("UPDATE loans SET status = 'active' WHERE id = :id");
-        $reopenLoan->execute(['id' => $loanId]);
-    }
+    sync_loan_status_from_collections($pdo, $loanId);
 
     return [
         'loan_id' => $loanId,
@@ -2306,35 +2330,51 @@ function ensure_loan_status_schema(PDO $pdo): void
 }
 
 /**
- * Keep the loan list status aligned with the authoritative installment records.
- * A loan is closed when every generated installment has been fully paid.
+ * A loan closes only after the total recorded collections reach its total
+ * repayable amount. Installment timing, arrears, and the end date do not
+ * determine this status.
  */
+function sync_loan_status_from_collections(PDO $pdo, int $loanId): void
+{
+    if ($loanId <= 0) {
+        return;
+    }
+
+    $stmt = $pdo->prepare(
+        "UPDATE loans l
+         LEFT JOIN (
+             SELECT loan_id, COALESCE(SUM(amount), 0) AS collected_total
+             FROM collections
+             WHERE loan_id = :collection_loan_id
+             GROUP BY loan_id
+         ) c ON c.loan_id = l.id
+         SET l.status = CASE
+             WHEN l.total_amount > 0 AND COALESCE(c.collected_total, 0) >= l.total_amount THEN 'closed'
+             ELSE 'active'
+         END
+         WHERE l.id = :loan_id"
+    );
+    $stmt->execute([
+        'collection_loan_id' => $loanId,
+        'loan_id' => $loanId,
+    ]);
+}
+
 function reconcile_loan_statuses(PDO $pdo): void
 {
     $pdo->exec(
         "UPDATE loans l
          LEFT JOIN (
-             SELECT
-                 loan_id,
-                 COUNT(*) AS installment_count,
-                 SUM(CASE
-                     WHEN status IN ('pending', 'partial', 'overdue')
-                      AND due_amount > paid_amount THEN 1
-                     ELSE 0
-                 END) AS unpaid_installment_count
-             FROM loan_installments
+             SELECT loan_id, COALESCE(SUM(amount), 0) AS collected_total
+             FROM collections
              GROUP BY loan_id
-         ) li ON li.loan_id = l.id
+         ) c ON c.loan_id = l.id
          SET l.status = CASE
-             WHEN COALESCE(li.installment_count, 0) > 0
-              AND COALESCE(li.unpaid_installment_count, 0) = 0
-                 THEN 'closed'
+             WHEN l.total_amount > 0 AND COALESCE(c.collected_total, 0) >= l.total_amount THEN 'closed'
              ELSE 'active'
          END
          WHERE l.status <> CASE
-             WHEN COALESCE(li.installment_count, 0) > 0
-              AND COALESCE(li.unpaid_installment_count, 0) = 0
-                 THEN 'closed'
+             WHEN l.total_amount > 0 AND COALESCE(c.collected_total, 0) >= l.total_amount THEN 'closed'
              ELSE 'active'
          END"
     );
@@ -2568,6 +2608,51 @@ function loan_original_schedule_end_date(PDO $pdo, int $loanId): ?string
     $endDate = $stmt->fetchColumn();
 
     return is_string($endDate) && $endDate !== '' ? $endDate : null;
+}
+
+/**
+ * Keep a loan's contractual end date fixed unless its issued date changes.
+ * When the issued date moves, the end date moves by the same calendar-day
+ * difference. Collection and arrears activity must never call this function.
+ */
+function end_date_after_issued_date_change(string $currentEndDate, string $previousIssuedDate, string $newIssuedDate): string
+{
+    $currentEnd = DateTimeImmutable::createFromFormat('Y-m-d', $currentEndDate);
+    $previousIssued = DateTimeImmutable::createFromFormat('Y-m-d', $previousIssuedDate);
+    $newIssued = DateTimeImmutable::createFromFormat('Y-m-d', $newIssuedDate);
+
+    if (
+        !$currentEnd || $currentEnd->format('Y-m-d') !== $currentEndDate
+        || !$previousIssued || $previousIssued->format('Y-m-d') !== $previousIssuedDate
+        || !$newIssued || $newIssued->format('Y-m-d') !== $newIssuedDate
+    ) {
+        return $currentEndDate;
+    }
+
+    $dayDifference = (int) $previousIssued->diff($newIssued)->format('%r%a');
+    if ($dayDifference === 0) {
+        return $currentEndDate;
+    }
+
+    return $currentEnd->modify(sprintf('%+d days', $dayDifference))->format('Y-m-d');
+}
+
+/**
+ * Holiday Mode extends each affected loan by one collection day without
+ * replacing its contractual end date with the schedule's final due date.
+ */
+function extend_loan_end_date_for_holiday(PDO $pdo, int $loanId): void
+{
+    $stmt = $pdo->prepare('UPDATE loans SET end_date = DATE_ADD(end_date, INTERVAL 1 DAY) WHERE id = :loan_id AND end_date IS NOT NULL');
+    $stmt->execute(['loan_id' => $loanId]);
+
+    if ($stmt->rowCount() > 0) {
+        return;
+    }
+
+    sync_loan_planned_end_date($pdo, $loanId);
+    $fallbackStmt = $pdo->prepare('UPDATE loans SET end_date = DATE_ADD(end_date, INTERVAL 1 DAY) WHERE id = :loan_id AND end_date IS NOT NULL');
+    $fallbackStmt->execute(['loan_id' => $loanId]);
 }
 
 function sync_loan_planned_end_date(PDO $pdo, int $loanId): ?string
@@ -2852,7 +2937,7 @@ function shift_installments_for_holiday(PDO $pdo, string $holidayDate): int
     }
 
     foreach (array_keys($affectedLoanIds) as $loanId) {
-        sync_loan_planned_end_date($pdo, (int) $loanId);
+        extend_loan_end_date_for_holiday($pdo, (int) $loanId);
     }
 
     return $shifted;
@@ -2860,11 +2945,37 @@ function shift_installments_for_holiday(PDO $pdo, string $holidayDate): int
 
 function mark_holiday_date(PDO $pdo, string $date, ?string $note, int $userId): array
 {
-    $date = trim($date);
+    return mark_holiday_date_range($pdo, $date, $date, $note, $userId);
+}
+
+function mark_holiday_date_range(PDO $pdo, string $startDate, string $endDate, ?string $note, int $userId): array
+{
+    $startDate = trim($startDate);
+    $endDate = trim($endDate);
     $note = trim((string) $note);
-    $validation = holiday_marking_validation($pdo, $date);
-    if (!($validation['allowed'] ?? false)) {
-        throw new RuntimeException((string) ($validation['message'] ?? 'Holiday date is not allowed.'));
+    $start = DateTimeImmutable::createFromFormat('Y-m-d', $startDate);
+    $end = DateTimeImmutable::createFromFormat('Y-m-d', $endDate);
+
+    if (!$start || $start->format('Y-m-d') !== $startDate || !$end || $end->format('Y-m-d') !== $endDate) {
+        throw new RuntimeException('Invalid holiday date range.');
+    }
+    if ($end < $start) {
+        throw new RuntimeException('Holiday end date cannot be before the start date.');
+    }
+
+    $days = [];
+    for ($cursor = $start; $cursor <= $end; $cursor = $cursor->add(new DateInterval('P1D'))) {
+        $days[] = $cursor->format('Y-m-d');
+        if (count($days) > 366) {
+            throw new RuntimeException('Holiday date range cannot exceed 366 days.');
+        }
+    }
+
+    foreach ($days as $day) {
+        $validation = holiday_marking_validation($pdo, $day);
+        if (!($validation['allowed'] ?? false)) {
+            throw new RuntimeException((string) ($validation['message'] ?? 'Holiday date is not allowed.'));
+        }
     }
 
     $pdo->beginTransaction();
@@ -2873,17 +2984,21 @@ function mark_holiday_date(PDO $pdo, string $date, ?string $note, int $userId): 
             'INSERT INTO holidays (holiday_date, note, created_by_user_id)
              VALUES (:holiday_date, :note, :created_by_user_id)'
         );
-        $insertStmt->execute([
-            'holiday_date' => $date,
-            'note' => $note === '' ? null : $note,
-            'created_by_user_id' => $userId > 0 ? $userId : null,
-        ]);
-
-        $shiftedCount = shift_installments_for_holiday($pdo, $date);
+        $shiftedCount = 0;
+        foreach ($days as $day) {
+            $insertStmt->execute([
+                'holiday_date' => $day,
+                'note' => $note === '' ? null : $note,
+                'created_by_user_id' => $userId > 0 ? $userId : null,
+            ]);
+            $shiftedCount += shift_installments_for_holiday($pdo, $day);
+        }
         $pdo->commit();
 
         return [
-            'holiday_date' => $date,
+            'start_date' => $startDate,
+            'end_date' => $endDate,
+            'holiday_count' => count($days),
             'shifted_count' => $shiftedCount,
         ];
     } catch (Throwable $e) {

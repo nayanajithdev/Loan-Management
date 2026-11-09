@@ -538,6 +538,11 @@ try {
     if ($loanIssuedDate === '') {
         $loanIssuedDate = (string) ($loan['start_date'] ?? '');
     }
+    $storedEndDate = (string) ($loan['end_date'] ?? '');
+    if ($storedEndDate === '') {
+        $storedEndDate = loan_original_schedule_end_date($pdo, $loanId) ?? '';
+    }
+    $updatedEndDate = end_date_after_issued_date_change($storedEndDate, $loanIssuedDate, $issuedDate);
     $structureUnchanged =
         abs((float) $loan['principal_amount'] - $principal) < 0.005
         && abs((float) $loan['interest_rate'] - $interestRate) < 0.005
@@ -602,7 +607,7 @@ try {
         $updateLocked->bindValue(':installment_frequency', $frequency, PDO::PARAM_STR);
         $updateLocked->bindValue(':installment_count', (int) $scheduleUpdate['installment_count'], PDO::PARAM_INT);
         $updateLocked->bindValue(':installment_amount', (float) $scheduleUpdate['installment_amount']);
-        $updateLocked->bindValue(':end_date', (string) $scheduleUpdate['end_date'], PDO::PARAM_STR);
+        $updateLocked->bindValue(':end_date', $updatedEndDate, PDO::PARAM_STR);
         $updateLocked->bindValue(':status', $status, PDO::PARAM_STR);
         $updateLocked->bindValue(':notes', $notes === '' ? null : $notes, $notes === '' ? PDO::PARAM_NULL : PDO::PARAM_STR);
         $updateLocked->bindValue(':id', $loanId, PDO::PARAM_INT);
@@ -627,6 +632,7 @@ try {
                 installment_count = :installment_count,
                 installment_amount = :installment_amount,
                 first_due_date = :first_due_date,
+                end_date = :end_date,
                 status = :status,
                 notes = :notes
              WHERE id = :id'
@@ -642,6 +648,7 @@ try {
         $updateLoan->bindValue(':installment_count', $installmentCount, PDO::PARAM_INT);
         $updateLoan->bindValue(':installment_amount', $installmentAmount);
         $updateLoan->bindValue(':first_due_date', $firstDueDate, PDO::PARAM_STR);
+        $updateLoan->bindValue(':end_date', $updatedEndDate, PDO::PARAM_STR);
         $updateLoan->bindValue(':status', $status, PDO::PARAM_STR);
         $updateLoan->bindValue(':notes', $notes === '' ? null : $notes, $notes === '' ? PDO::PARAM_NULL : PDO::PARAM_STR);
         $updateLoan->bindValue(':id', $loanId, PDO::PARAM_INT);
@@ -658,10 +665,8 @@ try {
         );
 
         $allocated = 0.0;
-        $loanEndDate = $firstDueDate;
         for ($i = 1; $i <= $installmentCount; $i++) {
             $currentDueDate = next_collectible_date($pdo, $dueDate->format('Y-m-d'));
-            $loanEndDate = $currentDueDate;
             $amount = $installmentAmount;
             if ($i === $installmentCount) {
                 $amount = round($totalAmount - $allocated, 2);
@@ -678,11 +683,6 @@ try {
             $dueDate = (new DateTimeImmutable($currentDueDate))->add($interval);
         }
 
-        $updateEndDate = $pdo->prepare('UPDATE loans SET end_date = :end_date WHERE id = :loan_id');
-        $updateEndDate->execute([
-            'end_date' => $loanEndDate,
-            'loan_id' => $loanId,
-        ]);
     }
 
     if ($canEditAssignment) {
@@ -715,6 +715,7 @@ try {
         }
     }
 
+    sync_loan_status_from_collections($pdo, $loanId);
     $pdo->commit();
     $loanNumber = (string) ($loan['loan_number'] ?? ('#' . $loanId));
     log_activity($pdo, 'loan.updated', 'Loan updated: ' . $loanNumber . '.', [

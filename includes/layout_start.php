@@ -5,9 +5,10 @@ $faviconPath = business_icon_path($pdo);
 $layoutUser = current_user();
 $themePreference = normalize_theme_preference((string) ($layoutUser['theme_preference'] ?? 'dark'));
 $bodyClasses = $themePreference === 'light' ? 'theme-light' : 'theme-dark';
+$appDateFormat = trim(system_setting($pdo, 'date_format', 'd/m/Y')) ?: 'd/m/Y';
 ?>
 <!doctype html>
-<html lang="en">
+<html lang="en" data-date-format="<?= e($appDateFormat) ?>">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">

@@ -110,6 +110,7 @@ if (!in_array($timeframeUnit, ['days', 'months'], true)) {
 }
 
 $installmentCount = installment_count_from_timeframe($frequency, $timeframeValue, $timeframeUnit);
+$loanEndDate = loan_end_date_from_timeframe($issuedDate, $timeframeValue, $timeframeUnit);
 
 if (!$createNewCustomer) {
     $customerStmt = $pdo->prepare('SELECT id FROM customers WHERE id = :id');
@@ -234,10 +235,8 @@ try {
     );
 
     $allocated = 0.0;
-    $loanEndDate = $firstDueDate;
     for ($i = 1; $i <= $installmentCount; $i++) {
         $currentDueDate = next_collectible_date($pdo, $dueDate->format('Y-m-d'));
-        $loanEndDate = $currentDueDate;
         $amount = $installmentAmount;
         if ($i === $installmentCount) {
             $amount = round($totalAmount - $allocated, 2);

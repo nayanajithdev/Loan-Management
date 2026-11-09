@@ -81,6 +81,40 @@ if ($loanEndDate === '') {
 }
 $holidayDates = holiday_date_list($pdo);
 
+$collectionHistoryPerPage = 50;
+$collectionHistoryPage = max(1, (int) ($_GET['collection_page'] ?? 1));
+$collectionHistoryCountStmt = $pdo->prepare(
+    "SELECT COUNT(*)
+     FROM (
+        SELECT 1
+        FROM collections col
+        WHERE col.loan_id = :loan_id
+        GROUP BY COALESCE(col.payment_ref, CONCAT('legacy-', col.id))
+     ) grouped_collections"
+);
+$collectionHistoryCountStmt->execute(['loan_id' => $loanId]);
+$collectionHistoryTotal = (int) $collectionHistoryCountStmt->fetchColumn();
+$collectionHistoryTotalPages = max(1, (int) ceil($collectionHistoryTotal / $collectionHistoryPerPage));
+if ($collectionHistoryPage > $collectionHistoryTotalPages) {
+    $collectionHistoryPage = $collectionHistoryTotalPages;
+}
+$collectionHistoryOffset = ($collectionHistoryPage - 1) * $collectionHistoryPerPage;
+$collectionHistoryShowingFrom = $collectionHistoryTotal > 0 ? $collectionHistoryOffset + 1 : 0;
+$collectionHistoryShowingTo = min($collectionHistoryOffset + $collectionHistoryPerPage, $collectionHistoryTotal);
+$collectionHistoryPageStart = max(1, $collectionHistoryPage - 2);
+$collectionHistoryPageEnd = min($collectionHistoryTotalPages, $collectionHistoryPage + 2);
+$collectionHistoryPageUrl = static function (int $page) use ($loanId): string {
+    $params = ['loan_id' => $loanId];
+    if ($page > 1) {
+        $params['collection_page'] = $page;
+    }
+
+    return url('pages/loan_edit.php?' . http_build_query($params)) . '#collections';
+};
+$loanCollectionsReturnTo = 'pages/loan_edit.php?loan_id=' . $loanId
+    . ($collectionHistoryPage > 1 ? '&collection_page=' . $collectionHistoryPage : '')
+    . '#collections';
+
 $collectionHistoryStmt = $pdo->prepare(
     "SELECT
         COALESCE(col.payment_ref, CONCAT('legacy-', col.id)) AS payment_ref,
@@ -100,7 +134,7 @@ $collectionHistoryStmt = $pdo->prepare(
      WHERE col.loan_id = :loan_id
      GROUP BY COALESCE(col.payment_ref, CONCAT('legacy-', col.id))
      ORDER BY collected_on DESC, latest_id DESC
-     LIMIT 50"
+     LIMIT {$collectionHistoryPerPage} OFFSET {$collectionHistoryOffset}"
 );
 $collectionHistoryStmt->execute(['loan_id' => $loanId]);
 $loanCollectionHistory = $collectionHistoryStmt->fetchAll();
@@ -521,7 +555,7 @@ require __DIR__ . '/../includes/layout_start.php';
                             <?php
                             $noteParts = collection_note_split((string) ($history['note'] ?? ''));
                             $noteText = trim((string) ($noteParts['public'] ?? ''));
-                            $installments = '#' . max(1, $loanCollectionHistoryCount - (int) $historyIndex);
+                            $installments = '#' . max(1, $loanCollectionHistoryCount - $collectionHistoryOffset - (int) $historyIndex);
                             $collectedOn = (string) ($history['collected_on'] ?? '');
                             $collectedDateDisplay = $collectedOn !== '' ? display_date($collectedOn) : '-';
                             $collectedTimeDisplay = display_time((string) ($history['collected_at'] ?? ''), '');
@@ -557,6 +591,34 @@ require __DIR__ . '/../includes/layout_start.php';
                 </tbody>
             </table>
         </div>
+        <?php if ($collectionHistoryTotal > 0): ?>
+            <nav class="pagination-bar" aria-label="Loan collection record pagination">
+                <p class="pagination-info">
+                    Showing <?= e((string) $collectionHistoryShowingFrom) ?>-<?= e((string) $collectionHistoryShowingTo) ?> of <?= e((string) $collectionHistoryTotal) ?> collection record(s)
+                </p>
+                <?php if ($collectionHistoryTotalPages > 1): ?>
+                    <div class="pagination-links">
+                        <?php if ($collectionHistoryPage <= 1): ?>
+                            <span class="btn pagination-link is-disabled" aria-disabled="true">Previous</span>
+                        <?php else: ?>
+                            <a class="btn pagination-link" href="<?= e($collectionHistoryPageUrl($collectionHistoryPage - 1)) ?>">Previous</a>
+                        <?php endif; ?>
+                        <?php for ($pageNumber = $collectionHistoryPageStart; $pageNumber <= $collectionHistoryPageEnd; $pageNumber++): ?>
+                            <?php if ($pageNumber === $collectionHistoryPage): ?>
+                                <span class="btn pagination-link is-current" aria-current="page"><?= e((string) $pageNumber) ?></span>
+                            <?php else: ?>
+                                <a class="btn pagination-link" href="<?= e($collectionHistoryPageUrl($pageNumber)) ?>"><?= e((string) $pageNumber) ?></a>
+                            <?php endif; ?>
+                        <?php endfor; ?>
+                        <?php if ($collectionHistoryPage >= $collectionHistoryTotalPages): ?>
+                            <span class="btn pagination-link is-disabled" aria-disabled="true">Next</span>
+                        <?php else: ?>
+                            <a class="btn pagination-link" href="<?= e($collectionHistoryPageUrl($collectionHistoryPage + 1)) ?>">Next</a>
+                        <?php endif; ?>
+                    </div>
+                <?php endif; ?>
+            </nav>
+        <?php endif; ?>
         <div class="loan-history-print-actions">
             <button type="button" class="btn loan-history-print-btn" data-print-loan-collection-report data-print-filename="<?= e($printReportFileName) ?>">Print</button>
         </div>
@@ -616,7 +678,7 @@ require __DIR__ . '/../includes/layout_start.php';
                     <input type="hidden" name="loan_id" value="<?= e((string) $loanId) ?>">
                     <input type="hidden" name="installment_id" value="<?= e($currentCollectible ? (string) $currentCollectible['id'] : '') ?>" data-loan-collect-installment-id <?= $canCollectCurrent ? '' : 'disabled' ?>>
                     <input type="hidden" name="collection_id" value="" data-loan-edit-collection-id disabled>
-                    <input type="hidden" name="return_to" value="<?= e('pages/loan_edit.php?loan_id=' . $loanId . '#collections') ?>">
+                    <input type="hidden" name="return_to" value="<?= e($loanCollectionsReturnTo) ?>">
                     <div class="field today-collection-amount-field">
                         <label data-loan-collect-amount-label>Amount Received</label>
                         <input type="number" step="0.01" min="0.01" name="amount" value="<?= e(($currentCollectible && $autoFillAmountReceived) ? number_format($collectibleBalance, 2, '.', '') : '') ?>" data-loan-collect-amount data-prevent-number-wheel inputmode="decimal" autocomplete="off" required>
